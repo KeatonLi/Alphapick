@@ -52,10 +52,13 @@ export default function MarketReport() {
     setError('')
     try {
       const result = await apiGet<any>(`/report/daily?date=${d}`)
-      if (result.date) {
-        setReport(result)
+      if (result.data?.date) {
+        setReport(result.data)
       } else if (result.detail) {
         setError(result.detail)
+        setReport(null)
+      } else {
+        setError('获取报告失败')
         setReport(null)
       }
     } catch (e: any) {
