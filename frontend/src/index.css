@@ -2,6 +2,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 @theme {
+  /* 暗色主题（默认） */
   --color-bg-primary: #0a0e17;
   --color-bg-secondary: #111827;
   --color-bg-card: #161c2a;
@@ -19,6 +20,30 @@
   --color-stock-down: #10b981;
   --color-stock-up-bg: rgba(239, 68, 68, 0.1);
   --color-stock-down-bg: rgba(16, 185, 129, 0.1);
+
+  /* 亮色主题变量 */
+  --color-bg-primary-light: #ffffff;
+  --color-bg-secondary-light: #f8fafc;
+  --color-bg-card-light: #ffffff;
+  --color-bg-hover-light: #f1f5f9;
+  --color-border-default-light: #e2e8f0;
+  --color-border-accent-light: #cbd5e1;
+  --color-text-primary-light: #0f172a;
+  --color-text-secondary-light: #475569;
+  --color-text-muted-light: #94a3b8;
+}
+
+/* 亮色主题覆盖 */
+[data-theme="light"] {
+  --color-bg-primary: var(--color-bg-primary-light);
+  --color-bg-secondary: var(--color-bg-secondary-light);
+  --color-bg-card: var(--color-bg-card-light);
+  --color-bg-hover: var(--color-bg-hover-light);
+  --color-border-default: var(--color-border-default-light);
+  --color-border-accent: var(--color-border-accent-light);
+  --color-text-primary: var(--color-text-primary-light);
+  --color-text-secondary: var(--color-text-secondary-light);
+  --color-text-muted: var(--color-text-muted-light);
 }
 
 body {
@@ -107,4 +132,10 @@ body {
     linear-gradient(90deg, rgba(30, 41, 59, 0.5) 1px, transparent 1px);
   background-size: 60px 60px;
   background-position: center center;
+}
+
+[data-theme="light"] .bg-grid {
+  background-image:
+    linear-gradient(rgba(226, 232, 240, 0.8) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(226, 232, 240, 0.8) 1px, transparent 1px);
 }
