@@ -11,7 +11,6 @@ export default function Analysis() {
 
   const periods = ['1D', '1W', '1M', '3M', '6M', '1Y']
 
-  // 模拟K线数据
   const generateMockData = (): ChartData[] => {
     const data: ChartData[] = []
     let value = 3200
@@ -43,10 +42,10 @@ export default function Analysis() {
     <div className="max-w-5xl mx-auto px-6 py-8">
       {/* Hero Section */}
       <div className="text-center mb-10 fade-in-up">
-        <h1 className="text-3xl md:text-4xl font-extrabold text-white mb-3 tracking-tight">
-          <span className="bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">行情分析</span>技术图表
+        <h1 className="text-3xl md:text-4xl font-extrabold text-blue-700 mb-3 tracking-tight">
+          <span className="text-blue-500">行情分析</span>技术图表
         </h1>
-        <p className="text-slate-400 max-w-lg mx-auto text-sm leading-relaxed">
+        <p className="text-text-secondary max-w-lg mx-auto text-sm leading-relaxed">
           多周期技术分析，K 线走势、均线系统、量价配合，助你把握买卖点
         </p>
       </div>
@@ -59,8 +58,8 @@ export default function Analysis() {
             onClick={() => setSelectedIndex(idx.code)}
             className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
               selectedIndex === idx.code
-                ? 'bg-purple-600/20 text-purple-400 border border-purple-500/30'
-                : 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent'
+                ? 'bg-blue-600 text-white shadow-md shadow-blue-200'
+                : 'text-text-secondary hover:text-blue-600 hover:bg-blue-50 border border-transparent'
             }`}
           >
             {idx.name}
@@ -69,13 +68,13 @@ export default function Analysis() {
       </div>
 
       {/* Chart Card */}
-      <div className="glass-card p-6 mb-6">
+      <div className="stock-card p-6 mb-6">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h3 className="text-xl font-bold text-white">
+            <h3 className="text-xl font-bold text-blue-800">
               {indices.find(i => i.code === selectedIndex)?.name}
             </h3>
-            <span className="text-sm text-slate-500 font-mono">{selectedIndex}</span>
+            <span className="text-sm text-text-muted font-mono">{selectedIndex}</span>
           </div>
           <div className="flex gap-1">
             {periods.map(p => (
@@ -84,8 +83,8 @@ export default function Analysis() {
                 onClick={() => setSelectedPeriod(p)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                   selectedPeriod === p
-                    ? 'bg-purple-600/20 text-purple-400'
-                    : 'text-slate-500 hover:text-white'
+                    ? 'bg-blue-600 text-white'
+                    : 'text-text-secondary hover:text-blue-600 hover:bg-blue-50'
                 }`}
               >
                 {p}
@@ -108,13 +107,13 @@ export default function Analysis() {
                 >
                   <div
                     className={`absolute bottom-0 w-full rounded-t transition-all hover:opacity-100 ${
-                      isUp ? 'bg-stock-up/60 hover:bg-stock-up' : 'bg-stock-down/60 hover:bg-stock-down'
+                      isUp ? 'bg-red-400/60 hover:bg-red-500' : 'bg-green-400/60 hover:bg-green-500'
                     }`}
                     style={{ height: '100%' }}
                   />
-                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-bg-secondary rounded text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
-                    <div className="font-mono">{d.value}</div>
-                    <div className="text-slate-400 text-[10px]">{d.date}</div>
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-white rounded text-xs text-blue-900 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 shadow-md">
+                    <div className="font-mono font-bold">{d.value}</div>
+                    <div className="text-text-muted text-[10px]">{d.date}</div>
                   </div>
                 </div>
               )
@@ -126,22 +125,22 @@ export default function Analysis() {
         <div className="flex items-center justify-between mt-4 pt-4 border-t border-border-default">
           <div className="flex gap-6">
             <div>
-              <div className="text-xs text-slate-500">最新价</div>
-              <div className="text-lg font-bold text-white font-mono">{chartData[chartData.length - 1].value}</div>
+              <div className="text-xs text-text-muted">最新价</div>
+              <div className="text-lg font-bold text-blue-900 font-mono">{chartData[chartData.length - 1].value}</div>
             </div>
             <div>
-              <div className="text-xs text-slate-500">涨跌额</div>
+              <div className="text-xs text-text-muted">涨跌额</div>
               <div className={`text-lg font-bold font-mono ${
-                chartData[chartData.length - 1].value >= chartData[0].value ? 'text-stock-up' : 'text-stock-down'
+                chartData[chartData.length - 1].value >= chartData[0].value ? 'stock-up' : 'stock-down'
               }`}>
                 {(chartData[chartData.length - 1].value - chartData[0].value).toFixed(2)}
               </div>
             </div>
           </div>
           <div className="text-right">
-            <div className="text-xs text-slate-500">涨跌幅</div>
+            <div className="text-xs text-text-muted">涨跌幅</div>
             <div className={`text-lg font-bold ${
-              chartData[chartData.length - 1].value >= chartData[0].value ? 'text-stock-up' : 'text-stock-down'
+              chartData[chartData.length - 1].value >= chartData[0].value ? 'stock-up' : 'stock-down'
             }`}>
               {(((chartData[chartData.length - 1].value - chartData[0].value) / chartData[0].value) * 100).toFixed(2)}%
             </div>
@@ -150,24 +149,24 @@ export default function Analysis() {
       </div>
 
       {/* Technical Indicators */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         {[
-          { name: 'MA5', value: '3289.12', signal: '金叉', color: 'text-stock-up' },
-          { name: 'MA10', value: '3275.45', signal: '死叉', color: 'text-stock-down' },
-          { name: 'MA20', value: '3256.78', signal: '多头', color: 'text-emerald-400' },
-          { name: 'RSI(14)', value: '58.32', signal: '中性', color: 'text-slate-400' },
-          { name: 'MACD', value: '+15.67', signal: '买入', color: 'text-stock-up' },
-          { name: 'KDJ', value: '72.5', signal: '超买', color: 'text-amber-400' },
+          { name: 'MA5', value: '3289.12', signal: '金叉', color: 'text-red-500' },
+          { name: 'MA10', value: '3275.45', signal: '死叉', color: 'text-green-600' },
+          { name: 'MA20', value: '3256.78', signal: '多头', color: 'text-blue-500' },
+          { name: 'RSI(14)', value: '58.32', signal: '中性', color: 'text-text-muted' },
+          { name: 'MACD', value: '+15.67', signal: '买入', color: 'text-red-500' },
+          { name: 'KDJ', value: '72.5', signal: '超买', color: 'text-amber-500' },
         ].map(ind => (
-          <div key={ind.name} className="glass-card p-4">
+          <div key={ind.name} className="stock-card p-4">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-slate-400">{ind.name}</span>
+              <span className="text-sm text-text-secondary">{ind.name}</span>
               <span className={`text-xs px-2 py-0.5 rounded ${
                 ind.signal === '买入' || ind.signal === '金叉' || ind.signal === '多头'
-                  ? 'bg-stock-up/10 text-stock-up'
+                  ? 'bg-red-50 text-red-500 border border-red-200'
                   : ind.signal === '卖出' || ind.signal === '死叉' || ind.signal === '超买'
-                  ? 'bg-stock-down/10 text-stock-down'
-                  : 'bg-slate-500/10 text-slate-400'
+                  ? 'bg-green-50 text-green-600 border border-green-200'
+                  : 'bg-gray-100 text-text-muted border border-gray-200'
               }`}>
                 {ind.signal}
               </span>
