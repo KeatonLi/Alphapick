@@ -2,15 +2,16 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 @theme {
-  --color-bg-primary: #0a0e17;
-  --color-bg-secondary: #111827;
-  --color-bg-card: #161c2a;
-  --color-bg-hover: #1c2335;
-  --color-border-default: #1e293b;
-  --color-border-accent: #2a3450;
-  --color-text-primary: #e2e8f0;
-  --color-text-secondary: #94a3b8;
-  --color-text-muted: #64748b;
+  /* 亮色主题（默认） */
+  --color-bg-primary: #ffffff;
+  --color-bg-secondary: #f8fafc;
+  --color-bg-card: #ffffff;
+  --color-bg-hover: #f1f5f9;
+  --color-border-default: #e2e8f0;
+  --color-border-accent: #cbd5e1;
+  --color-text-primary: #0f172a;
+  --color-text-secondary: #475569;
+  --color-text-muted: #94a3b8;
   --color-accent-gold: #f59e0b;
   --color-accent-blue: #3b82f6;
   --color-accent-cyan: #06b6d4;
@@ -19,6 +20,30 @@
   --color-stock-down: #10b981;
   --color-stock-up-bg: rgba(239, 68, 68, 0.1);
   --color-stock-down-bg: rgba(16, 185, 129, 0.1);
+
+  /* 暗色主题变量 */
+  --color-bg-primary-dark: #0a0e17;
+  --color-bg-secondary-dark: #111827;
+  --color-bg-card-dark: #161c2a;
+  --color-bg-hover-dark: #1c2335;
+  --color-border-default-dark: #1e293b;
+  --color-border-accent-dark: #2a3450;
+  --color-text-primary-dark: #e2e8f0;
+  --color-text-secondary-dark: #94a3b8;
+  --color-text-muted-dark: #64748b;
+}
+
+/* 暗色主题覆盖 */
+[data-theme="dark"] {
+  --color-bg-primary: var(--color-bg-primary-dark);
+  --color-bg-secondary: var(--color-bg-secondary-dark);
+  --color-bg-card: var(--color-bg-card-dark);
+  --color-bg-hover: var(--color-bg-hover-dark);
+  --color-border-default: var(--color-border-default-dark);
+  --color-border-accent: var(--color-border-accent-dark);
+  --color-text-primary: var(--color-text-primary-dark);
+  --color-text-secondary: var(--color-text-secondary-dark);
+  --color-text-muted: var(--color-text-muted-dark);
 }
 
 body {
@@ -31,9 +56,9 @@ body {
 
 /* 自定义滚动条 */
 ::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: var(--color-bg-primary); }
+::-webkit-scrollbar-track { background: var(--color-bg-secondary); }
 ::-webkit-scrollbar-thumb { background: var(--color-border-accent); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #3b4170; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-text-muted); }
 
 /* 毛玻璃卡片 */
 .glass-card {
@@ -41,11 +66,18 @@ body {
   border: 1px solid var(--color-border-default);
   backdrop-filter: blur(12px);
   border-radius: 16px;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06);
   transition: all 0.3s ease;
 }
 .glass-card:hover {
   border-color: var(--color-border-accent);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="dark"] .glass-card {
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+[data-theme="dark"] .glass-card:hover {
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
@@ -103,8 +135,14 @@ body {
 /* 粒子背景 */
 .bg-grid {
   background-image:
-    linear-gradient(rgba(30, 41, 59, 0.5) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(30, 41, 59, 0.5) 1px, transparent 1px);
+    linear-gradient(rgba(226, 232, 240, 0.8) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(226, 232, 240, 0.8) 1px, transparent 1px);
   background-size: 60px 60px;
   background-position: center center;
+}
+
+[data-theme="dark"] .bg-grid {
+  background-image:
+    linear-gradient(rgba(30, 41, 59, 0.5) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(30, 41, 59, 0.5) 1px, transparent 1px);
 }
