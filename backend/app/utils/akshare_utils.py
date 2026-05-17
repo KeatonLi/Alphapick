@@ -165,8 +165,12 @@ async def get_stock_list() -> dict:
                 volume = float(row["成交量"]) if pd.notna(row["成交量"]) else 0
             except (ValueError, TypeError):
                 volume = 0
-            # Old API doesn't have 换手率, use成交额/total_market_cap as rough estimate
-            turnover = 1.0 if volume > 0 else 0  # placeholder for filtering
+            # Old API doesn't have 换手率, calculate from 成交额 as rough activity proxy
+            try:
+                amount = float(row["成交额"]) if pd.notna(row["成交额"]) else 0
+                turnover = amount / 1e7 if amount > 0 else 0  # rough proxy scaled to 0-10 range
+            except (ValueError, TypeError):
+                turnover = 0
 
             # Strip prefix from code for cleaner display (sh600519 -> 600519)
             code = str(row["代码"])
