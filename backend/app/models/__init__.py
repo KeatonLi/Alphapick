@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import String, Date, DateTime, Numeric, Text, Integer, func
+from sqlalchemy import String, Date, DateTime, Numeric, Text, Integer, func, Index
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -9,6 +9,10 @@ from app.database import Base
 
 class Recommendation(Base):
     __tablename__ = "recommendations"
+    __table_args__ = (
+        Index("idx_recommend_date", "recommend_date"),
+        Index("idx_stock_code", "stock_code"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     recommend_date: Mapped[date] = mapped_column(Date, nullable=False, comment="推荐日期")

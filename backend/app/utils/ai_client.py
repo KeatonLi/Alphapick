@@ -1,3 +1,5 @@
+import asyncio
+
 from anthropic import Anthropic
 
 from app.config import settings
@@ -20,12 +22,15 @@ async def chat(messages: list[dict[str, str]], max_tokens: int = 4096) -> str:
     system = messages[0]["content"] if messages[0]["role"] == "system" else ""
     user_messages = messages if not system else messages[1:]
 
-    response = client.messages.create(
-        model=settings.ANTHROPIC_MODEL,
-        max_tokens=max_tokens,
-        system=system,
-        messages=[{"role": m["role"], "content": m["content"]} for m in user_messages],
-    )
+    def _sync_call():
+        return client.messages.create(
+            model=settings.ANTHROPIC_MODEL,
+            max_tokens=max_tokens,
+            system=system,
+            messages=[{"role": m["role"], "content": m["content"]} for m in user_messages],
+        )
+
+    response = await asyncio.to_thread(_sync_call)
 
     # MiniMax returns thinking blocks first, text blocks last.
     # Collect text from all text-type content blocks.

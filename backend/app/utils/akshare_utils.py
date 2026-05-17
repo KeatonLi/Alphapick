@@ -1,3 +1,5 @@
+import asyncio
+
 import akshare as ak
 import numpy as np
 import pandas as pd
@@ -86,62 +88,72 @@ async def get_stock_daily(code: str, days: int = 60) -> dict:
         return {"success": False, "error": str(e)}
 
 
+async def _fetch_index(idx_code: str, name: str) -> dict:
+    df = ak.stock_zh_index_daily(symbol=idx_code)
+    latest = df.tail(1).iloc[0]
+    prev = df.tail(2).iloc[0]
+    change_pct = (latest["close"] - prev["close"]) / prev["close"] * 100
+    return {
+        "name": name,
+        "code": idx_code,
+        "close": float(latest["close"]),
+        "change_pct": round(change_pct, 2),
+        "volume": float(latest["volume"]),
+    }
+
+
 async def get_market_index() -> dict:
     """获取主要指数行情"""
     try:
         indices = ["sh000001", "sz399001", "sz399006"]
         names = ["上证指数", "深证成指", "创业板指"]
-        result = []
-        for idx_code, name in zip(indices, names):
-            df = ak.stock_zh_index_daily(symbol=idx_code)
-            latest = df.tail(1).iloc[0]
-            prev = df.tail(2).iloc[0]
-            change_pct = (latest["close"] - prev["close"]) / prev["close"] * 100
-            result.append({
-                "name": name,
-                "code": idx_code,
-                "close": float(latest["close"]),
-                "change_pct": round(change_pct, 2),
-                "volume": float(latest["volume"]),
-            })
-        return {"success": True, "data": result}
+
+        results = await asyncio.gather(*[
+            _fetch_index(idx_code, name)
+            for idx_code, name in zip(indices, names)
+        ])
+        return {"success": True, "data": list(results)}
     except Exception as e:
         return {"success": False, "error": str(e)}
+
+
+async def _fetch_sector(concept_name: str, today_str: str, start_str: str, row: pd.Series) -> dict | None:
+    change_pct = 0.0
+    try:
+        idx_df = ak.stock_board_concept_index_ths(
+            symbol=concept_name,
+            start_date=start_str,
+            end_date=today_str,
+        )
+        if idx_df is not None and len(idx_df) >= 2:
+            latest_close = float(idx_df.iloc[-1]["收盘"])
+            prev_close = float(idx_df.iloc[-2]["收盘"])
+            if prev_close != 0:
+                change_pct = (latest_close - prev_close) / prev_close * 100
+    except Exception:
+        return None
+    return {
+        "name": concept_name,
+        "change_pct": round(change_pct, 2),
+        "leading_stock": str(row.get("龙头股", "")),
+        "driver": str(row.get("驱动事件", "")),
+    }
 
 
 async def get_hot_sectors(top_n: int = 10) -> dict:
     """获取热门板块，使用同花顺数据源"""
     try:
         summary = ak.stock_board_concept_summary_ths()
-        data = []
         today_str = date.today().strftime("%Y%m%d")
         start_str = (date.today() - timedelta(days=5)).strftime("%Y%m%d")
 
-        for _, row in summary.head(top_n * 2).iterrows():  # Over-fetch in case some fail
-            if len(data) >= top_n:
-                break
-            concept_name = row["概念名称"]
-            change_pct = 0.0
-            try:
-                idx_df = ak.stock_board_concept_index_ths(
-                    symbol=concept_name,
-                    start_date=start_str,
-                    end_date=today_str,
-                )
-                if idx_df is not None and len(idx_df) >= 2:
-                    latest_close = float(idx_df.iloc[-1]["收盘"])
-                    prev_close = float(idx_df.iloc[-2]["收盘"])
-                    if prev_close != 0:
-                        change_pct = (latest_close - prev_close) / prev_close * 100
-            except Exception:
-                continue  # Skip this concept if we can't get index data
+        concepts = list(summary.head(top_n * 2).iterrows())
+        results = await asyncio.gather(*[
+            _fetch_sector(row["概念名称"], today_str, start_str, row)
+            for _, row in concepts
+        ])
 
-            data.append({
-                "name": concept_name,
-                "change_pct": round(change_pct, 2),
-                "leading_stock": str(row.get("龙头股", "")),
-                "driver": str(row.get("驱动事件", "")),
-            })
+        data = [r for r in results if r is not None][:top_n]
         return {"success": True, "data": data}
     except Exception as e:
         return {"success": False, "error": str(e)}

@@ -27,13 +27,10 @@ RECOMMEND_PROMPT = """你是一位量化交易分析师。我会给你一份A股
 
 async def get_daily_recommendations(db: Session) -> dict:
     today = date.today()
-    existing = db.query(Recommendation).filter(
+    recs = db.query(Recommendation).filter(
         Recommendation.recommend_date == today
-    ).first()
-    if existing:
-        recs = db.query(Recommendation).filter(
-            Recommendation.recommend_date == today
-        ).all()
+    ).all()
+    if recs:
         return {
             "success": True,
             "data": [
@@ -117,7 +114,10 @@ async def update_recommend_prices(db: Session) -> dict:
         for _, row in df.iterrows():
             price_map[row["代码"]] = float(row["最新价"])
 
-        recs = db.query(Recommendation).all()
+        stock_codes = list(price_map.keys())
+        recs = db.query(Recommendation).filter(
+            Recommendation.stock_code.in_(stock_codes)
+        ).all()
         updated = 0
         for rec in recs:
             if rec.stock_code in price_map:
