@@ -29,7 +29,7 @@ function formatDate(d: Date): string {
 
 export default function MarketReport() {
   const today = formatDate(new Date())
-  const [selectedDate, setSelectedDate] = useState(today)
+  const [selectedDate, setSelectedDate] = useState('')
   const [report, setReport] = useState<ReportData | null>(null)
   const [availableDates, setAvailableDates] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
@@ -40,14 +40,23 @@ export default function MarketReport() {
       let result = await apiGet<any>('/report/trade-dates')
       if (result.data && result.data.length > 0) {
         setAvailableDates(result.data)
+        // 自动选择最近有数据的日期
+        if (!selectedDate) {
+          setSelectedDate(result.data[0])
+        }
       } else {
         result = await apiGet<any>('/report/dates')
-        setAvailableDates(result.data || [])
+        const dates = result.data || []
+        setAvailableDates(dates)
+        if (dates.length > 0 && !selectedDate) {
+          setSelectedDate(dates[0])
+        }
       }
     } catch { /* ignore */ }
   }
 
   const fetchReport = async (d: string) => {
+    if (!d) return
     setLoading(true)
     setError('')
     try {
@@ -74,7 +83,9 @@ export default function MarketReport() {
   }, [])
 
   useEffect(() => {
-    fetchReport(selectedDate)
+    if (selectedDate) {
+      fetchReport(selectedDate)
+    }
   }, [selectedDate])
 
   return (

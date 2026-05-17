@@ -29,7 +29,7 @@ function formatDate(d: Date): string {
 
 export default function DailyRecommend() {
   const today = formatDate(new Date())
-  const [selectedDate, setSelectedDate] = useState(today)
+  const [selectedDate, setSelectedDate] = useState('')
   const [recs, setRecs] = useState<StockRec[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
   const [loading, setLoading] = useState(true)
@@ -40,11 +40,17 @@ export default function DailyRecommend() {
   const fetchDates = async () => {
     try {
       const result = await apiGet<any>('/recommend/dates')
-      setAvailableDates(result.data || [])
+      const dates = result.data || []
+      setAvailableDates(dates)
+      // 自动选择最近有数据的日期
+      if (dates.length > 0 && !selectedDate) {
+        setSelectedDate(dates[0])
+      }
     } catch { /* ignore */ }
   }
 
   const fetchData = async (d: string) => {
+    if (!d) return
     setLoading(true)
     setError('')
     try {
@@ -67,7 +73,9 @@ export default function DailyRecommend() {
   }, [])
 
   useEffect(() => {
-    fetchData(selectedDate)
+    if (selectedDate) {
+      fetchData(selectedDate)
+    }
   }, [selectedDate])
 
   return (
