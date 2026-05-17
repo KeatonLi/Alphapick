@@ -38,3 +38,10 @@ async def dates(db: Session = Depends(get_db)):
     """获取有报告的日期列表"""
     result = get_available_dates(db)
     return result
+
+
+@router.get("/trade-dates")
+async def trade_dates():
+    """获取交易日列表（用于日期选择器）"""
+    from app.services.report_service import get_trade_dates_for_frontend
+    return get_trade_dates_for_frontend()

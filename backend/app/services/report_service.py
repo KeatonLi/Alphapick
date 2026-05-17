@@ -147,3 +147,13 @@ def get_available_dates(db: Session, days: int = 30) -> dict:
         "success": True,
         "data": [str(d[0]) for d in dates],
     }
+
+
+def get_trade_dates_for_frontend(days: int = 30) -> dict:
+    """获取前端可用的交易日列表（用于日期选择器）"""
+    from app.utils.akshare_utils import get_trade_dates
+    try:
+        dates = get_trade_dates(days)
+        return {"success": True, "data": dates}
+    except Exception as e:
+        return {"success": False, "error": str(e)}

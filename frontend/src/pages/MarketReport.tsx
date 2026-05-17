@@ -27,12 +27,6 @@ function formatDate(d: Date): string {
   return d.toISOString().split('T')[0]
 }
 
-function isWeekday(dateStr: string): boolean {
-  const d = new Date(dateStr + 'T00:00:00')
-  const day = d.getDay()
-  return day !== 0 && day !== 6
-}
-
 export default function MarketReport() {
   const today = formatDate(new Date())
   const [selectedDate, setSelectedDate] = useState(today)
@@ -40,12 +34,17 @@ export default function MarketReport() {
   const [availableDates, setAvailableDates] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [weekendWarning, setWeekendWarning] = useState('')
 
   const fetchDates = async () => {
     try {
-      const result = await apiGet<any>('/report/dates')
-      setAvailableDates(result.data || [])
+      // 优先使用真实交易日历，否则降级使用数据库中的日期
+      let result = await apiGet<any>('/report/trade-dates')
+      if (result.data && result.data.length > 0) {
+        setAvailableDates(result.data)
+      } else {
+        result = await apiGet<any>('/report/dates')
+        setAvailableDates(result.data || [])
+      }
     } catch { /* ignore */ }
   }
 
@@ -54,9 +53,15 @@ export default function MarketReport() {
     setError('')
     try {
       const result = await apiGet<any>(`/report/daily?date=${d}`)
-      setReport(result.data)
+      if (result.date) {
+        setReport(result)
+      } else if (result.detail) {
+        setError(result.detail)
+        setReport(null)
+      }
     } catch (e: any) {
       setError(e.message || '请求失败')
+      setReport(null)
     } finally {
       setLoading(false)
     }
@@ -90,7 +95,7 @@ export default function MarketReport() {
             if (idx < availableDates.length - 1) setSelectedDate(availableDates[idx + 1])
           }}
           disabled={availableDates.indexOf(selectedDate) >= availableDates.length - 1}
-          className="p-2 rounded-xl bg-bg-card border border-border-default text-slate-400 hover:text-white hover:border-border-accent disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+          className="p-2 rounded-xl bg-bg-card border border-border-default text-text-secondary hover:text-text-primary hover:border-border-accent disabled:opacity-30 disabled:cursor-not-allowed transition-all"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -101,17 +106,10 @@ export default function MarketReport() {
           <input
             type="date"
             value={selectedDate}
-            onChange={(e) => {
-              const val = e.target.value
-              if (!isWeekday(val)) {
-                setWeekendWarning('仅支持选择工作日（周一至周五）')
-                return
-              }
-              setWeekendWarning('')
-              setSelectedDate(val)
-            }}
+            onChange={(e) => setSelectedDate(e.target.value)}
             max={today}
-            className="appearance-none bg-bg-card border border-border-default text-white text-center px-4 py-2.5 rounded-xl font-mono text-sm focus:outline-none focus:border-cyan-500/50 focus:shadow-[0_0_16px_rgba(6,182,212,0.15)] transition-all cursor-pointer [color-scheme:dark]"
+            min={availableDates.length > 0 ? availableDates[availableDates.length - 1] : ''}
+            className="appearance-none bg-bg-card border border-border-default text-text-primary text-center px-4 py-2.5 rounded-xl font-mono text-sm focus:outline-none focus:border-cyan-500/50 focus:shadow-[0_0_16px_rgba(6,182,212,0.15)] transition-all cursor-pointer [color-scheme:dark]"
           />
         </div>
 
@@ -121,7 +119,7 @@ export default function MarketReport() {
             if (idx > 0) setSelectedDate(availableDates[idx - 1])
           }}
           disabled={availableDates.indexOf(selectedDate) <= 0}
-          className="p-2 rounded-xl bg-bg-card border border-border-default text-slate-400 hover:text-white hover:border-border-accent disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+          className="p-2 rounded-xl bg-bg-card border border-border-default text-text-secondary hover:text-text-primary hover:border-border-accent disabled:opacity-30 disabled:cursor-not-allowed transition-all"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -129,7 +127,7 @@ export default function MarketReport() {
         </button>
 
         {availableDates.length > 0 && (
-          <span className="text-xs text-slate-600">
+          <span className="text-xs text-text-muted">
             {availableDates.indexOf(selectedDate) + 1} / {availableDates.length} 篇报告
           </span>
         )}
@@ -140,14 +138,6 @@ export default function MarketReport() {
         <div className="max-w-2xl mx-auto mb-8 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm flex items-center gap-3">
           <svg className="w-5 h-5 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" /></svg>
           {error}
-        </div>
-      )}
-
-      {/* Weekend Warning */}
-      {weekendWarning && (
-        <div className="max-w-2xl mx-auto mb-8 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-sm flex items-center gap-3">
-          <svg className="w-5 h-5 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
-          {weekendWarning}
         </div>
       )}
 
@@ -182,7 +172,7 @@ export default function MarketReport() {
                   const isUp = idx.change_pct >= 0
                   return (
                     <div key={idx.code} className="glass-card p-5 text-center hover:scale-[1.02] transition-transform">
-                      <div className="text-sm text-slate-400 mb-2">{idx.name}</div>
+                      <div className="text-sm text-text-muted mb-2">{idx.name}</div>
                       <div className="text-2xl font-extrabold text-white font-mono tracking-tight mb-2">
                         {idx.close.toFixed(2)}
                       </div>
@@ -202,7 +192,7 @@ export default function MarketReport() {
                 })}
               </div>
               <div className="mt-3 text-center">
-                <span className="text-sm text-slate-500 bg-bg-secondary px-4 py-1.5 rounded-full border border-border-default">
+                <span className="text-sm text-text-muted bg-bg-secondary px-4 py-1.5 rounded-full border border-border-default">
                   {report.market_summary}
                 </span>
               </div>
@@ -224,14 +214,14 @@ export default function MarketReport() {
                   return (
                     <div key={i} className="flex items-center justify-between py-3 first:pt-0 last:pb-0 group hover:bg-white/[0.02] -mx-2 px-2 rounded-lg transition-colors">
                       <div className="flex items-center gap-3 min-w-0">
-                        <span className="text-xs text-slate-600 font-mono w-5">{i + 1}</span>
+                        <span className="text-xs text-text-muted font-mono w-5">{i + 1}</span>
                         <div>
-                          <span className="font-medium text-slate-200 group-hover:text-white transition-colors">{s.name}</span>
+                          <span className="font-medium text-text-primary group-hover:text-white transition-colors">{s.name}</span>
                           {s.leading_stock && (
-                            <span className="text-xs text-slate-600 ml-2">领涨: {s.leading_stock}</span>
+                            <span className="text-xs text-text-muted ml-2">领涨: {s.leading_stock}</span>
                           )}
                           {s.driver && (
-                            <div className="text-xs text-slate-600 mt-0.5 truncate max-w-xs">{s.driver}</div>
+                            <div className="text-xs text-text-muted mt-0.5 truncate max-w-xs">{s.driver}</div>
                           )}
                         </div>
                       </div>
@@ -255,7 +245,7 @@ export default function MarketReport() {
               </div>
               <h3 className="text-lg font-bold text-white">AI 市场分析</h3>
             </div>
-            <div className="text-slate-300 leading-relaxed whitespace-pre-wrap text-sm md:text-base">
+            <div className="text-text-secondary leading-relaxed whitespace-pre-wrap text-sm md:text-base">
               {report.ai_report}
             </div>
           </div>

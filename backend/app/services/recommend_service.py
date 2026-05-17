@@ -4,7 +4,7 @@ from datetime import date, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import func, cast, Numeric
 
-from app.utils.akshare_utils import get_stock_list
+from app.utils.akshare_utils import get_stock_list, get_trade_dates
 from app.utils.ai_client import chat
 from app.models import Recommendation
 
@@ -26,9 +26,13 @@ RECOMMEND_PROMPT = """你是一位量化交易分析师。我会给你一份A股
 
 
 async def get_daily_recommendations(db: Session) -> dict:
-    today = date.today()
+    return await get_recommend_by_date(db, date.today())
+
+
+async def get_recommend_by_date(db: Session, rec_date: date) -> dict:
+    """获取指定日期的推荐股票"""
     recs = db.query(Recommendation).filter(
-        Recommendation.recommend_date == today
+        Recommendation.recommend_date == rec_date
     ).all()
     if recs:
         return {
@@ -42,7 +46,12 @@ async def get_daily_recommendations(db: Session) -> dict:
                 } for r in recs
             ],
             "from_cache": True,
+            "date": str(rec_date),
         }
+
+    # 如果不是今天，不允许生成新推荐
+    if rec_date != date.today():
+        return {"success": False, "error": f"暂无 {rec_date} 的推荐数据"}
 
     stock_result = await get_stock_list()
     if not stock_result["success"]:
@@ -71,7 +80,7 @@ async def get_daily_recommendations(db: Session) -> dict:
 
     for rec in recommendations:
         db_rec = Recommendation(
-            recommend_date=today,
+            recommend_date=rec_date,
             stock_code=rec["code"],
             stock_name=rec["name"],
             recommend_price=rec["price"],
@@ -80,7 +89,32 @@ async def get_daily_recommendations(db: Session) -> dict:
         db.add(db_rec)
     db.commit()
 
-    return {"success": True, "data": recommendations, "from_cache": False}
+    return {"success": True, "data": recommendations, "from_cache": False, "date": str(rec_date)}
+
+
+def get_available_recommend_dates(db: Session, days: int = 30) -> dict:
+    """获取有推荐记录的日期列表"""
+    since = date.today() - timedelta(days=days)
+    dates = (
+        db.query(Recommendation.recommend_date)
+        .filter(Recommendation.recommend_date >= since)
+        .distinct()
+        .order_by(Recommendation.recommend_date.desc())
+        .all()
+    )
+    return {
+        "success": True,
+        "data": [str(d[0]) for d in dates],
+    }
+
+
+def get_trade_dates_for_frontend(days: int = 30) -> dict:
+    """获取前端可用的交易日列表（用于日期选择器）"""
+    try:
+        dates = get_trade_dates(days)
+        return {"success": True, "data": dates}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
 
 
 async def get_recommend_stats(db: Session) -> dict:

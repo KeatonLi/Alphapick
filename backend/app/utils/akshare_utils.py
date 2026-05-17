@@ -200,3 +200,30 @@ async def get_stock_list() -> dict:
         return {"success": True, "data": data}
     except Exception as e:
         return {"success": False, "error": str(e)}
+
+
+def get_trade_dates(days: int = 30) -> list[str]:
+    """获取最近N个交易日的日期列表（使用 akshare 官方交易日历）"""
+    try:
+        df = ak.tool_trade_date_hsiec()
+        today = date.today()
+        since = today - timedelta(days=days)
+        # df 的日期列可能是 trade_date 或类似的列名
+        date_col = [c for c in df.columns if "trade" in c.lower() and "date" in c.lower()]
+        if not date_col:
+            date_col = df.columns[0]
+        else:
+            date_col = date_col[0]
+        df[date_col] = pd.to_datetime(df[date_col])
+        mask = (df[date_col] >= pd.Timestamp(since)) & (df[date_col] <= pd.Timestamp(today))
+        dates = df.loc[mask, date_col].sort_values(ascending=False).dt.strftime("%Y-%m-%d").tolist()
+        return dates
+    except Exception:
+        # fallback: 简单按周一到周五过滤
+        result = []
+        d = today
+        while len(result) < days and d >= since:
+            if d.weekday() < 5:
+                result.append(d.strftime("%Y-%m-%d"))
+            d -= timedelta(days=1)
+        return result

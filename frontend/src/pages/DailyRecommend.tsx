@@ -23,19 +23,33 @@ const rankBadges = [
   'bg-gradient-to-br from-purple-500 to-purple-600 text-purple-100 shadow-lg shadow-purple-500/20',
 ]
 
+function formatDate(d: Date): string {
+  return d.toISOString().split('T')[0]
+}
+
 export default function DailyRecommend() {
+  const today = formatDate(new Date())
+  const [selectedDate, setSelectedDate] = useState(today)
   const [recs, setRecs] = useState<StockRec[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [fromCache, setFromCache] = useState(false)
+  const [availableDates, setAvailableDates] = useState<string[]>([])
 
-  const fetchData = async () => {
+  const fetchDates = async () => {
+    try {
+      const result = await apiGet<any>('/recommend/dates')
+      setAvailableDates(result.data || [])
+    } catch { /* ignore */ }
+  }
+
+  const fetchData = async (d: string) => {
     setLoading(true)
     setError('')
     try {
       const [recData, statsData] = await Promise.all([
-        apiGet<any>('/recommend/daily'),
+        apiGet<any>(`/recommend/daily?date=${d}`),
         apiGet<any>('/recommend/stats'),
       ])
       setRecs(recData.data || [])
@@ -48,7 +62,13 @@ export default function DailyRecommend() {
     }
   }
 
-  useEffect(() => { fetchData() }, [])
+  useEffect(() => {
+    fetchDates()
+  }, [])
+
+  useEffect(() => {
+    fetchData(selectedDate)
+  }, [selectedDate])
 
   return (
     <div className="max-w-5xl mx-auto px-6 py-8">
@@ -60,6 +80,51 @@ export default function DailyRecommend() {
         <p className="text-slate-400 max-w-lg mx-auto text-sm leading-relaxed">
           AI 基于动量因子、量价配合、趋势健康度等多维度筛选，每日精选潜力标的
         </p>
+      </div>
+
+      {/* Date Selector */}
+      <div className="flex items-center justify-center gap-4 mb-8 flex-wrap">
+        <button
+          onClick={() => {
+            const idx = availableDates.indexOf(selectedDate)
+            if (idx < availableDates.length - 1) setSelectedDate(availableDates[idx + 1])
+          }}
+          disabled={availableDates.indexOf(selectedDate) >= availableDates.length - 1}
+          className="p-2 rounded-xl bg-bg-card border border-border-default text-text-secondary hover:text-text-primary hover:border-border-accent disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+
+        <div className="relative">
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            max={today}
+            className="appearance-none bg-bg-card border border-border-default text-text-primary text-center px-4 py-2.5 rounded-xl font-mono text-sm focus:outline-none focus:border-amber-500/50 focus:shadow-[0_0_16px_rgba(245,158,11,0.15)] transition-all cursor-pointer [color-scheme:dark]"
+          />
+        </div>
+
+        <button
+          onClick={() => {
+            const idx = availableDates.indexOf(selectedDate)
+            if (idx > 0) setSelectedDate(availableDates[idx - 1])
+          }}
+          disabled={availableDates.indexOf(selectedDate) <= 0}
+          className="p-2 rounded-xl bg-bg-card border border-border-default text-text-secondary hover:text-text-primary hover:border-border-accent disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
+
+        {availableDates.length > 0 && (
+          <span className="text-xs text-text-muted">
+            {availableDates.indexOf(selectedDate) + 1} / {availableDates.length} 天
+          </span>
+        )}
       </div>
 
       {/* Stats Cards */}
@@ -74,7 +139,7 @@ export default function DailyRecommend() {
             <div key={i} className={`glass-card p-5 text-center bg-gradient-to-br ${s.color} border ${s.border}`}>
               <div className="text-2xl mb-2">{s.icon}</div>
               <div className={`text-2xl md:text-3xl font-extrabold ${s.text} count-in`}>{s.value}</div>
-              <div className="text-xs text-slate-500 mt-1">{s.label}</div>
+              <div className="text-xs text-text-muted mt-1">{s.label}</div>
             </div>
           ))}
         </div>
@@ -91,8 +156,8 @@ export default function DailyRecommend() {
       {/* Cache indicator */}
       {fromCache && (
         <div className="text-center mb-6">
-          <span className="text-xs text-slate-600 bg-bg-secondary px-3 py-1 rounded-full border border-border-default">
-            今日已生成推荐
+          <span className="text-xs text-text-muted bg-bg-secondary px-3 py-1 rounded-full border border-border-default">
+            {selectedDate === today ? '今日已生成推荐' : `${selectedDate} 的推荐数据`}
           </span>
         </div>
       )}
@@ -119,16 +184,16 @@ export default function DailyRecommend() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-3 mb-1.5">
                   <span className="text-lg font-bold text-white group-hover:text-blue-400 transition-colors">{rec.stock_name}</span>
-                  <span className="text-xs text-slate-500 font-mono">{rec.stock_code}</span>
+                  <span className="text-xs text-text-muted font-mono">{rec.stock_code}</span>
                 </div>
-                <p className="text-sm text-slate-400 leading-relaxed line-clamp-2">{rec.reason || '量化模型筛选结果'}</p>
+                <p className="text-sm text-text-secondary leading-relaxed line-clamp-2">{rec.reason || '量化模型筛选结果'}</p>
               </div>
 
               <div className="text-right shrink-0">
                 <div className="text-2xl font-extrabold text-amber-400 font-mono tracking-tight">
                   {rec.recommend_price.toFixed(2)}
                 </div>
-                <div className="text-xs text-slate-500 mt-1">推荐价格</div>
+                <div className="text-xs text-text-muted mt-1">推荐价格</div>
               </div>
             </div>
           </div>
@@ -138,20 +203,10 @@ export default function DailyRecommend() {
       {!loading && recs.length === 0 && !error && (
         <div className="text-center py-20">
           <div className="text-6xl mb-4">📭</div>
-          <div className="text-slate-500 text-lg">暂无推荐数据</div>
-          <div className="text-slate-600 text-sm mt-1">点击刷新获取今日推荐</div>
+          <div className="text-text-muted text-lg">暂无推荐数据</div>
+          <div className="text-text-muted text-sm mt-1">该日期暂无推荐记录</div>
         </div>
       )}
-
-      {/* Refresh Button (floating) */}
-      <div className="fixed bottom-6 right-6">
-        <button onClick={fetchData} disabled={loading}
-          className="w-12 h-12 rounded-full bg-blue-600 text-white shadow-lg shadow-blue-600/30 hover:bg-blue-500 hover:shadow-blue-500/40 disabled:opacity-50 transition-all duration-300 flex items-center justify-center active:scale-90">
-          <svg className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
-        </button>
-      </div>
     </div>
   )
 }
