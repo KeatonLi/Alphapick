@@ -96,7 +96,7 @@ export default function Analysis() {
         {/* Simple Line Chart */}
         <div className="h-64 relative">
           <div className="absolute inset-0 flex items-end">
-            {chartData.map((d, i) => {
+            {chartData.map((d) => {
               const height = range > 0 ? ((d.value - minVal) / range) * 100 : 50
               const isUp = d.value >= chartData[0].value
               return (

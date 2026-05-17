@@ -1,6 +1,3 @@
-import { useState } from 'react'
-import { apiGet } from '../services/api'
-
 interface MarketIndex {
   name: string
   code: string
@@ -9,29 +6,7 @@ interface MarketIndex {
   changePct: string
 }
 
-interface MarketData {
-  indices: MarketIndex[]
-  updateTime: string
-}
-
 export default function Market() {
-  const [loading, setLoading] = useState(false)
-  const [data, setData] = useState<MarketData | null>(null)
-  const [error, setError] = useState('')
-
-  const fetchData = async () => {
-    setLoading(true)
-    setError('')
-    try {
-      const result = await apiGet<any>('/market/indices')
-      setData(result.data)
-    } catch (e: any) {
-      setError(e.message || '获取数据失败')
-    } finally {
-      setLoading(false)
-    }
-  }
-
   const mockIndices: MarketIndex[] = [
     { name: '上证指数', code: '000001', price: '3285.67', change: '+23.45', changePct: '+0.72%' },
     { name: '深证成指', code: '399001', price: '10521.34', change: '+89.23', changePct: '+0.86%' },
@@ -39,8 +14,6 @@ export default function Market() {
     { name: '沪深300', code: '000300', price: '3892.12', change: '+34.56', changePct: '+0.90%' },
     { name: '科创50', code: '000688', price: '1023.45', change: '-8.90', changePct: '-0.86%' },
   ]
-
-  const displayData = data?.indices || mockIndices
 
   return (
     <div className="max-w-5xl mx-auto px-6 py-8">
@@ -56,13 +29,12 @@ export default function Market() {
 
       {/* Market Overview Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-        {displayData.map((index, i) => {
+        {mockIndices.map((index) => {
           const isUp = !index.change.startsWith('-')
           return (
             <div
               key={index.code}
               className="stock-card p-5 hover:border-blue-400 transition-all duration-300 cursor-pointer hover:shadow-lg hover:shadow-blue-100"
-              style={{ animationDelay: `${i * 100}ms` }}
             >
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
@@ -107,12 +79,6 @@ export default function Market() {
           ))}
         </div>
       </div>
-
-      {error && (
-        <div className="mt-6 p-4 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm">
-          {error}
-        </div>
-      )}
     </div>
   )
 }
