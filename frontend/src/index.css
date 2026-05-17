@@ -2,48 +2,24 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 @theme {
-  /* 亮色主题（默认） */
-  --color-bg-primary: #ffffff;
-  --color-bg-secondary: #f8fafc;
+  /* 股票风格亮色主题 - 白蓝清新配色 */
+  --color-bg-primary: #eef4f8;
+  --color-bg-secondary: #ffffff;
   --color-bg-card: #ffffff;
-  --color-bg-hover: #f1f5f9;
-  --color-border-default: #e2e8f0;
-  --color-border-accent: #cbd5e1;
-  --color-text-primary: #0f172a;
-  --color-text-secondary: #475569;
-  --color-text-muted: #94a3b8;
-  --color-accent-gold: #f59e0b;
-  --color-accent-blue: #3b82f6;
-  --color-accent-cyan: #06b6d4;
-  --color-accent-purple: #8b5cf6;
-  --color-stock-up: #ef4444;
-  --color-stock-down: #10b981;
-  --color-stock-up-bg: rgba(239, 68, 68, 0.1);
-  --color-stock-down-bg: rgba(16, 185, 129, 0.1);
-
-  /* 暗色主题变量 */
-  --color-bg-primary-dark: #0a0e17;
-  --color-bg-secondary-dark: #111827;
-  --color-bg-card-dark: #161c2a;
-  --color-bg-hover-dark: #1c2335;
-  --color-border-default-dark: #1e293b;
-  --color-border-accent-dark: #2a3450;
-  --color-text-primary-dark: #e2e8f0;
-  --color-text-secondary-dark: #94a3b8;
-  --color-text-muted-dark: #64748b;
-}
-
-/* 暗色主题覆盖 */
-[data-theme="dark"] {
-  --color-bg-primary: var(--color-bg-primary-dark);
-  --color-bg-secondary: var(--color-bg-secondary-dark);
-  --color-bg-card: var(--color-bg-card-dark);
-  --color-bg-hover: var(--color-bg-hover-dark);
-  --color-border-default: var(--color-border-default-dark);
-  --color-border-accent: var(--color-border-accent-dark);
-  --color-text-primary: var(--color-text-primary-dark);
-  --color-text-secondary: var(--color-text-secondary-dark);
-  --color-text-muted: var(--color-text-muted-dark);
+  --color-bg-hover: #e3eef6;
+  --color-border-default: #c5d9e8;
+  --color-border-accent: #1e88e5;
+  --color-text-primary: #1a2a3a;
+  --color-text-secondary: #4a5a6a;
+  --color-text-muted: #7a8a9a;
+  --color-accent-gold: #f5a623;
+  --color-accent-blue: #1e88e5;
+  --color-accent-cyan: #03a9f4;
+  --color-accent-purple: #7c4dff;
+  --color-stock-up: #e53935;
+  --color-stock-down: #43a047;
+  --color-stock-up-bg: rgba(229, 57, 53, 0.08);
+  --color-stock-down-bg: rgba(67, 160, 71, 0.08);
 }
 
 body {
@@ -57,28 +33,33 @@ body {
 /* 自定义滚动条 */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: var(--color-bg-secondary); }
-::-webkit-scrollbar-thumb { background: var(--color-border-accent); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: var(--color-text-muted); }
+::-webkit-scrollbar-thumb { background: var(--color-border-default); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-accent-blue); }
+
+/* 股票卡片 */
+.stock-card {
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border-default);
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(30, 136, 229, 0.06);
+  transition: all 0.25s ease;
+}
+.stock-card:hover {
+  border-color: var(--color-accent-blue);
+  box-shadow: 0 4px 16px rgba(30, 136, 229, 0.12);
+}
 
 /* 毛玻璃卡片 */
 .glass-card {
   background: var(--color-bg-card);
   border: 1px solid var(--color-border-default);
-  backdrop-filter: blur(12px);
-  border-radius: 16px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06);
-  transition: all 0.3s ease;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(30, 136, 229, 0.06);
+  transition: all 0.25s ease;
 }
 .glass-card:hover {
-  border-color: var(--color-border-accent);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06);
-}
-
-[data-theme="dark"] .glass-card {
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
-}
-[data-theme="dark"] .glass-card:hover {
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.2);
+  border-color: var(--color-accent-blue);
+  box-shadow: 0 4px 16px rgba(30, 136, 229, 0.12);
 }
 
 /* 渐变边框 */
@@ -89,9 +70,9 @@ body {
   content: '';
   position: absolute;
   inset: 0;
-  border-radius: 16px;
+  border-radius: 12px;
   padding: 1px;
-  background: linear-gradient(135deg, var(--color-accent-blue), var(--color-accent-purple), var(--color-accent-cyan));
+  background: linear-gradient(135deg, var(--color-accent-blue), var(--color-accent-cyan));
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
@@ -101,8 +82,8 @@ body {
 
 /* 脉冲动画 */
 @keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 5px rgba(59, 130, 246, 0.2); }
-  50% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.4); }
+  0%, 100% { box-shadow: 0 0 5px rgba(30, 136, 229, 0.15); }
+  50% { box-shadow: 0 0 20px rgba(30, 136, 229, 0.3); }
 }
 .pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
 
@@ -120,29 +101,29 @@ body {
 
 /* 滚动渐现 */
 @keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(20px); }
+  from { opacity: 0; transform: translateY(15px); }
   to { opacity: 1; transform: translateY(0); }
 }
-.fade-in-up { animation: fadeInUp 0.5s ease forwards; }
+.fade-in-up { animation: fadeInUp 0.4s ease forwards; }
 
 /* 数字跳动 */
 @keyframes countIn {
-  from { opacity: 0; transform: scale(0.8); }
+  from { opacity: 0; transform: scale(0.85); }
   to { opacity: 1; transform: scale(1); }
 }
-.count-in { animation: countIn 0.4s ease forwards; }
+.count-in { animation: countIn 0.3s ease forwards; }
 
-/* 粒子背景 */
+/* 网格背景 */
 .bg-grid {
   background-image:
-    linear-gradient(rgba(226, 232, 240, 0.8) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(226, 232, 240, 0.8) 1px, transparent 1px);
-  background-size: 60px 60px;
+    linear-gradient(rgba(30, 136, 229, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(30, 136, 229, 0.05) 1px, transparent 1px);
+  background-size: 40px 40px;
   background-position: center center;
 }
 
-[data-theme="dark"] .bg-grid {
-  background-image:
-    linear-gradient(rgba(30, 41, 59, 0.5) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(30, 41, 59, 0.5) 1px, transparent 1px);
-}
+/* 股票涨跌色 */
+.stock-up { color: var(--color-stock-up); }
+.stock-down { color: var(--color-stock-down); }
+.stock-up-bg { background: var(--color-stock-up-bg); }
+.stock-down-bg { background: var(--color-stock-down-bg); }

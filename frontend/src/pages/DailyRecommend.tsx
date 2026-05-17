@@ -16,11 +16,11 @@ interface Stats {
 }
 
 const rankBadges = [
-  'bg-gradient-to-br from-yellow-500 to-amber-600 text-yellow-100 shadow-lg shadow-yellow-500/20',
-  'bg-gradient-to-br from-slate-400 to-slate-500 text-slate-100 shadow-lg shadow-slate-400/20',
-  'bg-gradient-to-br from-orange-600 to-orange-700 text-orange-100 shadow-lg shadow-orange-600/20',
-  'bg-gradient-to-br from-blue-500 to-blue-600 text-blue-100 shadow-lg shadow-blue-500/20',
-  'bg-gradient-to-br from-purple-500 to-purple-600 text-purple-100 shadow-lg shadow-purple-500/20',
+  'bg-gradient-to-br from-amber-400 to-amber-600 text-white shadow-lg shadow-amber-200',
+  'bg-gradient-to-br from-slate-300 to-slate-500 text-white shadow-lg shadow-slate-200',
+  'bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-lg shadow-orange-200',
+  'bg-gradient-to-br from-blue-400 to-blue-600 text-white shadow-lg shadow-blue-200',
+  'bg-gradient-to-br from-purple-400 to-purple-600 text-white shadow-lg shadow-purple-200',
 ]
 
 function formatDate(d: Date): string {
@@ -74,10 +74,10 @@ export default function DailyRecommend() {
     <div className="max-w-5xl mx-auto px-6 py-8">
       {/* Hero */}
       <div className="text-center mb-10 fade-in-up">
-        <h1 className="text-3xl md:text-4xl font-extrabold text-white mb-3 tracking-tight">
-          每日<span className="bg-gradient-to-r from-amber-400 to-orange-400 bg-clip-text text-transparent">量化推荐</span>
+        <h1 className="text-3xl md:text-4xl font-extrabold text-blue-700 mb-3 tracking-tight">
+          每日<span className="text-amber-500">量化推荐</span>
         </h1>
-        <p className="text-slate-400 max-w-lg mx-auto text-sm leading-relaxed">
+        <p className="text-text-secondary max-w-lg mx-auto text-sm leading-relaxed">
           AI 基于动量因子、量价配合、趋势健康度等多维度筛选，每日精选潜力标的
         </p>
       </div>
@@ -90,7 +90,7 @@ export default function DailyRecommend() {
             if (idx < availableDates.length - 1) setSelectedDate(availableDates[idx + 1])
           }}
           disabled={availableDates.indexOf(selectedDate) >= availableDates.length - 1}
-          className="p-2 rounded-xl bg-bg-card border border-border-default text-text-secondary hover:text-text-primary hover:border-border-accent disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+          className="p-2 rounded-xl bg-white border border-border-default text-text-secondary hover:text-blue-600 hover:border-blue-300 disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-sm"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -103,7 +103,7 @@ export default function DailyRecommend() {
             value={selectedDate}
             onChange={(e) => setSelectedDate(e.target.value)}
             max={today}
-            className="appearance-none bg-bg-card border border-border-default text-text-primary text-center px-4 py-2.5 rounded-xl font-mono text-sm focus:outline-none focus:border-amber-500/50 focus:shadow-[0_0_16px_rgba(245,158,11,0.15)] transition-all cursor-pointer [color-scheme:dark]"
+            className="appearance-none bg-white border border-border-default text-text-primary text-center px-4 py-2.5 rounded-xl font-mono text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all cursor-pointer shadow-sm"
           />
         </div>
 
@@ -113,7 +113,7 @@ export default function DailyRecommend() {
             if (idx > 0) setSelectedDate(availableDates[idx - 1])
           }}
           disabled={availableDates.indexOf(selectedDate) <= 0}
-          className="p-2 rounded-xl bg-bg-card border border-border-default text-text-secondary hover:text-text-primary hover:border-border-accent disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+          className="p-2 rounded-xl bg-white border border-border-default text-text-secondary hover:text-blue-600 hover:border-blue-300 disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-sm"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -121,7 +121,7 @@ export default function DailyRecommend() {
         </button>
 
         {availableDates.length > 0 && (
-          <span className="text-xs text-text-muted">
+          <span className="text-sm text-text-muted bg-blue-50 px-3 py-1 rounded-full">
             {availableDates.indexOf(selectedDate) + 1} / {availableDates.length} 天
           </span>
         )}
@@ -131,12 +131,12 @@ export default function DailyRecommend() {
       {stats && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10 fade-in-up">
           {[
-            { label: '累计推荐', value: stats.total, icon: '📊', color: 'from-blue-500/20 to-blue-600/10', border: 'border-blue-500/30', text: 'text-blue-400' },
-            { label: '盈利次数', value: stats.win_count, icon: '🎯', color: 'from-green-500/20 to-green-600/10', border: 'border-green-500/30', text: 'text-green-400' },
-            { label: '胜率', value: `${stats.win_rate}%`, icon: '📈', color: 'from-orange-500/20 to-orange-600/10', border: 'border-orange-500/30', text: 'text-orange-400' },
-            { label: '平均收益率', value: `${stats.avg_return}%`, icon: '💎', color: 'from-purple-500/20 to-purple-600/10', border: 'border-purple-500/30', text: 'text-purple-400' },
+            { label: '累计推荐', value: stats.total, icon: '📊', color: 'from-blue-50 to-blue-100', border: 'border-blue-200', text: 'text-blue-600' },
+            { label: '盈利次数', value: stats.win_count, icon: '🎯', color: 'from-green-50 to-green-100', border: 'border-green-200', text: 'text-green-600' },
+            { label: '胜率', value: `${stats.win_rate}%`, icon: '📈', color: 'from-amber-50 to-amber-100', border: 'border-amber-200', text: 'text-amber-600' },
+            { label: '平均收益率', value: `${stats.avg_return}%`, icon: '💎', color: 'from-purple-50 to-purple-100', border: 'border-purple-200', text: 'text-purple-600' },
           ].map((s, i) => (
-            <div key={i} className={`glass-card p-5 text-center bg-gradient-to-br ${s.color} border ${s.border}`}>
+            <div key={i} className={`stock-card p-5 text-center bg-gradient-to-br ${s.color} border ${s.border}`}>
               <div className="text-2xl mb-2">{s.icon}</div>
               <div className={`text-2xl md:text-3xl font-extrabold ${s.text} count-in`}>{s.value}</div>
               <div className="text-xs text-text-muted mt-1">{s.label}</div>
@@ -147,7 +147,7 @@ export default function DailyRecommend() {
 
       {/* Error */}
       {error && (
-        <div className="max-w-2xl mx-auto mb-8 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm flex items-center gap-3">
+        <div className="max-w-2xl mx-auto mb-8 p-4 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm flex items-center gap-3">
           <svg className="w-5 h-5 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" /></svg>
           {error}
         </div>
@@ -156,7 +156,7 @@ export default function DailyRecommend() {
       {/* Cache indicator */}
       {fromCache && (
         <div className="text-center mb-6">
-          <span className="text-xs text-text-muted bg-bg-secondary px-3 py-1 rounded-full border border-border-default">
+          <span className="text-sm text-text-muted bg-blue-50 px-4 py-1.5 rounded-full border border-blue-200">
             {selectedDate === today ? '今日已生成推荐' : `${selectedDate} 的推荐数据`}
           </span>
         </div>
@@ -174,23 +174,23 @@ export default function DailyRecommend() {
       {/* Recommendation Cards */}
       <div className="space-y-4">
         {recs.map((rec, idx) => (
-          <div key={idx} className="glass-card p-5 md:p-6 hover:translate-x-1 transition-all duration-300 fade-in-up group" style={{ animationDelay: `${idx * 80}ms` }}>
+          <div key={idx} className="stock-card p-5 md:p-6 hover:shadow-lg hover:shadow-blue-100 transition-all duration-300 fade-in-up group" style={{ animationDelay: `${idx * 80}ms` }}>
             <div className="flex items-start gap-4">
               {/* Rank Badge */}
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-extrabold shrink-0 ${rankBadges[idx] || 'bg-gray-700 text-gray-300'}`}>
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold shrink-0 ${rankBadges[idx] || 'bg-gray-400 text-white'}`}>
                 {idx + 1}
               </div>
 
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-3 mb-1.5">
-                  <span className="text-lg font-bold text-white group-hover:text-blue-400 transition-colors">{rec.stock_name}</span>
-                  <span className="text-xs text-text-muted font-mono">{rec.stock_code}</span>
+                  <span className="text-lg font-bold text-blue-800 group-hover:text-blue-600 transition-colors">{rec.stock_name}</span>
+                  <span className="text-xs text-text-muted font-mono bg-blue-50 px-2 py-0.5 rounded">{rec.stock_code}</span>
                 </div>
                 <p className="text-sm text-text-secondary leading-relaxed line-clamp-2">{rec.reason || '量化模型筛选结果'}</p>
               </div>
 
               <div className="text-right shrink-0">
-                <div className="text-2xl font-extrabold text-amber-400 font-mono tracking-tight">
+                <div className="text-2xl font-bold text-amber-500 font-mono tracking-tight">
                   {rec.recommend_price.toFixed(2)}
                 </div>
                 <div className="text-xs text-text-muted mt-1">推荐价格</div>
@@ -207,6 +207,16 @@ export default function DailyRecommend() {
           <div className="text-text-muted text-sm mt-1">该日期暂无推荐记录</div>
         </div>
       )}
+
+      {/* Refresh Button (floating) */}
+      <div className="fixed bottom-6 right-6">
+        <button onClick={() => fetchData(selectedDate)} disabled={loading}
+          className="w-12 h-12 rounded-full bg-blue-600 text-white shadow-lg shadow-blue-200 hover:bg-blue-700 hover:shadow-blue-300 disabled:opacity-50 transition-all duration-300 flex items-center justify-center active:scale-90">
+          <svg className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+        </button>
+      </div>
     </div>
   )
 }
