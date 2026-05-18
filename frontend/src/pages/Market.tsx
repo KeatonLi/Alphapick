@@ -1,19 +1,70 @@
+import { useEffect, useState } from 'react'
+import { apiGet } from '../services/api'
+
 interface MarketIndex {
   name: string
   code: string
-  price: string
-  change: string
-  changePct: string
+  close: number
+  change_pct: number
+}
+
+interface HotSector {
+  name: string
+  change_pct: number
+  leading_stock: string
 }
 
 export default function Market() {
-  const mockIndices: MarketIndex[] = [
-    { name: '上证指数', code: '000001', price: '3285.67', change: '+23.45', changePct: '+0.72%' },
-    { name: '深证成指', code: '399001', price: '10521.34', change: '+89.23', changePct: '+0.86%' },
-    { name: '创业板指', code: '399006', price: '2103.45', change: '-15.67', changePct: '-0.74%' },
-    { name: '沪深300', code: '000300', price: '3892.12', change: '+34.56', changePct: '+0.90%' },
-    { name: '科创50', code: '000688', price: '1023.45', change: '-8.90', changePct: '-0.86%' },
-  ]
+  const [indices, setIndices] = useState<MarketIndex[]>([])
+  const [sectors, setSectors] = useState<HotSector[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true)
+      setError('')
+      try {
+        const [indexRes, sectorRes] = await Promise.all([
+          apiGet<any>('/api/stock/market-index'),
+          apiGet<any>('/api/stock/hot-sectors?top_n=10'),
+        ])
+
+        if (indexRes.success) {
+          setIndices(indexRes.data)
+        }
+        if (sectorRes.success) {
+          setSectors(sectorRes.data)
+        }
+      } catch (e: any) {
+        setError(e.message || '获取数据失败')
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchData()
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="max-w-5xl mx-auto px-6 py-8 flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-4" />
+          <p className="text-text-secondary">加载市场数据...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="max-w-5xl mx-auto px-6 py-8">
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-600">
+          {error}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="max-w-5xl mx-auto px-6 py-8">
@@ -29,8 +80,8 @@ export default function Market() {
 
       {/* Market Overview Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-        {mockIndices.map((index) => {
-          const isUp = !index.change.startsWith('-')
+        {indices.map((index) => {
+          const isUp = index.change_pct >= 0
           return (
             <div
               key={index.code}
@@ -44,20 +95,48 @@ export default function Market() {
                 <div className={`w-2 h-2 rounded-full ${isUp ? 'bg-stock-up' : 'bg-stock-down'}`} />
               </div>
               <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-extrabold text-blue-900 font-mono">{index.price}</span>
+                <span className="text-2xl font-extrabold text-blue-900 font-mono">{index.close.toFixed(2)}</span>
               </div>
               <div className="flex items-center gap-3 mt-2">
                 <span className={`text-sm font-semibold ${isUp ? 'stock-up' : 'stock-down'}`}>
-                  {index.change}
+                  {isUp ? '+' : ''}{index.change_pct.toFixed(2)}
                 </span>
                 <span className={`text-xs px-2 py-0.5 rounded ${isUp ? 'bg-red-50 text-red-500 border border-red-200' : 'bg-green-50 text-green-600 border border-green-200'}`}>
-                  {index.changePct}
+                  {isUp ? '+' : ''}{index.change_pct.toFixed(2)}%
                 </span>
               </div>
             </div>
           )
         })}
       </div>
+
+      {/* Hot Sectors */}
+      {sectors.length > 0 && (
+        <div className="stock-card p-6 mb-6">
+          <h3 className="text-lg font-bold text-blue-800 mb-4 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-blue-500" />
+            热门板块
+          </h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {sectors.slice(0, 8).map((sector) => {
+              const isUp = sector.change_pct >= 0
+              return (
+                <div key={sector.name} className="p-3 bg-blue-50 rounded-xl">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm font-medium text-blue-800 truncate">{sector.name}</span>
+                    <span className={`text-xs font-medium ${isUp ? 'text-red-500' : 'text-green-600'}`}>
+                      {isUp ? '+' : ''}{sector.change_pct.toFixed(2)}%
+                    </span>
+                  </div>
+                  <div className="text-xs text-text-muted truncate" title={sector.leading_stock}>
+                    龙头: {sector.leading_stock}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Quick Stats */}
       <div className="stock-card p-6">
@@ -67,10 +146,10 @@ export default function Market() {
         </h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { label: '上涨', value: '2,847', color: 'text-red-500' },
-            { label: '下跌', value: '1,523', color: 'text-green-600' },
-            { label: '平盘', value: '342', color: 'text-text-muted' },
-            { label: '涨停', value: '89', color: 'text-amber-500' },
+            { label: '上涨', value: indices.filter(i => i.change_pct > 0).length.toString(), color: 'text-red-500' },
+            { label: '下跌', value: indices.filter(i => i.change_pct < 0).length.toString(), color: 'text-green-600' },
+            { label: '平盘', value: indices.filter(i => i.change_pct === 0).length.toString(), color: 'text-text-muted' },
+            { label: '板块涨多跌少', value: sectors.filter(s => s.change_pct > 0).length > sectors.filter(s => s.change_pct < 0).length ? '偏多' : '偏空', color: 'text-amber-500' },
           ].map(stat => (
             <div key={stat.label} className="text-center p-3 bg-blue-50 rounded-xl">
               <div className={`text-2xl font-extrabold ${stat.color}`}>{stat.value}</div>
