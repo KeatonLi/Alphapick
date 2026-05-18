@@ -83,6 +83,26 @@ async def generate_daily_report(db: Session) -> dict:
         db.add(report)
     db.commit()
 
+    # 生成 HTML 报告文件
+    from app.services.html_report_service import generate_html_report
+    try:
+        html_path = await generate_html_report(
+            report_date=today,
+            market_summary=market_summary,
+            index_data=index_data,
+            sectors=sectors_data,
+            ai_report=ai_response,
+        )
+        # 更新数据库中的 HTML 路径
+        if existing:
+            existing.html_report_path = html_path
+        else:
+            report.html_report_path = html_path
+        db.commit()
+    except Exception as e:
+        # HTML 生成失败不影响主流程，只记录日志
+        print(f"[{today}] HTML 报告生成失败: {e}")
+
     return {
         "success": True,
         "data": {},
@@ -107,6 +127,7 @@ def get_report_by_date(db: Session, report_date: date) -> dict:
             "index_data": json.loads(report.index_data) if report.index_data else [],
             "hot_sectors": json.loads(report.hot_sectors) if report.hot_sectors else [],
             "ai_report": report.ai_report,
+            "html_report_path": report.html_report_path,
         },
     }
 
@@ -128,6 +149,7 @@ def get_report_history(db: Session, limit: int = 7) -> dict:
                 "index_data": json.loads(r.index_data) if r.index_data else [],
                 "hot_sectors": json.loads(r.hot_sectors) if r.hot_sectors else [],
                 "ai_report": r.ai_report,
+                "html_report_path": r.html_report_path,
             }
             for r in reversed(reports)  # 正序，最早在前
         ],

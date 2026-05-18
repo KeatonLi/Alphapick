@@ -39,6 +39,7 @@ class MarketReport(Base):
     index_data: Mapped[str | None] = mapped_column(Text, nullable=True, comment="指数数据 JSON")
     hot_sectors: Mapped[str | None] = mapped_column(Text, nullable=True, comment="热门板块 JSON")
     ai_report: Mapped[str | None] = mapped_column(Text, nullable=True, comment="AI 分析报告")
+    html_report_path: Mapped[str | None] = mapped_column(String(500), nullable=True, comment="HTML 报告文件路径")
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), comment="创建时间"
     )

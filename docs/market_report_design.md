@@ -2,14 +2,20 @@
 
 ## 一、概述
 
-市场报告是每日收盘后（下午四点）自动生成的 A 股市场分析报告，以**图文并茂**的方式呈现，包含 K 线图、技术指标、板块轮动、资金流向等多维度数据。
+市场报告是每日收盘后（下午四点）自动生成的 A 股市场分析报告，以**完整 HTML 文件**方式输出，包含 K 线图、技术指标、板块轮动，资金流向等多维度数据。
+
+报告有两种视图：
+- **React 视图**：现有交互式前端页面，适合日常浏览
+- **HTML 报告**：自包含的 HTML 文件，可直接浏览器打开、分享、后续支持推文到其他平台
 
 ## 二、设计目标
 
-1. **图文并茂**：使用 matplotlib 生成专业图表，白底风格
-2. **技术指标**：MACD、KDJ 等常用技术指标
-3. **板块分析**：热门板块涨跌幅排行榜
-4. **市场广度**：涨跌家数统计反映市场整体情绪
+1. **HTML 文件输出**：后端生成完整自包含 HTML 报告，matplotlib 图表以 Base64 PNG 嵌入
+2. **图文并茂**：使用 matplotlib 生成专业图表，白底风格
+3. **技术指标**：MACD、KDJ 等常用技术指标
+4. **板块分析**：热门板块涨跌幅排行榜
+5. **市场广度**：涨跌家数统计反映市场整体情绪
+6. **推文扩展**：HTML 报告含 Open Graph meta，便于后续抓取分享
 
 ## 三、数据来源
 
@@ -17,10 +23,9 @@
 
 | 数据类型 | akshare 函数 | 说明 |
 |---------|-------------|------|
-| K 线数据 | `stock_zh_a_daily` | 获取日线行情 |
-| 全市场行情 | `stock_zh_a_spot` | 获取所有股票实时数据 |
+| 全市场行情 | `stock_zh_a_spot` | 获取所有股票实时数据（计算市场广度） |
 | 板块数据 | `stock_board_concept_summary_ths` | 同花顺板块汇总 |
-| 指数数据 | `stock_zh_index_daily` | 指数日线数据 |
+| 指数数据 | `stock_zh_index_daily` | 指数日线数据（生成 K 线图） |
 | 交易日历 | `tool_trade_date_hsiec` | 获取交易日列表 |
 
 ### 3.2 自计算指标
@@ -33,158 +38,99 @@
 
 ## 四、图表设计
 
+所有图表使用 matplotlib 生成，白底风格，统一通过 `chart_service.py` 生成，返回 Base64 PNG 字符串。
+
 ### 4.1 K 线 + 均线图 (Kline Chart)
 
-**尺寸**: 800 x 400 像素，白底风格
-
 **内容**:
-- K 线（红涨绿跌）
-- MA5 均线（黄色）
-- MA10 均线（紫色）
-- MA20 均线（绿色）
-
-**位置**: 报告页面顶部，左侧
+- K 线（红涨 `#e74c3c`，绿跌 `#27ae60`）
+- MA5 均线（黄色 `#f39c12`）
+- MA10 均线（紫色 `#9b59b6`）
+- MA20 均线（绿色 `#2ecc71`）
 
 ### 4.2 MACD 指标图
 
-**尺寸**: 800 x 300 像素，白底风格
-
 **内容**:
-- DIF 线（蓝色）
-- DEA 线（橙色）
-- MACD 柱（红绿柱状图）
-
-**参数**:
-- 快线周期: 12
-- 慢线周期: 26
-- 信号线周期: 9
-
-**位置**: 报告页面，K 线图下方左侧
+- DIF 线（蓝色 `#3498db`）
+- DEA 线（橙色 `#e67e22`）
+- MACD 柱（红涨绿跌）
 
 ### 4.3 KDJ 指标图
 
-**尺寸**: 800 x 300 像素，白底风格
-
 **内容**:
-- K 线（白色）
-- D 线（黄色）
-- J 线（红色）
+- K 线（白色 `#ecf0f1`）
+- D 线（黄色 `#f1c40f`）
+- J 线（红色 `#e74c3c`）
 - 超买超卖线（80/20 虚线）
-
-**参数**:
-- N = 9
-- M1 = 3
-- M2 = 3
-
-**位置**: 报告页面，MACD 图右侧
 
 ### 4.4 板块涨跌幅排行榜
 
-**尺寸**: 800 x 400 像素，白底风格
-
 **内容**:
-- 横向柱状图
-- 显示涨幅前 10 和跌幅前 10 板块
-- 颜色：红涨绿跌
-
-**位置**: 报告页面中间
+- 横向柱状图，显示涨幅前 10 板块，红涨绿跌
 
 ### 4.5 涨跌家数统计图
 
-**尺寸**: 400 x 300 像素，白底风格
+**内容**:
+- 上涨/下跌/平盘三家数柱状图
+
+### 4.6 主要指数涨跌对比图
 
 **内容**:
-- 上涨/下跌/平盘三家数
-- 使用柱状图展示
-
-**位置**: 报告页面底部左侧
+- 三大指数涨跌柱状图对比
 
 ## 五、API 设计
 
-### 5.1 增强的报告接口
+### 5.1 现有接口
+
+| 接口 | 方法 | 说明 |
+|-----|------|------|
+| `/api/report/daily` | GET | 获取指定日期报告数据（JSON） |
+| `/api/report/history` | GET | 获取最近 N 天报告列表 |
+| `/api/report/dates` | GET | 获取有报告的日期列表 |
+| `/api/report/trade-dates` | GET | 获取交易日列表 |
+
+### 5.2 新增 HTML 报告接口
 
 ```
-GET /api/report/detail?date=2026-05-16
+GET /api/report/html?date=2026-05-16
 ```
+返回完整的 HTML 报告内容（`Content-Type: text/html`），可直接在 iframe 中嵌入或浏览器中打开。
 
-**响应格式**:
-
+```
+POST /api/report/generate?date=2026-05-16
+```
+手动触发指定日期 HTML 报告的生成。响应：
 ```json
 {
   "success": true,
   "data": {
-    "date": "2026-05-16",
-    "indices": {
-      "sh000001": {
-        "name": "上证指数",
-        "close": 3385.67,
-        "change_pct": 1.23,
-        "volume": 450000000,
-        "amount": 520000000000
-      },
-      "sz399001": { ... },
-      "sz399006": { ... }
-    },
-    "charts": {
-      "kline": "iVBORw0KGgoAAAANSUhEUgAAAAEAAA...",
-      "macd": "iVBORw0KGgoAAAANSUhEUgAAAAEAAA...",
-      "kdj": "iVBORw0KGgoAAAANSUhEUgAAAAEAAA...",
-      "sectors": "iVBORw0KGgoAAAANSUhEUgAAAAEAAA...",
-      "market_breadth": "iVBORw0KGgoAAAANSUhEUgAAAAEAAA..."
-    },
-    "sectors": [
-      {"name": "半导体", "change_pct": 3.45, "leading_stock": "中芯国际"},
-      {"name": "人工智能", "change_pct": 2.87, "leading_stock": "科大讯飞"}
-    ],
-    "market_breadth": {
-      "up": 2847,
-      "down": 1523,
-      "flat": 342,
-      "limit_up": 89,
-      "limit_down": 23
-    },
-    "summary": {
-      "total_amount": 1580000000000,
-      "market_cap": 85000000000000,
-      "turnover_rate": 1.85
-    }
+    "html_path": "reports/market_report_2026-05-16.html"
   }
 }
 ```
 
-### 5.2 图表格式
+### 5.3 数据库模型变更
 
-所有图表以 **Base64 PNG** 格式返回，前端直接用 `<img src="data:image/png;base64,..." />` 展示。
+`MarketReport` 表新增字段：
+
+| 字段 | 类型 | 说明 |
+|-----|------|------|
+| `html_report_path` | VARCHAR(500) | HTML 报告文件路径 |
 
 ## 六、前端页面布局
 
-```
-┌────────────────────────────────────────────────────────────────┐
-│  日期选择器: [2026-05-16]     市场审计报告 · 2026-05-16          │
-├────────────────────────────────────────────────────────────────┤
-│  ┌──────────────────────────┐  ┌──────────────────────────┐    │
-│  │       上证指数 K 线       │  │      主要指数涨跌对比      │    │
-│  │   (含 MA5/10/20 均线)   │  │         (柱状图)          │    │
-│  │      800 x 400 px       │  │       400 x 400 px       │    │
-│  └──────────────────────────┘  └──────────────────────────┘    │
-│                                                                │
-│  ┌──────────────────────────┐  ┌──────────────────────────┐    │
-│  │       MACD 指标图        │  │       KDJ 指标图        │    │
-│  │    (DIF/DEA/MACD柱)     │  │      (K/D/J 三线)       │    │
-│  │       800 x 300 px      │  │       800 x 300 px      │    │
-│  └──────────────────────────┘  └──────────────────────────┘    │
-│                                                                │
-│  ┌──────────────────────────────────────────────────────────┐    │
-│  │              板块涨跌幅排行榜 (TOP 10)                     │    │
-│  │                 800 x 400 px                             │    │
-│  └──────────────────────────────────────────────────────────┘    │
-│                                                                │
-│  ┌──────────────────────────┐  ┌──────────────────────────┐    │
-│  │      涨跌家数统计         │  │       市场概览数据        │    │
-│  │   上涨 2847 / 下跌 1523   │  │  成交额 | 涨停家数       │    │
-│  └──────────────────────────┘  └──────────────────────────┘    │
-└────────────────────────────────────────────────────────────────┘
-```
+### 6.1 React 视图（默认）
+
+保持现有交互式页面，包含指数卡片、热门板块列表、AI 分析文字。
+
+### 6.2 HTML 视图（新增）
+
+用户点击"HTML 报告"切换按钮，页面下方 iframe 嵌入 `/api/report/html?date=...`。
+
+页面顶部新增：
+- 视图切换按钮（React 视图 / HTML 报告）
+- "生成 HTML 报告"按钮（当 HTML 未生成时显示）
+- "新窗口打开"链接（当 HTML 已生成时显示）
 
 ## 七、技术实现
 
@@ -194,80 +140,54 @@ GET /api/report/detail?date=2026-05-16
 backend/
 ├── app/
 │   ├── services/
-│   │   ├── __init__.py
-│   │   ├── chart_service.py      # 图表生成服务
-│   │   ├── report_service.py    # 报告数据服务
-│   │   └── indicator_service.py  # 技术指标计算
+│   │   ├── chart_service.py        # matplotlib 图表生成，返回 Base64
+│   │   ├── report_service.py      # 报告数据服务（JSON）
+│   │   └── html_report_service.py  # HTML 报告生成服务（Jinja2）
+│   ├── templates/
+│   │   └── market_report.html      # Jinja2 HTML 报告模板
 │   └── routers/
-│       └── report.py            # 报告路由
+│       └── report.py               # 报告路由（含新增 /html 和 /generate）
+├── reports/                        # HTML 报告存储目录
+│   └── market_report_2026-05-16.html
+└── generate_report.py              # 定时生成脚本
 ```
 
 ### 7.2 chart_service.py 主要函数
 
 | 函数 | 功能 |
 |-----|------|
-| `generate_kline_chart(code, dates)` | 生成 K 线图 |
-| `generate_macd_chart(code, dates)` | 生成 MACD 图 |
-| `generate_kdj_chart(code, dates)` | 生成 KDJ 图 |
+| `generate_kline_chart(dates, opens, highs, lows, closes, name)` | 生成 K 线图 |
+| `generate_macd_chart(dates, closes, name)` | 生成 MACD 图 |
+| `generate_kdj_chart(dates, highs, lows, closes, name)` | 生成 KDJ 图 |
 | `generate_sector_chart(sectors)` | 生成板块排行图 |
 | `generate_market_breadth_chart(up, down, flat)` | 生成涨跌家数图 |
+| `generate_index_comparison_chart(indices)` | 生成指数对比图 |
 
-### 7.3 matplotlib 样式配置
+### 7.3 html_report_service.py 主要函数
 
-```python
-# 白底风格配置
-plt.rcParams['figure.facecolor'] = 'white'
-plt.rcParams['axes.facecolor'] = 'white'
-plt.rcParams['axes.edgecolor'] = '#cccccc'
-plt.rcParams['axes.labelcolor'] = '#333333'
-plt.rcParams['xtick.color'] = '#666666'
-plt.rcParams['ytick.color'] = '#666666'
-plt.rcParams['font.family'] = ['WenQuanYi Micro Hei', 'SimHei', 'sans-serif']
-plt.rcParams['axes.titlesize'] = 12
-plt.rcParams['axes.labelsize'] = 10
-```
+| 函数 | 功能 |
+|-----|------|
+| `generate_html_report(...)` | 生成完整 HTML 报告文件 |
+| `get_html_report_path(report_date)` | 获取 HTML 报告文件路径 |
+| `read_html_report(path)` | 读取 HTML 报告内容 |
+| `get_market_breadth()` | 获取市场广度数据 |
 
-### 7.4 字体配置
+### 7.4 工作流程
 
-需要确保服务器安装了中文字体：
-- Linux: `apt install fonts-wqy-microhei` 或 `fonts-wqy-zenhei`
-- 或使用 matplotlib 字体管理器加载自定义字体
+1. **定时任务**（下午 4 点）：`generate_daily_report()` 生成 JSON 报告并存库，同时触发 HTML 生成
+2. **手动触发**：用户调用 `POST /api/report/generate` 生成指定日期 HTML
+3. **前端展示**：用户可在 React 视图和 HTML 视图之间切换
 
-## 八、数据缓存策略
+## 八、部署注意事项
 
-1. **报告数据缓存**: 每日报告生成后存储在数据库
-2. **图表缓存**: 图表可缓存或按需生成
-3. **交易日历缓存**: 交易日列表缓存 1 天
+1. 确保 matplotlib 中文显示正常（安装中文字体后重启服务）
+2. 图表生成可能较慢（约 5-10 秒），建议异步生成或缓存
+3. HTML 报告文件较大（每份约 1-3 MB），注意存储空间
+4. 考虑将 HTML 报告上传到 OSS/CDN，减少服务器压力
+5. 新增依赖：`jinja2==3.1.4`、`matplotlib==3.9.3`、`numpy==2.2.2`
 
-## 九、错误处理
+## 九、后续扩展
 
-| 场景 | 处理方式 |
-|-----|---------|
-| 数据源超时 | 返回历史缓存数据，标注数据可能不完整 |
-| 图表生成失败 | 返回占位图，标注图表生成失败 |
-| 无当日数据 | 自动选择最近有数据的交易日 |
-| API 调用失败 | 返回友好错误提示，记录日志 |
-
-## 十、后续扩展
-
-1. **新增图表**:
-   - 布林带 (Bollinger Bands)
-   - RSI (相对强弱指数)
-   - 筹码分布图
-
-2. **数据增强**:
-   - 北向资金流向
-   - 融资融券数据
-   - 龙虎榜数据
-
-3. **交互功能**:
-   - 图表可点击放大
-   - 支持切换不同指数查看
-   - 历史对比功能
-
-## 十一、部署注意事项
-
-1. 确保 matplotlib 中文显示正常
-2. 图表生成可能较慢，可考虑异步生成
-3. Base64 图片较大，注意接口响应大小
-4. 可考虑将图表上传到 OSS/CDN 减少接口负担
+1. **推文功能**：解析 HTML 提取关键数据，通过推特/公众号 API 推送摘要
+2. **新增图表**：布林带、RSI、筹码分布图
+3. **PDF 导出**：将 HTML 报告转换为 PDF

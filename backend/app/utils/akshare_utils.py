@@ -204,10 +204,10 @@ async def get_stock_list() -> dict:
 
 def get_trade_dates(days: int = 30) -> list[str]:
     """获取最近N个交易日的日期列表（使用 akshare 官方交易日历）"""
+    today = date.today()
+    since = today - timedelta(days=days)
     try:
         df = ak.tool_trade_date_hsiec()
-        today = date.today()
-        since = today - timedelta(days=days)
         # df 的日期列可能是 trade_date 或类似的列名
         date_col = [c for c in df.columns if "trade" in c.lower() and "date" in c.lower()]
         if not date_col:

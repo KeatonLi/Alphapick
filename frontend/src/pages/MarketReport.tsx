@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { apiGet } from '../services/api'
+import { apiGet, apiPost } from '../services/api'
 
 interface IndexData {
   name: string
@@ -21,6 +21,7 @@ interface ReportData {
   index_data: IndexData[]
   hot_sectors: SectorData[]
   ai_report: string
+  html_report_path?: string | null
 }
 
 function formatDate(d: Date): string {
@@ -34,13 +35,15 @@ export default function MarketReport() {
   const [availableDates, setAvailableDates] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [viewMode, setViewMode] = useState<'react' | 'html'>('react')
+  const [htmlLoading, setHtmlLoading] = useState(false)
+  const [htmlAvailable, setHtmlAvailable] = useState(false)
 
   const fetchDates = async () => {
     try {
       let result = await apiGet<any>('/report/trade-dates')
       if (result.data && result.data.length > 0) {
         setAvailableDates(result.data)
-        // 自动选择最近有数据的日期
         if (!selectedDate) {
           setSelectedDate(result.data[0])
         }
@@ -63,18 +66,38 @@ export default function MarketReport() {
       const result = await apiGet<any>(`/report/daily?date=${d}`)
       if (result.data?.date) {
         setReport(result.data)
+        setHtmlAvailable(!!result.data.html_report_path)
       } else if (result.detail) {
         setError(result.detail)
         setReport(null)
+        setHtmlAvailable(false)
       } else {
         setError('获取报告失败')
         setReport(null)
+        setHtmlAvailable(false)
       }
     } catch (e: any) {
       setError(e.message || '请求失败')
       setReport(null)
+      setHtmlAvailable(false)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const generateHtmlReport = async () => {
+    if (!selectedDate) return
+    setHtmlLoading(true)
+    try {
+      const result = await apiPost<any>(`/report/generate?date=${selectedDate}`)
+      if (result.success || (result.data && result.data.html_path)) {
+        setHtmlAvailable(true)
+        setViewMode('html')
+      }
+    } catch (e: any) {
+      setError('生成HTML报告失败: ' + (e.message || ''))
+    } finally {
+      setHtmlLoading(false)
     }
   }
 
@@ -85,6 +108,7 @@ export default function MarketReport() {
   useEffect(() => {
     if (selectedDate) {
       fetchReport(selectedDate)
+      setViewMode('react')
     }
   }, [selectedDate])
 
@@ -96,7 +120,7 @@ export default function MarketReport() {
           每日市场<span className="text-cyan-500">审计报告</span>
         </h1>
         <p className="text-text-secondary max-w-lg mx-auto text-sm leading-relaxed">
-          每日收盘后自动生成，AI 综合分析三大指数、热门板块、资金流向
+          每日收盘后自动生成，AI 综合分析三大指数、热门板块，资金流向
         </p>
       </div>
 
@@ -146,6 +170,51 @@ export default function MarketReport() {
         )}
       </div>
 
+      {/* View Mode Toggle + HTML Actions */}
+      {report && !loading && (
+        <div className="flex items-center justify-center gap-3 mb-6">
+          <div className="inline-flex rounded-xl border border-border-default overflow-hidden shadow-sm">
+            <button
+              onClick={() => setViewMode('react')}
+              className={`px-4 py-2 text-sm font-medium transition-all ${viewMode === 'react' ? 'bg-blue-600 text-white' : 'bg-white text-text-secondary hover:bg-blue-50'}`}
+            >
+              React 视图
+            </button>
+            <button
+              onClick={() => setViewMode('html')}
+              disabled={!htmlAvailable}
+              className={`px-4 py-2 text-sm font-medium transition-all border-l border-border-default ${viewMode === 'html' ? 'bg-blue-600 text-white' : 'bg-white text-text-secondary hover:bg-blue-50'} ${!htmlAvailable ? 'opacity-40 cursor-not-allowed' : ''}`}
+            >
+              HTML 报告
+            </button>
+          </div>
+
+          {!htmlAvailable && report.date && (
+            <button
+              onClick={generateHtmlReport}
+              disabled={htmlLoading}
+              className="px-4 py-2 text-sm font-medium bg-green-600 text-white rounded-xl hover:bg-green-700 transition-all shadow-sm disabled:opacity-50"
+            >
+              {htmlLoading ? '生成中...' : '生成 HTML 报告'}
+            </button>
+          )}
+
+          {htmlAvailable && (
+            <a
+              href={`/api/report/html?date=${selectedDate}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-4 py-2 text-sm font-medium bg-green-600 text-white rounded-xl hover:bg-green-700 transition-all shadow-sm inline-flex items-center gap-1"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+              新窗口打开
+            </a>
+          )}
+        </div>
+      )}
+
       {/* Error */}
       {error && (
         <div className="max-w-2xl mx-auto mb-8 p-4 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm flex items-center gap-3">
@@ -162,7 +231,20 @@ export default function MarketReport() {
         </div>
       )}
 
-      {report && !loading && (
+      {/* HTML iframe view */}
+      {viewMode === 'html' && htmlAvailable && !loading && (
+        <div className="fade-in-up">
+          <iframe
+            src={`/api/report/html?date=${selectedDate}`}
+            title="市场报告 HTML"
+            className="w-full border-0 rounded-2xl shadow-lg"
+            style={{ height: '85vh', minHeight: '600px' }}
+          />
+        </div>
+      )}
+
+      {/* React view */}
+      {report && !loading && viewMode === 'react' && (
         <div className="space-y-6 fade-in-up">
           {/* Date Badge */}
           <div className="text-center">
