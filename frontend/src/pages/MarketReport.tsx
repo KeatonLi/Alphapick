@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { apiGet, apiPost } from '../services/api'
+import { mockMarketReport } from '../services/mockData'
 
 interface IndexData {
   name: string
@@ -60,29 +61,12 @@ export default function MarketReport() {
 
   const fetchReport = async (d: string) => {
     if (!d) return
+    // 直接使用 mock 数据，暂不调用真实 API
     setLoading(true)
     setError('')
-    try {
-      const result = await apiGet<any>(`/report/daily?date=${d}`)
-      if (result.data?.date) {
-        setReport(result.data)
-        setHtmlAvailable(!!result.data.html_report_path)
-      } else if (result.detail) {
-        setError(result.detail)
-        setReport(null)
-        setHtmlAvailable(false)
-      } else {
-        setError('获取报告失败')
-        setReport(null)
-        setHtmlAvailable(false)
-      }
-    } catch (e: any) {
-      setError(e.message || '请求失败')
-      setReport(null)
-      setHtmlAvailable(false)
-    } finally {
-      setLoading(false)
-    }
+    setReport(mockMarketReport)
+    setHtmlAvailable(false)
+    setLoading(false)
   }
 
   const generateHtmlReport = async () => {

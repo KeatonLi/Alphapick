@@ -1,6 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 from datetime import date
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from app.database import get_db
 from app.services.recommend_service import (
@@ -11,10 +13,13 @@ from app.services.recommend_service import (
 )
 
 router = APIRouter(prefix="/api/recommend", tags=["recommend"])
+limiter = Limiter(key_func=get_remote_address)
 
 
 @router.get("/daily")
+@limiter.limit("10/minute")
 async def daily(
+    request: Request,
     rec_date: date | None = Query(None, alias="date"),
     db: Session = Depends(get_db),
 ):
@@ -27,7 +32,8 @@ async def daily(
 
 
 @router.get("/dates")
-async def dates(db: Session = Depends(get_db)):
+@limiter.limit("30/minute")
+async def dates(request: Request, db: Session = Depends(get_db)):
     """获取有推荐数据的日期列表"""
     from app.services.recommend_service import get_available_recommend_dates
     result = get_available_recommend_dates(db)

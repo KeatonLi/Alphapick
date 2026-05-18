@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { apiGet } from '../services/api'
+import { mockMarketIndex, mockHotSectors } from '../services/mockData'
 
 interface MarketIndex {
   name: string
@@ -18,31 +18,12 @@ export default function Market() {
   const [indices, setIndices] = useState<MarketIndex[]>([])
   const [sectors, setSectors] = useState<HotSector[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
 
   useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true)
-      setError('')
-      try {
-        const [indexRes, sectorRes] = await Promise.all([
-          apiGet<any>('/api/stock/market-index'),
-          apiGet<any>('/api/stock/hot-sectors?top_n=10'),
-        ])
-
-        if (indexRes.success) {
-          setIndices(indexRes.data)
-        }
-        if (sectorRes.success) {
-          setSectors(sectorRes.data)
-        }
-      } catch (e: any) {
-        setError(e.message || '获取数据失败')
-      } finally {
-        setLoading(false)
-      }
-    }
-    fetchData()
+    // 直接使用 mock 数据，暂不调用真实 API
+    setIndices(mockMarketIndex)
+    setSectors(mockHotSectors)
+    setLoading(false)
   }, [])
 
   if (loading) {
@@ -51,16 +32,6 @@ export default function Market() {
         <div className="text-center">
           <div className="animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-4" />
           <p className="text-text-secondary">加载市场数据...</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="max-w-5xl mx-auto px-6 py-8">
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-600">
-          {error}
         </div>
       </div>
     )

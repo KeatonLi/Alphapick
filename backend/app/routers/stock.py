@@ -1,9 +1,12 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from app.services.stock_service import analyze_stock
 from app.utils.akshare_utils import get_stock_info, get_stock_daily, get_market_index, get_hot_sectors
 
 router = APIRouter(prefix="/api/stock", tags=["stock"])
+limiter = Limiter(key_func=get_remote_address)
 
 
 @router.get("/analyze")
@@ -34,7 +37,8 @@ async def daily(code: str, days: int = 60):
 
 
 @router.get("/market-index")
-async def market_index():
+@limiter.limit("10/minute")
+async def market_index(request: Request):
     """获取主要指数行情（上证、深证、创业板）"""
     result = await get_market_index()
     if not result["success"]:
@@ -43,7 +47,8 @@ async def market_index():
 
 
 @router.get("/hot-sectors")
-async def hot_sectors(top_n: int = 10):
+@limiter.limit("5/minute")
+async def hot_sectors(request: Request, top_n: int = 10):
     """获取热门板块"""
     result = await get_hot_sectors(top_n)
     if not result["success"]:

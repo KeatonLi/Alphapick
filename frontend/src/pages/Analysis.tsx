@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { apiGet } from '../services/api'
+import { mockKLineData } from '../services/mockData'
 
 interface DailyData {
   日期: string
@@ -12,14 +12,6 @@ interface DailyData {
 }
 
 const periods = ['1W', '1M', '3M', '6M', '1Y']
-const periodDays: Record<string, number> = {
-  '1D': 1,
-  '1W': 7,
-  '1M': 30,
-  '3M': 90,
-  '6M': 180,
-  '1Y': 365,
-}
 
 const indices = [
   { code: '000001', name: '上证指数' },
@@ -32,27 +24,11 @@ export default function Analysis() {
   const [selectedIndex, setSelectedIndex] = useState('000001')
   const [chartData, setChartData] = useState<DailyData[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
 
   useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true)
-      setError('')
-      try {
-        const days = periodDays[selectedPeriod] || 30
-        const res = await apiGet<any>(`/api/stock/daily?code=${selectedIndex}&days=${days}`)
-        if (res.success) {
-          setChartData(res.data)
-        } else {
-          setError(res.error || '获取数据失败')
-        }
-      } catch (e: any) {
-        setError(e.message || '请求失败')
-      } finally {
-        setLoading(false)
-      }
-    }
-    fetchData()
+    // 直接使用 mock 数据，暂不调用真实 API
+    setChartData(mockKLineData)
+    setLoading(false)
   }, [selectedIndex, selectedPeriod])
 
   const minVal = chartData.length > 0 ? Math.min(...chartData.map(d => d.最低)) : 0
@@ -126,12 +102,6 @@ export default function Analysis() {
             <div className="text-center">
               <div className="animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-4" />
               <p className="text-text-secondary">加载K线数据...</p>
-            </div>
-          </div>
-        ) : error ? (
-          <div className="h-64 flex items-center justify-center">
-            <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-600">
-              {error}
             </div>
           </div>
         ) : (

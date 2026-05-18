@@ -1,7 +1,9 @@
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from app.database import get_db
 from app.models import MarketReport
@@ -12,10 +14,13 @@ from app.services.report_service import (
 )
 
 router = APIRouter(prefix="/api/report", tags=["report"])
+limiter = Limiter(key_func=get_remote_address)
 
 
 @router.get("/daily")
+@limiter.limit("10/minute")
 async def daily(
+    request: Request,
     report_date: date | None = Query(None, alias="date"),
     db: Session = Depends(get_db),
 ):
@@ -28,21 +33,24 @@ async def daily(
 
 
 @router.get("/history")
-async def history(limit: int = 7, db: Session = Depends(get_db)):
+@limiter.limit("30/minute")
+async def history(request: Request, limit: int = 7, db: Session = Depends(get_db)):
     """获取最近 N 天的历史报告"""
     result = get_report_history(db, limit)
     return result
 
 
 @router.get("/dates")
-async def dates(db: Session = Depends(get_db)):
+@limiter.limit("30/minute")
+async def dates(request: Request, db: Session = Depends(get_db)):
     """获取有报告的日期列表"""
     result = get_available_dates(db)
     return result
 
 
 @router.get("/trade-dates")
-async def trade_dates():
+@limiter.limit("10/minute")
+async def trade_dates(request: Request):
     """获取交易日列表（用于日期选择器）"""
     from app.services.report_service import get_trade_dates_for_frontend
     return get_trade_dates_for_frontend()

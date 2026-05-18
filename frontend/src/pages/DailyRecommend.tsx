@@ -29,54 +29,52 @@ function formatDate(d: Date): string {
 
 export default function DailyRecommend() {
   const today = formatDate(new Date())
-  const [selectedDate, setSelectedDate] = useState('')
+  const [selectedDate, setSelectedDate] = useState(today)
   const [recs, setRecs] = useState<StockRec[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [fromCache, setFromCache] = useState(false)
+  const [hasGenerated, setHasGenerated] = useState(false)
   const [availableDates, setAvailableDates] = useState<string[]>([])
 
-  const fetchDates = async () => {
-    try {
-      const result = await apiGet<any>('/recommend/dates')
-      const dates = result.data || []
-      setAvailableDates(dates)
-      // 自动选择最近有数据的日期
-      if (dates.length > 0 && !selectedDate) {
-        setSelectedDate(dates[0])
+  // 获取有报告的日期列表
+  useEffect(() => {
+    const fetchDates = async () => {
+      try {
+        const result = await apiGet<any>('/recommend/dates')
+        setAvailableDates(result.data || [])
+      } catch {
+        // ignore
       }
-    } catch { /* ignore */ }
-  }
+    }
+    fetchDates()
+  }, [])
 
-  const fetchData = async (d: string) => {
-    if (!d) return
+  const generateReport = async () => {
+    if (!selectedDate) return
     setLoading(true)
     setError('')
+    setFromCache(false)
     try {
       const [recData, statsData] = await Promise.all([
-        apiGet<any>(`/recommend/daily?date=${d}`),
+        apiGet<any>(`/recommend/daily?date=${selectedDate}`),
         apiGet<any>('/recommend/stats'),
       ])
       setRecs(recData.data || [])
       setFromCache(recData.from_cache || false)
       setStats(statsData.data)
+      setHasGenerated(true)
+      // 如果是新生成的日期，加入列表
+      if (!availableDates.includes(selectedDate)) {
+        setAvailableDates(prev => [selectedDate, ...prev].sort().reverse())
+      }
     } catch (e: any) {
-      setError(e.message || '请求失败')
+      setError(e.message || '生成失败')
     } finally {
       setLoading(false)
     }
   }
-
-  useEffect(() => {
-    fetchDates()
-  }, [])
-
-  useEffect(() => {
-    if (selectedDate) {
-      fetchData(selectedDate)
-    }
-  }, [selectedDate])
 
   return (
     <div className="max-w-5xl mx-auto px-6 py-8">
@@ -90,68 +88,86 @@ export default function DailyRecommend() {
         </p>
       </div>
 
-      {/* Date Selector */}
-      <div className="flex items-center justify-center gap-4 mb-8 flex-wrap">
-        <button
-          onClick={() => {
-            const idx = availableDates.indexOf(selectedDate)
-            if (idx < availableDates.length - 1) setSelectedDate(availableDates[idx + 1])
-          }}
-          disabled={availableDates.indexOf(selectedDate) >= availableDates.length - 1}
-          className="p-2 rounded-xl bg-white border border-border-default text-text-secondary hover:text-blue-600 hover:border-blue-300 disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-sm"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-        </button>
-
-        <div className="relative">
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            max={today}
-            className="appearance-none bg-white border border-border-default text-text-primary text-center px-4 py-2.5 rounded-xl font-mono text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all cursor-pointer shadow-sm"
-          />
+      {/* Date Selector - 只显示有报告的日期 */}
+      <div className="flex flex-col items-center gap-4 mb-8">
+        <div className="text-sm text-text-muted">
+          已生成报告的日期（绿色）
+        </div>
+        <div className="flex flex-wrap justify-center gap-2">
+          {availableDates.length === 0 && (
+            <span className="text-sm text-text-muted">暂无报告，请点击下方按钮生成</span>
+          )}
+          {availableDates.map(date => {
+            const hasReport = true
+            const isSelected = date === selectedDate
+            const isToday = date === today
+            return (
+              <button
+                key={date}
+                onClick={() => {
+                  setSelectedDate(date)
+                  // 切换日期时直接获取该日期的报告
+                  setLoading(true)
+                  setError('')
+                  setFromCache(false)
+                  apiGet<any>(`/recommend/daily?date=${date}`)
+                    .then(recData => {
+                      setRecs(recData.data || [])
+                      setFromCache(recData.from_cache || false)
+                      setHasGenerated(true)
+                      apiGet<any>('/recommend/stats').then(statsData => {
+                        setStats(statsData.data)
+                      }).catch(() => {})
+                    })
+                    .catch(() => {
+                      setRecs([])
+                      setHasGenerated(false)
+                    })
+                    .finally(() => setLoading(false))
+                }}
+                className={`
+                  px-4 py-2 rounded-xl text-sm font-mono transition-all
+                  ${isSelected
+                    ? 'bg-green-500 text-white shadow-lg shadow-green-200'
+                    : hasReport
+                    ? 'bg-green-50 text-green-700 border border-green-300 hover:bg-green-100'
+                    : 'bg-gray-50 text-gray-400 border border-gray-200'
+                  }
+                  ${isToday && !isSelected ? 'ring-2 ring-amber-400 ring-offset-2' : ''}
+                `}
+              >
+                {date.slice(5)}
+                {isToday && <span className="ml-1 text-xs">今</span>}
+              </button>
+            )
+          })}
         </div>
 
-        <button
-          onClick={() => {
-            const idx = availableDates.indexOf(selectedDate)
-            if (idx > 0) setSelectedDate(availableDates[idx - 1])
-          }}
-          disabled={availableDates.indexOf(selectedDate) <= 0}
-          className="p-2 rounded-xl bg-white border border-border-default text-text-secondary hover:text-blue-600 hover:border-blue-300 disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-sm"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
-        </button>
+        {/* Generate Button */}
+        <div className="flex items-center gap-4 mt-2">
+          <button
+            onClick={generateReport}
+            disabled={loading || !selectedDate}
+            className="px-6 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 text-white rounded-xl font-semibold text-sm hover:from-amber-600 hover:to-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-amber-200 flex items-center gap-2"
+          >
+            {loading ? (
+              <>
+                <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                生成中...
+              </>
+            ) : availableDates.includes(selectedDate) ? '重新生成' : '生成报告'}
+          </button>
 
-        {availableDates.length > 0 && (
-          <span className="text-sm text-text-muted bg-blue-50 px-3 py-1 rounded-full">
-            {availableDates.indexOf(selectedDate) + 1} / {availableDates.length} 天
-          </span>
-        )}
+          {fromCache && hasGenerated && (
+            <span className="text-sm text-green-600 bg-green-50 px-3 py-1 rounded-full border border-green-200">
+              ✓ 来自缓存
+            </span>
+          )}
+        </div>
       </div>
-
-      {/* Stats Cards */}
-      {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10 fade-in-up">
-          {[
-            { label: '累计推荐', value: stats.total, icon: '📊', color: 'from-blue-50 to-blue-100', border: 'border-blue-200', text: 'text-blue-600' },
-            { label: '盈利次数', value: stats.win_count, icon: '🎯', color: 'from-green-50 to-green-100', border: 'border-green-200', text: 'text-green-600' },
-            { label: '胜率', value: `${stats.win_rate}%`, icon: '📈', color: 'from-amber-50 to-amber-100', border: 'border-amber-200', text: 'text-amber-600' },
-            { label: '平均收益率', value: `${stats.avg_return}%`, icon: '💎', color: 'from-purple-50 to-purple-100', border: 'border-purple-200', text: 'text-purple-600' },
-          ].map((s, i) => (
-            <div key={i} className={`stock-card p-5 text-center bg-gradient-to-br ${s.color} border ${s.border}`}>
-              <div className="text-2xl mb-2">{s.icon}</div>
-              <div className={`text-2xl md:text-3xl font-extrabold ${s.text} count-in`}>{s.value}</div>
-              <div className="text-xs text-text-muted mt-1">{s.label}</div>
-            </div>
-          ))}
-        </div>
-      )}
 
       {/* Error */}
       {error && (
@@ -161,16 +177,7 @@ export default function DailyRecommend() {
         </div>
       )}
 
-      {/* Cache indicator */}
-      {fromCache && (
-        <div className="text-center mb-6">
-          <span className="text-sm text-text-muted bg-blue-50 px-4 py-1.5 rounded-full border border-blue-200">
-            {selectedDate === today ? '今日已生成推荐' : `${selectedDate} 的推荐数据`}
-          </span>
-        </div>
-      )}
-
-      {/* Loading */}
+      {/* Loading Skeleton */}
       {loading && (
         <div className="space-y-4 max-w-2xl mx-auto">
           {[1, 2, 3, 4, 5].map(i => (
@@ -180,51 +187,72 @@ export default function DailyRecommend() {
       )}
 
       {/* Recommendation Cards */}
-      <div className="space-y-4">
-        {recs.map((rec, idx) => (
-          <div key={idx} className="stock-card p-5 md:p-6 hover:shadow-lg hover:shadow-blue-100 transition-all duration-300 fade-in-up group" style={{ animationDelay: `${idx * 80}ms` }}>
-            <div className="flex items-start gap-4">
-              {/* Rank Badge */}
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold shrink-0 ${rankBadges[idx] || 'bg-gray-400 text-white'}`}>
-                {idx + 1}
-              </div>
-
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-3 mb-1.5">
-                  <span className="text-lg font-bold text-blue-800 group-hover:text-blue-600 transition-colors">{rec.stock_name}</span>
-                  <span className="text-xs text-text-muted font-mono bg-blue-50 px-2 py-0.5 rounded">{rec.stock_code}</span>
+      {!loading && recs.length > 0 && (
+        <>
+          {/* Stats Cards */}
+          {stats && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10 fade-in-up">
+              {[
+                { label: '累计推荐', value: stats.total, icon: '📊', color: 'from-blue-50 to-blue-100', border: 'border-blue-200', text: 'text-blue-600' },
+                { label: '盈利次数', value: stats.win_count, icon: '🎯', color: 'from-green-50 to-green-100', border: 'border-green-200', text: 'text-green-600' },
+                { label: '胜率', value: `${stats.win_rate}%`, icon: '📈', color: 'from-amber-50 to-amber-100', border: 'border-amber-200', text: 'text-amber-600' },
+                { label: '平均收益率', value: `${stats.avg_return}%`, icon: '💎', color: 'from-purple-50 to-purple-100', border: 'border-purple-200', text: 'text-purple-600' },
+              ].map((s, i) => (
+                <div key={i} className={`stock-card p-5 text-center bg-gradient-to-br ${s.color} border ${s.border}`}>
+                  <div className="text-2xl mb-2">{s.icon}</div>
+                  <div className={`text-2xl md:text-3xl font-extrabold ${s.text} count-in`}>{s.value}</div>
+                  <div className="text-xs text-text-muted mt-1">{s.label}</div>
                 </div>
-                <p className="text-sm text-text-secondary leading-relaxed line-clamp-2">{rec.reason || '量化模型筛选结果'}</p>
-              </div>
-
-              <div className="text-right shrink-0">
-                <div className="text-2xl font-bold text-amber-500 font-mono tracking-tight">
-                  {rec.recommend_price.toFixed(2)}
-                </div>
-                <div className="text-xs text-text-muted mt-1">推荐价格</div>
-              </div>
+              ))}
             </div>
-          </div>
-        ))}
-      </div>
+          )}
 
-      {!loading && recs.length === 0 && !error && (
-        <div className="text-center py-20">
-          <div className="text-6xl mb-4">📭</div>
-          <div className="text-text-muted text-lg">暂无推荐数据</div>
-          <div className="text-text-muted text-sm mt-1">该日期暂无推荐记录</div>
-        </div>
+          {/* Date Badge */}
+          <div className="text-center mb-6">
+            <span className="text-sm font-mono font-semibold text-amber-600 bg-amber-50 px-4 py-1.5 rounded-full border border-amber-200">
+              📅 {selectedDate} 推荐报告
+            </span>
+          </div>
+
+          {/* Stock Cards */}
+          <div className="space-y-4">
+            {recs.map((rec, idx) => (
+              <div key={idx} className="stock-card p-5 md:p-6 hover:shadow-lg hover:shadow-blue-100 transition-all duration-300 fade-in-up group" style={{ animationDelay: `${idx * 80}ms` }}>
+                <div className="flex items-start gap-4">
+                  {/* Rank Badge */}
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold shrink-0 ${rankBadges[idx] || 'bg-gray-400 text-white'}`}>
+                    {idx + 1}
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-3 mb-1.5">
+                      <span className="text-lg font-bold text-blue-800 group-hover:text-blue-600 transition-colors">{rec.stock_name}</span>
+                      <span className="text-xs text-text-muted font-mono bg-blue-50 px-2 py-0.5 rounded">{rec.stock_code}</span>
+                    </div>
+                    <p className="text-sm text-text-secondary leading-relaxed line-clamp-2">{rec.reason || '量化模型筛选结果'}</p>
+                  </div>
+
+                  <div className="text-right shrink-0">
+                    <div className="text-2xl font-bold text-amber-500 font-mono tracking-tight">
+                      {rec.recommend_price.toFixed(2)}
+                    </div>
+                    <div className="text-xs text-text-muted mt-1">推荐价格</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
       )}
 
-      {/* Refresh Button (floating) */}
-      <div className="fixed bottom-6 right-6">
-        <button onClick={() => fetchData(selectedDate)} disabled={loading}
-          className="w-12 h-12 rounded-full bg-blue-600 text-white shadow-lg shadow-blue-200 hover:bg-blue-700 hover:shadow-blue-300 disabled:opacity-50 transition-all duration-300 flex items-center justify-center active:scale-90">
-          <svg className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
-        </button>
-      </div>
+      {/* Empty State */}
+      {!loading && recs.length === 0 && !error && !hasGenerated && (
+        <div className="text-center py-20">
+          <div className="text-6xl mb-4">📋</div>
+          <div className="text-text-muted text-lg">点击上方按钮生成今日推荐报告</div>
+          <div className="text-text-muted text-sm mt-1">每日 15:30 后可生成当日报告</div>
+        </div>
+      )}
     </div>
   )
 }
