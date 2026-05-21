@@ -42,7 +42,7 @@ export default function DailyRecommend() {
       const result = await apiGet<any>('/recommend/dates')
       const dates = result.data || []
       setAvailableDates(dates)
-      // 自动选择最近有数据的日期
+      // 自动选择最近有数据的日期（列表已按最新日期排序，取第一个）
       if (dates.length > 0 && !selectedDate) {
         setSelectedDate(dates[0])
       }
@@ -54,13 +54,16 @@ export default function DailyRecommend() {
     setLoading(true)
     setError('')
     try {
-      const [recData, statsData] = await Promise.all([
-        apiGet<any>(`/recommend/daily?date=${d}`),
-        apiGet<any>('/recommend/stats'),
-      ])
+      const recData = await apiGet<any>(`/recommend/daily?date=${d}`)
       setRecs(recData.data || [])
       setFromCache(recData.from_cache || false)
-      setStats(statsData.data)
+      // 只在查看今日推荐时加载统计（历史推荐数据不跟踪统计）
+      if (d === today) {
+        const statsData = await apiGet<any>('/recommend/stats')
+        setStats(statsData.data)
+      } else {
+        setStats(null)
+      }
     } catch (e: any) {
       setError(e.message || '请求失败')
     } finally {
@@ -78,6 +81,9 @@ export default function DailyRecommend() {
     }
   }, [selectedDate])
 
+  // availableDates 按最新日期排序 [today, yesterday, ...]
+  const currentIdx = availableDates.indexOf(selectedDate)
+
   return (
     <div className="max-w-5xl mx-auto px-6 py-8">
       {/* Hero */}
@@ -92,12 +98,13 @@ export default function DailyRecommend() {
 
       {/* Date Selector */}
       <div className="flex items-center justify-center gap-4 mb-8 flex-wrap">
+        {/* Left arrow: go to older dates (higher index), disabled at oldest */}
         <button
           onClick={() => {
-            const idx = availableDates.indexOf(selectedDate)
+            const idx = currentIdx
             if (idx < availableDates.length - 1) setSelectedDate(availableDates[idx + 1])
           }}
-          disabled={availableDates.indexOf(selectedDate) >= availableDates.length - 1}
+          disabled={currentIdx >= availableDates.length - 1 || availableDates.length === 0}
           className="p-2 rounded-xl bg-white border border-border-default text-text-secondary hover:text-blue-600 hover:border-blue-300 disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-sm"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -109,18 +116,22 @@ export default function DailyRecommend() {
           <input
             type="date"
             value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
+            onChange={(e) => {
+              const val = e.target.value
+              if (val) setSelectedDate(val)
+            }}
             max={today}
             className="appearance-none bg-white border border-border-default text-text-primary text-center px-4 py-2.5 rounded-xl font-mono text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all cursor-pointer shadow-sm"
           />
         </div>
 
+        {/* Right arrow: go to newer dates (lower index), disabled at newest */}
         <button
           onClick={() => {
-            const idx = availableDates.indexOf(selectedDate)
+            const idx = currentIdx
             if (idx > 0) setSelectedDate(availableDates[idx - 1])
           }}
-          disabled={availableDates.indexOf(selectedDate) <= 0}
+          disabled={currentIdx <= 0 || availableDates.length === 0}
           className="p-2 rounded-xl bg-white border border-border-default text-text-secondary hover:text-blue-600 hover:border-blue-300 disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-sm"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -128,9 +139,9 @@ export default function DailyRecommend() {
           </svg>
         </button>
 
-        {availableDates.length > 0 && (
+        {availableDates.length > 0 && currentIdx >= 0 && (
           <span className="text-sm text-text-muted bg-blue-50 px-3 py-1 rounded-full">
-            {availableDates.indexOf(selectedDate) + 1} / {availableDates.length} 天
+            {currentIdx + 1} / {availableDates.length} 天
           </span>
         )}
       </div>
@@ -212,7 +223,11 @@ export default function DailyRecommend() {
         <div className="text-center py-20">
           <div className="text-6xl mb-4">📭</div>
           <div className="text-text-muted text-lg">暂无推荐数据</div>
-          <div className="text-text-muted text-sm mt-1">该日期暂无推荐记录</div>
+          {selectedDate === today ? (
+            <div className="text-text-muted text-sm mt-1">今日推荐数据正在生成中，请稍后刷新重试</div>
+          ) : (
+            <div className="text-text-muted text-sm mt-1">该日期暂无推荐记录</div>
+          )}
         </div>
       )}
 

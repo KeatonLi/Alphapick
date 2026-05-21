@@ -8,21 +8,50 @@ from app.utils.akshare_utils import get_stock_list, get_trade_dates
 from app.utils.ai_client import chat
 from app.models import Recommendation
 
-RECOMMEND_PROMPT = """你是一位量化交易分析师。我会给你一份A股市场的股票数据（包含代码、名称、价格、涨跌幅、成交量、换手率），请你基于以下量化逻辑筛选出 5 只最有潜力的股票：
+# Sector mapping for top stocks (simplified)
+SECTOR_KEYWORDS = {
+    "科技": ["科技", "软件", "电子", "通信", "半导体", "芯片", "互联网"],
+    "消费": ["消费", "食品", "饮料", "家电", "纺织", "服装", "零售"],
+    "金融": ["银行", "保险", "证券", "信托", "金融"],
+    "医药": ["医药", "医疗", "生物", "健康"],
+    "新能源": ["新能源", "光伏", "锂电", "储能", "电动车", "汽车"],
+    "周期": ["钢铁", "煤炭", "有色", "化工", "建材", "地产", "建筑"],
+    "基建": ["基建", "工程", "机械", "设备"],
+    "公用": ["电力", "燃气", "水务", "环保", "公用"],
+}
 
-筛选逻辑：
-1. **动量因子**：近期涨幅适中（3%-8%），不是极端追涨
-2. **量价配合**：成交量放大配合价格上涨，换手率活跃但不异常
-3. **趋势健康**：排除连续暴涨暴跌的异常标的
-4. **分散行业**：5只股票尽量分散在不同行业
+def _guess_sector(name: str) -> str:
+    """Guess sector from stock name/industry keywords"""
+    for sector, keywords in SECTOR_KEYWORDS.items():
+        for kw in keywords:
+            if kw in name:
+                return sector
+    return "其他"
 
-输出格式（JSON）：
+
+RECOMMEND_PROMPT = """你是一位量化交易分析师。我会给你一份A股市场的候选股票数据（代码、名称、价格、涨跌幅、成交量、换手率），请你筛选出 5 只最有潜力的股票。
+
+筛选标准（重要性从高到低）：
+1. **趋势健康**：排除连续暴涨暴跌的异常标的，涨幅适中（1%~10%最佳）
+2. **动量可持续**：成交量放大配合价格上涨，换手率活跃（>2%），量价配合良好
+3. **价格合理**：价格 5~100 元之间，流动性好
+4. **行业分散**：5只股票必须分散在4个以上不同行业，避免集中持股风险
+
+排除标准（必须排除）：
+- ST 股、*ST 股
+- 涨跌停板（极端行情）
+- 股价低于 3 元（流动性风险）或高于 100 元（波动过大）
+- 换手率低于 1%（资金关注度不足）
+
+每只股票的推荐理由要具体说明为什么该股符合上述标准。
+
+输出格式（严格 JSON 数组，不要任何其他内容）：
 [
-  {{"code": "000001", "name": "股票名", "price": 12.34, "reason": "推荐理由"}},
+  {"code": "000001", "name": "股票名", "price": 12.34, "reason": "推荐理由（从量价配合、动量、行业地位等角度具体说明）"},
   ...
 ]
 
-只输出JSON数组，不要其他内容。"""
+必须输出恰好 5 只股票。"""
 
 
 async def get_daily_recommendations(db: Session) -> dict:
@@ -58,16 +87,103 @@ async def get_recommend_by_date(db: Session, rec_date: date) -> dict:
         return {"success": False, "error": f"获取股票列表失败: {stock_result['error']}"}
 
     all_stocks = stock_result["data"]
-    # Filter: price between 5-100, volume > 0, turnover > 1%
-    candidates = [
-        s for s in all_stocks
-        if 5 <= s["price"] <= 100 and s["volume"] > 0 and s["turnover"] > 1
-    ]
-    # Sort by momentum + volume and take top 200 for AI screening
-    candidates.sort(key=lambda x: x["change_pct"] * x["turnover"], reverse=True)
-    candidates = candidates[:200]
 
-    user_message = f"候选股票数据：\n{json.dumps(candidates, ensure_ascii=False)}"
+    # Phase 1: Rough filtering - remove obvious bad candidates
+    candidates = []
+    for s in all_stocks:
+        price = s.get("price") or 0
+        change_pct = s.get("change_pct") or 0
+        volume = s.get("volume") or 0
+        turnover = s.get("turnover") or 0
+
+        # Skip invalid entries
+        if price <= 0 or price > 500:
+            continue
+        # Skip extreme price range
+        if price < 3 or price > 100:
+            continue
+        # Skip extreme change (likely limit up/down or anomaly)
+        if abs(change_pct) > 12:
+            continue
+        # Skip zero volume
+        if volume <= 0:
+            continue
+        # Skip low activity
+        if turnover < 1:
+            continue
+        # Prefer positive momentum but not too extreme
+        if change_pct < 0.5:
+            continue
+
+        s["_sector"] = _guess_sector(s.get("name", ""))
+        candidates.append(s)
+
+    if len(candidates) < 10:
+        # If too few candidates after filtering, relax constraints
+        candidates = [
+            s for s in all_stocks
+            if 3 <= (s.get("price") or 0) <= 100
+            and (s.get("volume") or 0) > 0
+            and abs(s.get("change_pct") or 0) < 12
+        ]
+        for s in candidates:
+            s["_sector"] = _guess_sector(s.get("name", ""))
+
+    # Phase 2: Score and rank candidates
+    # Score = momentum * turnover * price_factor
+    # Price factor: prefer mid-range prices (10-50)
+    for s in candidates:
+        price = s.get("price", 50)
+        price_factor = 1.0
+        if 10 <= price <= 50:
+            price_factor = 1.2
+        elif 50 < price <= 80:
+            price_factor = 1.0
+        else:
+            price_factor = 0.8
+
+        change_pct = abs(s.get("change_pct", 0))
+        # Prefer moderate momentum (1%~8%), not extreme
+        momentum_factor = 1.0
+        if 1 <= change_pct <= 5:
+            momentum_factor = 1.3
+        elif 5 < change_pct <= 8:
+            momentum_factor = 1.1
+        elif change_pct > 8:
+            momentum_factor = 0.7
+
+        s["_score"] = (
+            s.get("change_pct", 0)
+            * s.get("turnover", 0)
+            * price_factor
+            * momentum_factor
+        )
+
+    # Sort by score and take top candidates
+    candidates.sort(key=lambda x: x.get("_score", 0), reverse=True)
+
+    # Phase 3: Sector diversification check - pick top from each sector first
+    final_candidates = []
+    sectors_selected = set()
+    remaining = []
+
+    for s in candidates:
+        sector = s.get("_sector", "其他")
+        if sector not in sectors_selected and len(final_candidates) < 5:
+            final_candidates.append(s)
+            sectors_selected.add(sector)
+        else:
+            remaining.append(s)
+
+    # Fill remaining slots from remaining candidates
+    while len(final_candidates) < 5 and remaining:
+        s = remaining.pop(0)
+        final_candidates.append(s)
+
+    # Limit to top 150 for AI screening
+    candidates_for_ai = candidates[:150]
+
+    user_message = f"候选股票数据（已按多因子模型打分排序）：\n{json.dumps(candidates_for_ai, ensure_ascii=False)}"
     ai_response = await chat([
         {"role": "system", "content": RECOMMEND_PROMPT},
         {"role": "user", "content": user_message},

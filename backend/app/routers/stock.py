@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 
 from app.services.stock_service import analyze_stock
-from app.utils.akshare_utils import get_stock_info, get_stock_daily
+from app.utils.akshare_utils import get_stock_info, get_stock_daily, get_market_index, get_stock_list
 
 router = APIRouter(prefix="/api/stock", tags=["stock"])
 
@@ -31,3 +31,39 @@ async def daily(code: str, days: int = 60):
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result["error"])
     return result
+
+
+@router.get("/market")
+async def market_overview():
+    """获取市场概览：主要指数和涨跌家数统计"""
+    index_result = await get_market_index()
+    stock_result = await get_stock_list()
+
+    market_breadth = {"up": 0, "down": 0, "flat": 0, "limit_up": 0, "limit_down": 0}
+    if stock_result["success"]:
+        for s in stock_result["data"]:
+            try:
+                change_pct = float(s.get("change_pct") or 0)
+                if change_pct > 9.5:
+                    market_breadth["limit_up"] += 1
+                elif change_pct < -9.5:
+                    market_breadth["limit_down"] += 1
+                elif change_pct > 0:
+                    market_breadth["up"] += 1
+                elif change_pct < 0:
+                    market_breadth["down"] += 1
+                else:
+                    market_breadth["flat"] += 1
+            except (ValueError, TypeError):
+                pass
+
+    if not index_result["success"]:
+        raise HTTPException(status_code=400, detail=index_result["error"])
+
+    return {
+        "success": True,
+        "data": {
+            "indices": index_result["data"],
+            "breadth": market_breadth,
+        },
+    }
