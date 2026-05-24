@@ -126,8 +126,9 @@ async def _fetch_sector(concept_name: str, today_str: str, start_str: str, row: 
             end_date=today_str,
         )
         if idx_df is not None and len(idx_df) >= 2:
-            latest_close = float(idx_df.iloc[-1]["收盘"])
-            prev_close = float(idx_df.iloc[-2]["收盘"])
+            close_col = "收盘价" if "收盘价" in idx_df.columns else "收盘"
+            latest_close = float(idx_df.iloc[-1][close_col])
+            prev_close = float(idx_df.iloc[-2][close_col])
             if prev_close != 0:
                 change_pct = (latest_close - prev_close) / prev_close * 100
     except Exception:

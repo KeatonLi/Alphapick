@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
 import { apiGet, apiPost } from '../services/api'
-import { mockMarketReport } from '../services/mockData'
 
 interface IndexData {
   name: string
   code: string
   close: number
   change_pct: number
+  volume: number
 }
 
 interface SectorData {
@@ -22,7 +22,6 @@ interface ReportData {
   index_data: IndexData[]
   hot_sectors: SectorData[]
   ai_report: string
-  html_report_path?: string | null
 }
 
 function formatDate(d: Date): string {
@@ -34,39 +33,51 @@ export default function MarketReport() {
   const [selectedDate, setSelectedDate] = useState('')
   const [report, setReport] = useState<ReportData | null>(null)
   const [availableDates, setAvailableDates] = useState<string[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [viewMode, setViewMode] = useState<'react' | 'html'>('react')
   const [htmlLoading, setHtmlLoading] = useState(false)
   const [htmlAvailable, setHtmlAvailable] = useState(false)
 
+  // 获取交易日列表
   const fetchDates = async () => {
     try {
-      let result = await apiGet<any>('/report/trade-dates')
-      if (result.data && result.data.length > 0) {
+      const result = await apiGet<any>('/report/trade-dates')
+      if (result.data?.length > 0) {
         setAvailableDates(result.data)
         if (!selectedDate) {
           setSelectedDate(result.data[0])
         }
       } else {
-        result = await apiGet<any>('/report/dates')
-        const dates = result.data || []
-        setAvailableDates(dates)
-        if (dates.length > 0 && !selectedDate) {
-          setSelectedDate(dates[0])
+        const fallback = await apiGet<any>('/report/dates')
+        setAvailableDates(fallback.data || [])
+        if (fallback.data?.length > 0 && !selectedDate) {
+          setSelectedDate(fallback.data[0])
         }
       }
     } catch { /* ignore */ }
   }
 
+  // 获取指定日期的市场报告
   const fetchReport = async (d: string) => {
     if (!d) return
-    // 直接使用 mock 数据，暂不调用真实 API
     setLoading(true)
     setError('')
-    setReport(mockMarketReport)
-    setHtmlAvailable(false)
-    setLoading(false)
+    setReport(null)
+    try {
+      const result = await apiGet<any>(`/report/daily?date=${d}`)
+      if (result.success && result.data) {
+        setReport(result.data)
+        setHtmlAvailable(!!result.data.html_report_path)
+        setViewMode('react')
+      } else {
+        setError(result.error || '该日期暂无报告')
+      }
+    } catch (e: any) {
+      setError(e.message || '获取报告失败')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const generateHtmlReport = async () => {
@@ -92,9 +103,12 @@ export default function MarketReport() {
   useEffect(() => {
     if (selectedDate) {
       fetchReport(selectedDate)
-      setViewMode('react')
     }
   }, [selectedDate])
+
+  const currentIdx = availableDates.indexOf(selectedDate)
+  const canPrev = currentIdx < availableDates.length - 1
+  const canNext = currentIdx > 0
 
   return (
     <div className="max-w-5xl mx-auto px-6 py-8">
@@ -104,18 +118,17 @@ export default function MarketReport() {
           每日市场<span className="text-cyan-500">审计报告</span>
         </h1>
         <p className="text-text-secondary max-w-lg mx-auto text-sm leading-relaxed">
-          每日收盘后自动生成，AI 综合分析三大指数、热门板块，资金流向
+          每日收盘后自动生成，AI 综合分析三大指数、热门板块、资金流向
         </p>
       </div>
 
-      {/* Date Selector */}
+      {/* Date Selector - 完整交易日历 */}
       <div className="flex items-center justify-center gap-4 mb-8 flex-wrap">
         <button
           onClick={() => {
-            const idx = availableDates.indexOf(selectedDate)
-            if (idx < availableDates.length - 1) setSelectedDate(availableDates[idx + 1])
+            if (canPrev) setSelectedDate(availableDates[currentIdx + 1])
           }}
-          disabled={availableDates.indexOf(selectedDate) >= availableDates.length - 1}
+          disabled={!canPrev}
           className="p-2 rounded-xl bg-white border border-border-default text-text-secondary hover:text-blue-600 hover:border-blue-300 disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-sm"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -136,10 +149,9 @@ export default function MarketReport() {
 
         <button
           onClick={() => {
-            const idx = availableDates.indexOf(selectedDate)
-            if (idx > 0) setSelectedDate(availableDates[idx - 1])
+            if (canNext) setSelectedDate(availableDates[currentIdx - 1])
           }}
-          disabled={availableDates.indexOf(selectedDate) <= 0}
+          disabled={!canNext}
           className="p-2 rounded-xl bg-white border border-border-default text-text-secondary hover:text-blue-600 hover:border-blue-300 disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-sm"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -149,20 +161,20 @@ export default function MarketReport() {
 
         {availableDates.length > 0 && (
           <span className="text-sm text-text-muted bg-blue-50 px-3 py-1 rounded-full">
-            {availableDates.indexOf(selectedDate) + 1} / {availableDates.length} 篇报告
+            {currentIdx + 1} / {availableDates.length}
           </span>
         )}
       </div>
 
-      {/* View Mode Toggle + HTML Actions */}
+      {/* View Mode Toggle + Actions */}
       {report && !loading && (
-        <div className="flex items-center justify-center gap-3 mb-6">
+        <div className="flex items-center justify-center gap-3 mb-6 flex-wrap">
           <div className="inline-flex rounded-xl border border-border-default overflow-hidden shadow-sm">
             <button
               onClick={() => setViewMode('react')}
               className={`px-4 py-2 text-sm font-medium transition-all ${viewMode === 'react' ? 'bg-blue-600 text-white' : 'bg-white text-text-secondary hover:bg-blue-50'}`}
             >
-              React 视图
+              报告视图
             </button>
             <button
               onClick={() => setViewMode('html')}
@@ -207,6 +219,7 @@ export default function MarketReport() {
         </div>
       )}
 
+      {/* Loading */}
       {loading && (
         <div className="space-y-6 max-w-3xl mx-auto">
           <div className="skeleton h-48 rounded-2xl" />
@@ -215,7 +228,7 @@ export default function MarketReport() {
         </div>
       )}
 
-      {/* HTML iframe view */}
+      {/* HTML iframe */}
       {viewMode === 'html' && htmlAvailable && !loading && (
         <div className="fade-in-up">
           <iframe
@@ -227,7 +240,7 @@ export default function MarketReport() {
         </div>
       )}
 
-      {/* React view */}
+      {/* Report Content */}
       {report && !loading && viewMode === 'react' && (
         <div className="space-y-6 fade-in-up">
           {/* Date Badge */}
@@ -238,7 +251,7 @@ export default function MarketReport() {
           </div>
 
           {/* Index Cards */}
-          {report.index_data.length > 0 && (
+          {report.index_data?.length > 0 && (
             <div>
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-8 h-8 rounded-lg bg-cyan-100 flex items-center justify-center">
@@ -253,16 +266,11 @@ export default function MarketReport() {
                     <div key={idx.code} className="stock-card p-5 text-center hover:shadow-lg hover:shadow-blue-100 transition-all">
                       <div className="text-sm text-text-muted mb-2">{idx.name}</div>
                       <div className="text-2xl font-extrabold text-blue-800 font-mono tracking-tight mb-2">
-                        {idx.close.toFixed(2)}
+                        {typeof idx.close === 'number' ? idx.close.toFixed(2) : idx.close}
                       </div>
-                      <div className={`inline-flex items-center gap-1 px-3 py-1 rounded-lg text-sm font-bold ${
-                        isUp ? 'stock-up-bg stock-up' : 'stock-down-bg stock-down'
-                      }`}>
+                      <div className={`inline-flex items-center gap-1 px-3 py-1 rounded-lg text-sm font-bold ${isUp ? 'stock-up-bg stock-up' : 'stock-down-bg stock-down'}`}>
                         <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d={isUp
-                            ? 'M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z'
-                            : 'M14.707 10.293a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L9 12.586V5a1 1 0 012 0v7.586l2.293-2.293a1 1 0 011.414 0z'}
-                          clipRule="evenodd" />
+                          <path fillRule="evenodd" d={isUp ? 'M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z' : 'M14.707 10.293a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L9 12.586V5a1 1 0 012 0v7.586l2.293-2.293a1 1 0 011.414 0z'} clipRule="evenodd" />
                         </svg>
                         {isUp ? '+' : ''}{idx.change_pct}%
                       </div>
@@ -279,7 +287,7 @@ export default function MarketReport() {
           )}
 
           {/* Hot Sectors */}
-          {report.hot_sectors.length > 0 && (
+          {report.hot_sectors?.length > 0 && (
             <div className="stock-card p-6">
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
@@ -315,19 +323,30 @@ export default function MarketReport() {
           )}
 
           {/* AI Report */}
-          <div className="stock-card p-6 md:p-8">
-            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border-default">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-md shadow-cyan-200">
-                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
+          {report.ai_report && (
+            <div className="stock-card p-6 md:p-8">
+              <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border-default">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-md shadow-cyan-200">
+                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-bold text-blue-800">AI 市场分析</h3>
               </div>
-              <h3 className="text-lg font-bold text-blue-800">AI 市场分析</h3>
+              <div className="text-text-secondary leading-relaxed whitespace-pre-wrap text-sm md:text-base">
+                {report.ai_report}
+              </div>
             </div>
-            <div className="text-text-secondary leading-relaxed whitespace-pre-wrap text-sm md:text-base">
-              {report.ai_report}
-            </div>
-          </div>
+          )}
+        </div>
+      )}
+
+      {/* Empty State */}
+      {!loading && !report && !error && (
+        <div className="text-center py-20">
+          <div className="text-6xl mb-4">📋</div>
+          <div className="text-text-muted text-lg">暂无报告数据</div>
+          <div className="text-text-muted text-sm mt-1">请选择其他日期</div>
         </div>
       )}
     </div>

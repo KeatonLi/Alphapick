@@ -19,9 +19,13 @@ REPORT_PROMPT = """你是一位资深市场策略分析师。请根据提供的�
 请用专业、客观的语言撰写，报告要像一份正规的投研日报。"""
 
 
-async def generate_daily_report(db: Session) -> dict:
-    """生成今日市场报告并保存到数据库（由定时脚本调用）"""
-    today = date.today()
+async def generate_daily_report(db: Session, report_date: date | None = None) -> dict:
+    """生成指定日期市场报告并保存到数据库（由定时脚本调用）
+    Args:
+        db: 数据库会话
+        report_date: 报告日期，默认为今天
+    """
+    today = report_date if report_date is not None else date.today()
 
     # 检查是否已存在
     existing = db.query(MarketReport).filter(
@@ -171,7 +175,7 @@ def get_available_dates(db: Session, days: int = 30) -> dict:
     }
 
 
-def get_trade_dates_for_frontend(days: int = 30) -> dict:
+def get_trade_dates_for_frontend(days: int = 365) -> dict:
     """获取前端可用的交易日列表（用于日期选择器）"""
     from app.utils.akshare_utils import get_trade_dates
     try:

@@ -50,10 +50,10 @@ async def dates(request: Request, db: Session = Depends(get_db)):
 
 @router.get("/trade-dates")
 @limiter.limit("10/minute")
-async def trade_dates(request: Request):
+async def trade_dates(request: Request, days: int = Query(365)):
     """获取交易日列表（用于日期选择器）"""
     from app.services.report_service import get_trade_dates_for_frontend
-    return get_trade_dates_for_frontend()
+    return get_trade_dates_for_frontend(days=days)
 
 
 @router.get("/html")

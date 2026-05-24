@@ -24,7 +24,8 @@ AI 驱动的 A 股分析工具，支持个股深度分析、每日量化推荐�
 
 ```
 QuantForge/
-├── deploy.sh                  # 一键部署到服务器
+├── deploy.sh                  # 部署到服务器（Linux / Git Bash / MSYS2）
+├── deploy-windows.sh          # 部署到服务器（Windows 原生 bash）
 ├── start_backend.sh           # 服务器端直接启动后端
 ├── install_py_deps.sh         # 安装 Python 依赖
 ├── backend/
@@ -74,10 +75,22 @@ npm run dev
 
 ### 3. 生产部署
 
+**Windows**（Git Bash / MSYS2 / WSL）：
 ```bash
-./deploy.sh
-# 前端: http://<server>:3002
-# 后端: http://<server>:8084/api
+bash deploy-windows.sh
+# 部署时会提示输入服务器 SSH 密码
+```
+
+**Linux**（或 Git Bash / MSYS2）：
+```bash
+bash deploy.sh
+```
+
+部署时会构建前端、上传代码、安装依赖、重启服务。
+
+```
+前端: http://<server>:3002
+后端: http://<server>:8084/api
 ```
 
 ### 4. 设置定时报告
@@ -86,6 +99,12 @@ npm run dev
 
 ```cron
 30 15 * * 1-5 cd /opt/quantforge && python3 backend/generate_report.py >> /opt/quantforge/cron.log 2>&1
+```
+
+手动生成指定日期报告：
+```bash
+python3 backend/generate_report.py 2025-05-22
+python3 backend/generate_report.py              # 生成今日报告
 ```
 
 ## API 文档
@@ -98,6 +117,7 @@ npm run dev
 | GET | `/api/recommend/daily` | 每日推荐列表 |
 | GET | `/api/recommend/stats` | 推荐统计（胜率/收益率） |
 | GET | `/api/report/daily?date=2026-05-16` | 指定日期市场报告 |
+| GET | `/api/report/trade-dates?days=365` | 交易日历（支持任意日期选择） |
 | GET | `/api/report/dates` | 有报告的日期列表 |
 | GET | `/api/report/history?limit=7` | 最近 N 天报告 |
 
