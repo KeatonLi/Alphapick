@@ -143,30 +143,103 @@ async def get_recommend_stats(db: Session) -> dict:
     }
 
 
-async def update_recommend_prices(db: Session) -> dict:
-    """更新所有推荐记录的最新价格"""
-    import akshare as ak
-    try:
-        df = ak.stock_zh_a_spot()
-        price_map = {}
-        for _, row in df.iterrows():
-            price_map[row["代码"]] = float(row["最新价"])
+def get_all_recommendations(db: Session) -> dict:
+    """获取所有历史推荐（用于收益跟踪），按推荐日期倒序"""
+    recs = (
+        db.query(Recommendation)
+        .order_by(Recommendation.recommend_date.desc(), Recommendation.id)
+        .all()
+    )
+    return {
+        "success": True,
+        "data": [
+            {
+                "id": r.id,
+                "recommend_date": str(r.recommend_date),
+                "stock_code": r.stock_code,
+                "stock_name": r.stock_name,
+                "recommend_price": float(r.recommend_price) if r.recommend_price else 0,
+                "current_price": float(r.current_price) if r.current_price else 0,
+                "return_rate": float(r.return_rate) * 100 if r.return_rate else 0,
+                "reason": r.reason or "",
+            }
+            for r in recs
+        ],
+    }
 
-        stock_codes = list(price_map.keys())
-        recs = db.query(Recommendation).filter(
-            Recommendation.stock_code.in_(stock_codes)
-        ).all()
-        updated = 0
-        for rec in recs:
-            if rec.stock_code in price_map:
-                rec.current_price = price_map[rec.stock_code]
-                if rec.recommend_price and rec.recommend_price > 0:
-                    rec.return_rate = (
-                        (rec.current_price - float(rec.recommend_price))
-                        / float(rec.recommend_price)
-                    )
-                updated += 1
-        db.commit()
-        return {"success": True, "data": {"updated": updated}}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
+
+async def generate_recommendations(db: Session, rec_date: date | None = None) -> dict:
+    """为指定日期生成量化推荐（供 cron 调用）"""
+    target = rec_date or date.today()
+    return await get_recommend_by_date(db, target)
+
+
+async def update_recommend_prices(db: Session) -> dict:
+    """更新所有推荐记录的最新价格（使用腾讯批量接口）"""
+    import requests
+
+    recs = db.query(Recommendation).all()
+    if not recs:
+        return {"success": True, "data": {"updated": 0}}
+
+    # 转换代码：000001 -> sz000001, 600519 -> sh600519
+    def to_tencent_code(code):
+        code = str(code).strip()
+        for prefix in ("sh", "sz", "bj"):
+            if code.startswith(prefix):
+                return code
+        if code.startswith(("0", "3")):
+            return f"sz{code}"
+        elif code.startswith(("6",)):
+            return f"sh{code}"
+        else:
+            return f"sz{code}"
+
+    tencent_codes = [to_tencent_code(r.stock_code) for r in recs]
+    batch_size = 80
+
+    price_map = {}
+    for i in range(0, len(tencent_codes), batch_size):
+        batch = tencent_codes[i:i + batch_size]
+        try:
+            r = requests.get(
+                f"https://qt.gtimg.cn/q={','.join(batch)}",
+                headers={
+                    "Referer": "https://finance.qq.com",
+                    "User-Agent": "Mozilla/5.0",
+                },
+                timeout=10,
+            )
+            for line in r.text.strip().split("\n"):
+                if "~\"" not in line:
+                    continue
+                parts = line.split("~")
+                if len(parts) > 4:
+                    raw_code = parts[2] if len(parts) > 2 else ""
+                    clean = raw_code
+                    for prefix in ("sh", "sz", "bj"):
+                        if clean.startswith(prefix):
+                            clean = clean[len(prefix):]
+                            break
+                    try:
+                        price = float(parts[3]) if parts[3] not in ("", "0") else 0
+                        if price > 0:
+                            price_map[clean] = price
+                    except (ValueError, IndexError):
+                        continue
+        except Exception:
+            continue
+
+    updated = 0
+    for rec in recs:
+        if rec.stock_code in price_map:
+            rec.current_price = price_map[rec.stock_code]
+            if rec.recommend_price and float(rec.recommend_price) > 0:
+                rec.return_rate = (
+                    (float(rec.current_price) - float(rec.recommend_price))
+                    / float(rec.recommend_price)
+                )
+            updated += 1
+
+    db.commit()
+    return {"success": True, "data": {"updated": updated}}

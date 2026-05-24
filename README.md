@@ -26,8 +26,8 @@ AI 驱动的 A 股分析工具，支持个股深度分析、每日量化推荐�
 QuantForge/
 ├── deploy.sh                  # 部署到服务器（Linux / Git Bash / MSYS2）
 ├── deploy-windows.sh          # 部署到服务器（Windows 原生 bash）
-├── start_backend.sh           # 服务器端直接启动后端
-├── install_py_deps.sh         # 安装 Python 依赖
+├── generate_report.py         # 生成市场报告 + 量化推荐（cron 主脚本）
+├── update_prices.py          # 更新推荐股现价和收益率（cron 第二步）
 ├── backend/
 │   ├── .env.example           # 环境变量模板
 │   ├── generate_report.py     # 定时生成市场报告脚本
@@ -93,18 +93,29 @@ bash deploy.sh
 后端: http://<server>:8084/api
 ```
 
-### 4. 设置定时报告
+### 4. 定时任务
 
-服务器上配置 crontab，每个交易日收盘后自动生成市场报告：
+每天 16:00（收盘后）自动执行两步：
 
 ```cron
-30 15 * * 1-5 cd /opt/quantforge && python3 backend/generate_report.py >> /opt/quantforge/cron.log 2>&1
+0 16 * * 1-5 cd /opt/quantforge && python3 backend/generate_report.py >> /opt/quantforge/cron.log 2>&1
+30 16 * * 1-5 cd /opt/quantforge && python3 backend/update_prices.py >> /opt/quantforge/cron_prices.log 2>&1
 ```
 
-手动生成指定日期报告：
+- 第一步：生成市场报告 + 量化推荐
+- 第二步：更新所有推荐股的现价和收益率
+
+### 5. 手动生成报告
+
+手动生成指定日期报告和推荐：
 ```bash
 python3 backend/generate_report.py 2025-05-22
-python3 backend/generate_report.py              # 生成今日报告
+python3 backend/generate_report.py              # 生成今日报告+推荐
+```
+
+手动更新现价和收益率：
+```bash
+python3 backend/update_prices.py
 ```
 
 ## API 文档
@@ -114,12 +125,15 @@ python3 backend/generate_report.py              # 生成今日报告
 | GET | `/api/stock/analyze?code=000001` | AI 分析个股 |
 | GET | `/api/stock/info?code=000001` | 股票基本信息 |
 | GET | `/api/stock/daily?code=000001&days=60` | 日线行情 |
-| GET | `/api/recommend/daily` | 每日推荐列表 |
+| GET | `/api/report/daily?date=YYYY-MM-DD` | 获取市场报告 |
+| GET | `/api/report/trade-dates?days=365` | 交易日列表（前端日期选择器） |
+| POST | `/api/report/generate?date=YYYY-MM-DD` | 手动生成报告+推荐（手动接口） |
+| GET | `/api/recommend/today` | 获取今日推荐 |
+| GET | `/api/recommend/daily?date=YYYY-MM-DD` | 获取指定日期推荐 |
+| GET | `/api/recommend/history` | 获取所有历史推荐（收益跟踪） |
 | GET | `/api/recommend/stats` | 推荐统计（胜率/收益率） |
-| GET | `/api/report/daily?date=2026-05-16` | 指定日期市场报告 |
-| GET | `/api/report/trade-dates?days=365` | 交易日历（支持任意日期选择） |
-| GET | `/api/report/dates` | 有报告的日期列表 |
-| GET | `/api/report/history?limit=7` | 最近 N 天报告 |
+| POST | `/api/recommend/generate?date=YYYY-MM-DD` | 手动生成推荐（手动接口） |
+| POST | `/api/recommend/update-prices` | 更新所有推荐的现价和收益率 |
 
 ## License
 
