@@ -49,12 +49,16 @@ async def get_recommend_by_date(db: Session, rec_date: date) -> dict:
             "date": str(rec_date),
         }
 
-    # 如果不是今天，不允许生成新推荐
-    if rec_date != date.today():
-        return {"success": False, "error": f"暂无 {rec_date} 的推荐数据"}
-
-    stock_result = await get_stock_list()
+    # 不限制日期：今天查实时推荐，历史日期查缓存（无缓存则生成后缓存）
+    # 注意：历史日期若缓存为空，返回空列表而非报错，确保市场报告仍能展示
+    try:
+        stock_result = await get_stock_list()
+    except Exception as e:
+        return {"success": False, "error": f"获取股票列表失败: {e}"}
     if not stock_result["success"]:
+        # 股票数据获取失败时，历史日期返回空列表（不报错）
+        if rec_date != date.today():
+            return {"success": True, "data": [], "from_cache": False, "date": str(rec_date)}
         return {"success": False, "error": f"获取股票列表失败: {stock_result['error']}"}
 
     all_stocks = stock_result["data"]

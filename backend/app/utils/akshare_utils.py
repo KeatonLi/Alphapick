@@ -161,43 +161,117 @@ async def get_hot_sectors(top_n: int = 10) -> dict:
 
 
 async def get_stock_list() -> dict:
-    """获取A股列表，使用 sina 数据源"""
+    """获取A股列表，使用 EastMoney 数据中心 + 腾讯批量行情接口"""
     try:
-        df = ak.stock_zh_a_spot()
+        import requests
+
+        # Step 1: 获取所有 A 股代码列表（EastMoney 数据中心）
+        em_url = (
+            "https://datacenter.eastmoney.com/api/data/v1/get"
+            "?reportName=RPT_F10_ORG_BASICINFO"
+            "&columns=SECURITY_CODE,SECURITY_NAME_ABBR"
+            "&pageSize=500"
+            "&pageNumber=1"
+            "&source=HSF10&client=PC"
+        )
+        r = requests.get(em_url, headers={
+            "Referer": "https://data.eastmoney.com",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        }, timeout=15)
+        r.raise_for_status()
+        em_data = r.json()
+        total_pages = em_data.get("result", {}).get("pages", 1)
+        total_count = em_data.get("result", {}).get("count", 0)
+
+        # 收集所有股票代码
+        all_codes = []
+        for page in range(1, min(total_pages + 1, 50)):  # 最多50页（约25000条）
+            r_page = requests.get(
+                em_url.replace("&pageNumber=1", f"&pageNumber={page}"),
+                headers={"Referer": "https://data.eastmoney.com",
+                         "User-Agent": "Mozilla/5.0"},
+                timeout=15
+            )
+            items = r_page.json().get("result", {}).get("data", [])
+            for item in items:
+                code = str(item.get("SECURITY_CODE", ""))
+                if code:
+                    all_codes.append(code)
+            if page >= total_pages:
+                break
+
+        # Step 2: 腾讯批量查行情（每次最多120个代码）
         data = []
-        for _, row in df.head(5000).iterrows():
-            try:
-                price = float(row["最新价"]) if pd.notna(row["最新价"]) else 0
-            except (ValueError, TypeError):
-                price = 0
-            try:
-                change_pct = float(row["涨跌幅"]) if pd.notna(row["涨跌幅"]) else 0
-            except (ValueError, TypeError):
-                change_pct = 0
-            try:
-                volume = float(row["成交量"]) if pd.notna(row["成交量"]) else 0
-            except (ValueError, TypeError):
-                volume = 0
-            # Old API doesn't have 换手率, calculate from 成交额 as rough activity proxy
-            try:
-                amount = float(row["成交额"]) if pd.notna(row["成交额"]) else 0
-                turnover = amount / 1e7 if amount > 0 else 0  # rough proxy scaled to 0-10 range
-            except (ValueError, TypeError):
-                turnover = 0
+        batch_size = 100
+        headers = {
+            "Referer": "https://finance.qq.com",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        }
 
-            # Strip prefix from code for cleaner display (sh600519 -> 600519)
-            code = str(row["代码"])
-            if len(code) > 6 and code[:2] in ("sh", "sz", "bj"):
-                code = code[2:]
+        for i in range(0, len(all_codes), batch_size):
+            batch = all_codes[i:i + batch_size]
+            # 转换代码格式：000001 -> sz000001, 600519 -> sh600519
+            tencent_codes = []
+            for c in batch:
+                if c.startswith(("0", "3")):
+                    tencent_codes.append(f"sz{c}")
+                elif c.startswith(("6",)):
+                    tencent_codes.append(f"sh{c}")
+                elif c.startswith(("4", "8")):
+                    tencent_codes.append(f"bj{c}")
+                else:
+                    tencent_codes.append(f"sz{c}")
 
-            data.append({
-                "code": code,
-                "name": str(row["名称"]),
-                "price": price,
-                "change_pct": change_pct,
-                "volume": volume,
-                "turnover": turnover,
-            })
+            qt_url = f"https://qt.gtimg.cn/q={','.join(tencent_codes)}"
+            try:
+                r = requests.get(qt_url, headers=headers, timeout=10)
+                lines = r.text.strip().split("\n")
+                for line in lines:
+                    if "~\"" not in line:
+                        continue
+                    try:
+                        parts = line.split("~")
+                        # 格式: v_sz000001="1~name~code~price~..."
+                        # parts[1]=name, parts[2]=code, parts[3]=current, parts[4]=yesterday_close
+                        # parts[5]=open, parts[6]=vol, parts[32]=change_pct, parts[36]=turnover
+                        name = parts[1] if len(parts) > 1 else ""
+                        code = parts[2] if len(parts) > 2 else ""
+                        price_str = parts[3] if len(parts) > 3 else "0"
+                        vol_str = parts[6] if len(parts) > 6 else "0"
+                        change_str = parts[32] if len(parts) > 32 else "0"
+                        turnover_str = parts[36] if len(parts) > 36 else "0"
+
+                        price = float(price_str) if price_str not in ("0", "") else 0
+                        if price == 0:
+                            continue  # 停牌或无效
+
+                        volume = float(vol_str) if vol_str not in ("0", "") else 0
+                        change_pct = float(change_str) if change_str not in ("",) else 0
+                        try:
+                            turnover = float(turnover_str) if turnover_str not in ("", "None") else 0
+                        except (ValueError, TypeError):
+                            turnover = 0
+
+                        # 去除前缀
+                        clean_code = code
+                        for prefix in ("sh", "sz", "bj"):
+                            if clean_code.startswith(prefix):
+                                clean_code = clean_code[len(prefix):]
+                                break
+
+                        data.append({
+                            "code": clean_code,
+                            "name": name,
+                            "price": price,
+                            "change_pct": change_pct,
+                            "volume": volume,
+                            "turnover": turnover,
+                        })
+                    except (ValueError, IndexError):
+                        continue
+            except Exception:
+                continue
+
         return {"success": True, "data": data}
     except Exception as e:
         return {"success": False, "error": str(e)}
