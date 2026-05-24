@@ -11,6 +11,7 @@ from app.services.report_service import (
     get_report_by_date,
     get_report_history,
     get_available_dates,
+    generate_daily_report,
 )
 
 router = APIRouter(prefix="/api/report", tags=["report"])
@@ -85,21 +86,26 @@ async def html_report(
 
 
 @router.post("/generate")
-async def generate_html(
+async def generate_report(
     report_date: date | None = Query(None, alias="date"),
     db: Session = Depends(get_db),
 ):
     """
-    手动触发指定日期的 HTML 报告生成。
-    若报告数据不存在，返回 404。
+    手动触发指定日期的市场报告生成（包括数据 + HTML）。
+    若报告已存在，自动跳过数据生成，只生成 HTML。
     """
-    from app.services.report_service import get_report_by_date
     from app.services.html_report_service import generate_html_report
 
     target_date = report_date or date.today()
+
+    # 检查报告是否已存在，不存在则生成
     result = get_report_by_date(db, target_date)
     if not result["success"]:
-        raise HTTPException(status_code=404, detail=result["error"])
+        # 报告不存在，调用生成逻辑
+        gen_result = await generate_daily_report(db, report_date=target_date)
+        if not gen_result["success"]:
+            raise HTTPException(status_code=500, detail=gen_result.get("error", "报告生成失败"))
+        result = get_report_by_date(db, target_date)
 
     data = result["data"]
     html_path = await generate_html_report(
@@ -116,4 +122,4 @@ async def generate_html(
         report.html_report_path = html_path
         db.commit()
 
-    return {"success": True, "data": {"html_path": html_path}}
+    return {"success": True, "data": {"html_path": html_path, "report_date": str(target_date)}}
