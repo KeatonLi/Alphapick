@@ -37,7 +37,7 @@ plt.rcParams['axes.unicode_minus'] = False
 def _to_base64(fig) -> str:
     """将 matplotlib Figure 转为 Base64 PNG 字符串"""
     buf = io.BytesIO()
-    fig.savefig(buf, format='png', bbox_inches='tight', dpi=150, facecolor='white')
+    fig.savefig(buf, format='png', dpi=100, facecolor='white')
     buf.seek(0)
     return base64.b64encode(buf.read()).decode('utf-8')
 
