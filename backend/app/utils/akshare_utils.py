@@ -99,9 +99,11 @@ async def get_market_index() -> dict:
 # ─── 板块行情 ────────────────────────────────────────────────────────────
 
 async def get_hot_sectors(top_n: int = 10) -> dict:
-    """获取热门板块（行业板块），按涨跌幅排序"""
+    """获取热门板块（行业板块），按涨跌幅排序
+    数据来源：同花顺行业板块
+    """
     try:
-        df = ak.stock_sector_spot()
+        df = ak.stock_board_industry_summary_ths()
         if df is None or df.empty:
             return {"success": False, "error": "板块数据为空"}
         df = df.sort_values("涨跌幅", ascending=False).head(top_n)
@@ -110,7 +112,7 @@ async def get_hot_sectors(top_n: int = 10) -> dict:
             try:
                 change_str = str(row.get("涨跌幅", "0"))
                 change_pct = float(change_str) if change_str not in ("", "None") else 0
-                leading = str(row.get("股票名称", ""))
+                leading = str(row.get("领涨股", ""))
                 data.append({
                     "name": str(row.get("板块", "")),
                     "change_pct": round(change_pct, 2),
