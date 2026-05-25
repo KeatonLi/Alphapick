@@ -1,65 +1,19 @@
+# backend/app/services/recommend_service.py
 import json
 from datetime import date, timedelta
 
 from sqlalchemy.orm import Session
 from sqlalchemy import func, cast, Numeric
 
-from app.utils.akshare_utils import get_stock_list, get_trade_dates
+from app.utils.akshare_utils import get_trade_dates_for_frontend
+from app.services.candidate_service import get_ma_candidates, format_candidates_for_ai
 from app.utils.ai_client import chat
 from app.models import Recommendation
-
-# Sector mapping for top stocks (simplified)
-SECTOR_KEYWORDS = {
-    "科技": ["科技", "软件", "电子", "通信", "半导体", "芯片", "互联网"],
-    "消费": ["消费", "食品", "饮料", "家电", "纺织", "服装", "零售"],
-    "金融": ["银行", "保险", "证券", "信托", "金融"],
-    "医药": ["医药", "医疗", "生物", "健康"],
-    "新能源": ["新能源", "光伏", "锂电", "储能", "电动车", "汽车"],
-    "周期": ["钢铁", "煤炭", "有色", "化工", "建材", "地产", "建筑"],
-    "基建": ["基建", "工程", "机械", "设备"],
-    "公用": ["电力", "燃气", "水务", "环保", "公用"],
-}
-
-def _guess_sector(name: str) -> str:
-    """Guess sector from stock name/industry keywords"""
-    for sector, keywords in SECTOR_KEYWORDS.items():
-        for kw in keywords:
-            if kw in name:
-                return sector
-    return "其他"
-
-
-RECOMMEND_PROMPT = """你是一位量化交易分析师。我会给你一份A股市场的候选股票数据（代码、名称、价格、涨跌幅、成交量、换手率），请你筛选出 5 只最有潜力的股票。
-
-筛选标准（重要性从高到低）：
-1. **趋势健康**：排除连续暴涨暴跌的异常标的，涨幅适中（1%~10%最佳）
-2. **动量可持续**：成交量放大配合价格上涨，换手率活跃（>2%），量价配合良好
-3. **价格合理**：价格 5~100 元之间，流动性好
-4. **行业分散**：5只股票必须分散在4个以上不同行业，避免集中持股风险
-
-排除标准（必须排除）：
-- ST 股、*ST 股
-- 涨跌停板（极端行情）
-- 股价低于 3 元（流动性风险）或高于 100 元（波动过大）
-- 换手率低于 1%（资金关注度不足）
-
-每只股票的推荐理由要具体说明为什么该股符合上述标准。
-
-输出格式（严格 JSON 数组，不要任何其他内容）：
-[
-  {"code": "000001", "name": "股票名", "price": 12.34, "reason": "推荐理由（从量价配合、动量、行业地位等角度具体说明）"},
-  ...
-]
-
-必须输出恰好 5 只股票。"""
-
-
-async def get_daily_recommendations(db: Session) -> dict:
-    return await get_recommend_by_date(db, date.today())
+from app.prompts import RECOMMEND_SYSTEM_PROMPT, RECOMMEND_OUTPUT_FORMAT
 
 
 async def get_recommend_by_date(db: Session, rec_date: date) -> dict:
-    """获取指定日期的推荐股票"""
+    """获取指定日期的推荐股票（只读，不自动生成）"""
     recs = db.query(Recommendation).filter(
         Recommendation.recommend_date == rec_date
     ).all()
@@ -77,126 +31,52 @@ async def get_recommend_by_date(db: Session, rec_date: date) -> dict:
             "from_cache": True,
             "date": str(rec_date),
         }
+    return {"success": True, "data": [], "from_cache": False, "date": str(rec_date)}
 
-    # 如果不是今天，不允许生成新推荐
-    if rec_date != date.today():
-        return {"success": False, "error": f"暂无 {rec_date} 的推荐数据"}
 
-    stock_result = await get_stock_list()
-    if not stock_result["success"]:
-        return {"success": False, "error": f"获取股票列表失败: {stock_result['error']}"}
+async def generate_recommendations(db: Session, rec_date: date | None = None) -> dict:
+    """为指定日期生成量化推荐（均线候选 + AI 精选）"""
+    target = rec_date or date.today()
 
-    all_stocks = stock_result["data"]
+    # 检查是否已有推荐
+    existing = db.query(Recommendation).filter(
+        Recommendation.recommend_date == target
+    ).first()
+    if existing:
+        return {"success": True, "data": {}, "message": f"今日推荐已存在，跳过生成"}
 
-    # Phase 1: Rough filtering - remove obvious bad candidates
-    candidates = []
-    for s in all_stocks:
-        price = s.get("price") or 0
-        change_pct = s.get("change_pct") or 0
-        volume = s.get("volume") or 0
-        turnover = s.get("turnover") or 0
+    # 筛选均线多头候选池
+    candidate_result = await get_ma_candidates(top_n=200)
+    if not candidate_result["success"]:
+        return {"success": False, "error": f"候选池筛选失败: {candidate_result['error']}"}
 
-        # Skip invalid entries
-        if price <= 0 or price > 500:
-            continue
-        # Skip extreme price range
-        if price < 3 or price > 100:
-            continue
-        # Skip extreme change (likely limit up/down or anomaly)
-        if abs(change_pct) > 12:
-            continue
-        # Skip zero volume
-        if volume <= 0:
-            continue
-        # Skip low activity
-        if turnover < 1:
-            continue
-        # Prefer positive momentum but not too extreme
-        if change_pct < 0.5:
-            continue
+    candidates = candidate_result["data"]
+    if len(candidates) < 5:
+        return {"success": False, "error": f"候选池股票不足（{len(candidates)}只），无法生成推荐"}
 
-        s["_sector"] = _guess_sector(s.get("name", ""))
-        candidates.append(s)
+    # 取前50只给AI筛选
+    ai_candidates = candidates[:50]
 
-    if len(candidates) < 10:
-        # If too few candidates after filtering, relax constraints
-        candidates = [
-            s for s in all_stocks
-            if 3 <= (s.get("price") or 0) <= 100
-            and (s.get("volume") or 0) > 0
-            and abs(s.get("change_pct") or 0) < 12
-        ]
-        for s in candidates:
-            s["_sector"] = _guess_sector(s.get("name", ""))
+    user_message = f"""候选股票数据（均线多头排列，成交量放大）：
 
-    # Phase 2: Score and rank candidates
-    # Score = momentum * turnover * price_factor
-    # Price factor: prefer mid-range prices (10-50)
-    for s in candidates:
-        price = s.get("price", 50)
-        price_factor = 1.0
-        if 10 <= price <= 50:
-            price_factor = 1.2
-        elif 50 < price <= 80:
-            price_factor = 1.0
-        else:
-            price_factor = 0.8
+{format_candidates_for_ai(ai_candidates)}
 
-        change_pct = abs(s.get("change_pct", 0))
-        # Prefer moderate momentum (1%~8%), not extreme
-        momentum_factor = 1.0
-        if 1 <= change_pct <= 5:
-            momentum_factor = 1.3
-        elif 5 < change_pct <= 8:
-            momentum_factor = 1.1
-        elif change_pct > 8:
-            momentum_factor = 0.7
-
-        s["_score"] = (
-            s.get("change_pct", 0)
-            * s.get("turnover", 0)
-            * price_factor
-            * momentum_factor
-        )
-
-    # Sort by score and take top candidates
-    candidates.sort(key=lambda x: x.get("_score", 0), reverse=True)
-
-    # Phase 3: Sector diversification check - pick top from each sector first
-    final_candidates = []
-    sectors_selected = set()
-    remaining = []
-
-    for s in candidates:
-        sector = s.get("_sector", "其他")
-        if sector not in sectors_selected and len(final_candidates) < 5:
-            final_candidates.append(s)
-            sectors_selected.add(sector)
-        else:
-            remaining.append(s)
-
-    # Fill remaining slots from remaining candidates
-    while len(final_candidates) < 5 and remaining:
-        s = remaining.pop(0)
-        final_candidates.append(s)
-
-    # Limit to top 150 for AI screening
-    candidates_for_ai = candidates[:150]
-
-    user_message = f"候选股票数据（已按多因子模型打分排序）：\n{json.dumps(candidates_for_ai, ensure_ascii=False)}"
+{RECOMMEND_OUTPUT_FORMAT}"""
     ai_response = await chat([
-        {"role": "system", "content": RECOMMEND_PROMPT},
+        {"role": "system", "content": RECOMMEND_SYSTEM_PROMPT},
         {"role": "user", "content": user_message},
     ])
 
     try:
-        recommendations = json.loads(ai_response.strip().lstrip("```json").rstrip("```").strip())
+        recommendations = json.loads(
+            ai_response.strip().lstrip("```json").rstrip("```").strip()
+        )
     except json.JSONDecodeError:
         return {"success": False, "error": "AI 返回格式解析失败"}
 
     for rec in recommendations:
         db_rec = Recommendation(
-            recommend_date=rec_date,
+            recommend_date=target,
             stock_code=rec["code"],
             stock_name=rec["name"],
             recommend_price=rec["price"],
@@ -205,7 +85,7 @@ async def get_recommend_by_date(db: Session, rec_date: date) -> dict:
         db.add(db_rec)
     db.commit()
 
-    return {"success": True, "data": recommendations, "from_cache": False, "date": str(rec_date)}
+    return {"success": True, "data": {"count": len(recommendations)}, "message": f"推荐生成成功"}
 
 
 def get_available_recommend_dates(db: Session, days: int = 30) -> dict:
@@ -218,32 +98,24 @@ def get_available_recommend_dates(db: Session, days: int = 30) -> dict:
         .order_by(Recommendation.recommend_date.desc())
         .all()
     )
-    return {
-        "success": True,
-        "data": [str(d[0]) for d in dates],
-    }
+    return {"success": True, "data": [str(d[0]) for d in dates]}
 
 
 def get_trade_dates_for_frontend(days: int = 30) -> dict:
-    """获取前端可用的交易日列表（用于日期选择器）"""
-    try:
-        dates = get_trade_dates(days)
-        return {"success": True, "data": dates}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
+    """获取前端可用的交易日列表
+    @deprecated 使用 akshare_utils.get_trade_dates_for_frontend
+    """
+    return get_trade_dates_for_frontend(days=days)
 
 
 async def get_recommend_stats(db: Session) -> dict:
     total = db.query(func.count(Recommendation.id)).scalar() or 0
     if total == 0:
-        return {"success": True, "data": {"total": 0, "win_rate": 0, "avg_return": 0}}
-
+        return {"success": True, "data": {"total": 0, "win_count": 0, "win_rate": 0, "avg_return": 0}}
     win_count = db.query(func.count(Recommendation.id)).filter(
         cast(Recommendation.return_rate, Numeric) > 0
     ).scalar() or 0
-
     avg_return = db.query(func.avg(Recommendation.return_rate)).scalar() or 0
-
     return {
         "success": True,
         "data": {
@@ -255,30 +127,78 @@ async def get_recommend_stats(db: Session) -> dict:
     }
 
 
-async def update_recommend_prices(db: Session) -> dict:
-    """更新所有推荐记录的最新价格"""
-    import akshare as ak
-    try:
-        df = ak.stock_zh_a_spot()
-        price_map = {}
-        for _, row in df.iterrows():
-            price_map[row["代码"]] = float(row["最新价"])
+def get_all_recommendations(db: Session) -> dict:
+    """获取所有历史推荐"""
+    recs = (
+        db.query(Recommendation)
+        .order_by(Recommendation.recommend_date.desc(), Recommendation.id)
+        .all()
+    )
+    return {
+        "success": True,
+        "data": [
+            {
+                "id": r.id,
+                "recommend_date": str(r.recommend_date),
+                "stock_code": r.stock_code,
+                "stock_name": r.stock_name,
+                "recommend_price": float(r.recommend_price) if r.recommend_price else 0,
+                "current_price": float(r.current_price) if r.current_price else 0,
+                "return_rate": float(r.return_rate) * 100 if r.return_rate else 0,
+                "reason": r.reason or "",
+            }
+            for r in recs
+        ],
+    }
 
-        stock_codes = list(price_map.keys())
-        recs = db.query(Recommendation).filter(
-            Recommendation.stock_code.in_(stock_codes)
-        ).all()
-        updated = 0
-        for rec in recs:
-            if rec.stock_code in price_map:
-                rec.current_price = price_map[rec.stock_code]
-                if rec.recommend_price and rec.recommend_price > 0:
-                    rec.return_rate = (
-                        (rec.current_price - float(rec.recommend_price))
-                        / float(rec.recommend_price)
-                    )
-                updated += 1
-        db.commit()
-        return {"success": True, "data": {"updated": updated}}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
+
+async def update_recommend_prices(db: Session) -> dict:
+    """更新所有推荐记录的最新价格（使用 akshare 腾讯接口）"""
+    import requests
+
+    recs = db.query(Recommendation).all()
+    if not recs:
+        return {"success": True, "data": {"updated": 0}}
+
+    from app.utils.akshare_utils import _to_tencent_code, _from_tencent_code
+
+    tencent_codes = [_to_tencent_code(r.stock_code) for r in recs]
+    batch_size = 80
+    price_map = {}
+
+    for i in range(0, len(tencent_codes), batch_size):
+        batch = tencent_codes[i:i + batch_size]
+        try:
+            r = requests.get(
+                f"https://qt.gtimg.cn/q={','.join(batch)}",
+                headers={"Referer": "https://finance.qq.com", "User-Agent": "Mozilla/5.0"},
+                timeout=10,
+            )
+            for line in r.text.strip().split("\n"):
+                if "~\"" not in line:
+                    continue
+                parts = line.split("~")
+                if len(parts) > 4:
+                    clean = _from_tencent_code(parts[2] if len(parts) > 2 else "")
+                    try:
+                        price = float(parts[3]) if parts[3] not in ("", "0") else 0
+                        if price > 0:
+                            price_map[clean] = price
+                    except (ValueError, IndexError):
+                        continue
+        except Exception:
+            continue
+
+    updated = 0
+    for rec in recs:
+        if rec.stock_code in price_map:
+            rec.current_price = price_map[rec.stock_code]
+            if rec.recommend_price and float(rec.recommend_price) > 0:
+                rec.return_rate = (
+                    (float(rec.current_price) - float(rec.recommend_price))
+                    / float(rec.recommend_price)
+                )
+            updated += 1
+
+    db.commit()
+    return {"success": True, "data": {"updated": updated}}

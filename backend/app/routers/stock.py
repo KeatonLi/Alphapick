@@ -1,9 +1,12 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from app.services.stock_service import analyze_stock
-from app.utils.akshare_utils import get_stock_info, get_stock_daily, get_market_index, get_stock_list
+from app.utils.akshare_utils import get_stock_info, get_stock_daily, get_market_index, get_hot_sectors, get_stock_list
 
 router = APIRouter(prefix="/api/stock", tags=["stock"])
+limiter = Limiter(key_func=get_remote_address)
 
 
 @router.get("/analyze")
@@ -67,3 +70,23 @@ async def market_overview():
             "breadth": market_breadth,
         },
     }
+
+
+@router.get("/market-index")
+@limiter.limit("10/minute")
+async def market_index(request: Request):
+    """获取主要指数行情（上证、深证、创业板）"""
+    result = await get_market_index()
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+
+@router.get("/hot-sectors")
+@limiter.limit("5/minute")
+async def hot_sectors(request: Request, top_n: int = 10):
+    """获取热门板块"""
+    result = await get_hot_sectors(top_n)
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result

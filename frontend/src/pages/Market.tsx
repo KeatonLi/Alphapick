@@ -8,6 +8,12 @@ interface MarketIndex {
   change_pct: number
 }
 
+interface HotSector {
+  name: string
+  change_pct: number
+  leading_stock: string
+}
+
 interface MarketBreadth {
   up: number
   down: number
@@ -18,6 +24,7 @@ interface MarketBreadth {
 
 export default function Market() {
   const [indices, setIndices] = useState<MarketIndex[]>([])
+  const [sectors, setSectors] = useState<HotSector[]>([])
   const [breadth, setBreadth] = useState<MarketBreadth>({ up: 0, down: 0, flat: 0, limit_up: 0, limit_down: 0 })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -25,10 +32,16 @@ export default function Market() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const result = await apiGet<any>('/stock/market')
-        if (result.success && result.data) {
-          setIndices(result.data.indices || [])
-          setBreadth(result.data.breadth || { up: 0, down: 0, flat: 0, limit_up: 0, limit_down: 0 })
+        const [marketRes, sectorsRes] = await Promise.all([
+          apiGet<any>('/stock/market'),
+          apiGet<any>('/stock/hot-sectors?top_n=8'),
+        ])
+        if (marketRes.success && marketRes.data) {
+          setIndices(marketRes.data.indices || [])
+          setBreadth(marketRes.data.breadth || { up: 0, down: 0, flat: 0, limit_up: 0, limit_down: 0 })
+        }
+        if (sectorsRes.success && sectorsRes.data) {
+          setSectors(sectorsRes.data || [])
         }
       } catch (e: any) {
         setError(e.message || '获取市场数据失败')
@@ -84,7 +97,7 @@ export default function Market() {
                   </div>
                   <div className="flex items-center gap-3 mt-2">
                     <span className={`text-sm font-semibold ${isUp ? 'stock-up' : 'stock-down'}`}>
-                      {isUp ? '+' : ''}{index.change_pct.toFixed(2)}%
+                      {isUp ? '+' : ''}{index.change_pct.toFixed(2)}
                     </span>
                     <span className={`text-xs px-2 py-0.5 rounded ${isUp ? 'bg-red-50 text-red-500 border border-red-200' : 'bg-green-50 text-green-600 border border-green-200'}`}>
                       {isUp ? '↑ 上涨' : '↓ 下跌'}
@@ -95,7 +108,35 @@ export default function Market() {
             })}
           </div>
 
-          {/* Quick Stats */}
+          {/* Hot Sectors */}
+          {sectors.length > 0 && (
+            <div className="stock-card p-6 mb-6">
+              <h3 className="text-lg font-bold text-blue-800 mb-4 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-blue-500" />
+                热门板块
+              </h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {sectors.slice(0, 8).map((sector) => {
+                  const isUp = sector.change_pct >= 0
+                  return (
+                    <div key={sector.name} className="p-3 bg-blue-50 rounded-xl">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-sm font-medium text-blue-800 truncate">{sector.name}</span>
+                        <span className={`text-xs font-medium ${isUp ? 'text-red-500' : 'text-green-600'}`}>
+                          {isUp ? '+' : ''}{sector.change_pct.toFixed(2)}%
+                        </span>
+                      </div>
+                      <div className="text-xs text-text-muted truncate" title={sector.leading_stock}>
+                        龙头: {sector.leading_stock}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Market Sentiment Stats */}
           <div className="stock-card p-6">
             <h3 className="text-lg font-bold text-blue-800 mb-4 flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-blue-500" />

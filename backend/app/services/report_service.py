@@ -1,39 +1,30 @@
+# backend/app/services/report_service.py
 import json
 from datetime import date, timedelta
 
+import akshare as ak
+import numpy as np
 from sqlalchemy.orm import Session
 
-from app.utils.akshare_utils import get_market_index, get_hot_sectors
+from app.utils.akshare_utils import get_market_index, get_hot_sectors, get_trade_dates_for_frontend
+from app.services.html_report_service import generate_html_report
 from app.utils.ai_client import chat
 from app.models import MarketReport
-
-REPORT_PROMPT = """你是一位资深市场策略分析师。请根据提供的今日市场数据，撰写一份专业的每日市场审计报告。
-
-报告结构：
-1. **市场总览**：三大指数表现，市场整体涨跌家数判断
-2. **板块分析**：今日热点板块及驱动逻辑
-3. **资金面分析**：成交量变化，资金流向判断
-4. **后市展望**：短期市场预判和关注要点
-5. **风险提示**：当前市场主要风险
-
-请用专业、客观的语言撰写，报告要像一份正规的投研日报。"""
+from app.prompts import REPORT_SYSTEM_PROMPT, REPORT_OUTPUT_FORMAT
 
 
-async def generate_daily_report(db: Session) -> dict:
-    """生成今日市场报告并保存到数据库（由定时脚本调用）"""
-    today = date.today()
+async def generate_daily_report(db: Session, report_date: date | None = None) -> dict:
+    """生成指定日期市场报告并保存到数据库"""
+    today = report_date if report_date is not None else date.today()
 
     # 检查是否已存在
     existing = db.query(MarketReport).filter(
         MarketReport.report_date == today
     ).first()
     if existing and existing.ai_report:
-        return {
-            "success": True,
-            "data": {},
-            "message": f"今日报告已存在，跳过生成",
-        }
+        return {"success": True, "data": {}, "message": f"今日报告已存在，跳过生成"}
 
+    # 抓取指数和板块数据
     index_result = await get_market_index()
     sectors_result = await get_hot_sectors(top_n=10)
 
@@ -45,11 +36,45 @@ async def generate_daily_report(db: Session) -> dict:
     index_data = index_result["data"]
     sectors_data = sectors_result["data"]
 
+    # 抓取今日涨停股，存入供明日计算表现
+    try:
+        df_spot = ak.stock_zh_a_spot()
+        today_limit_ups = df_spot[df_spot["涨跌幅"] >= 9.5]["代码"].tolist()
+        today_limit_ups_json = json.dumps(today_limit_ups[:100], ensure_ascii=False)  # 最多100只
+    except Exception:
+        today_limit_ups_json = "[]"
+
+    # 计算昨日涨停股今日表现（从数据库读昨天的记录）
+    yesterday_limit_ups_perf = None
+    yesterday_report = db.query(MarketReport).filter(
+        MarketReport.report_date == today - timedelta(days=1)
+    ).first()
+    if yesterday_report and yesterday_report.yesterday_limit_ups:
+        try:
+            yesterday_codes = json.loads(yesterday_report.yesterday_limit_ups)
+            if yesterday_codes:
+                df_today = ak.stock_zh_a_spot()
+                today_perfs = []
+                for code in yesterday_codes[:50]:
+                    row = df_today[df_today["代码"] == code]
+                    if not row.empty:
+                        pct_str = str(row.iloc[0].get("涨跌幅", "0"))
+                        try:
+                            pct = float(pct_str)
+                            today_perfs.append(pct)
+                        except ValueError:
+                            continue
+                if today_perfs:
+                    yesterday_limit_ups_perf = round(float(np.mean(today_perfs)), 2)
+        except Exception:
+            pass
+
+    # 市场概况
     up_count = sum(1 for i in index_data if i["change_pct"] > 0)
     market_summary = f"三大指数{'普涨' if up_count >= 2 else '涨跌互现' if up_count == 1 else '普跌'}"
 
-    user_message = f"""
-今日市场数据：
+    # 组装 AI 输入
+    user_message = f"""今日市场数据：
 
 指数行情：
 {json.dumps(index_data, ensure_ascii=False, indent=2)}
@@ -60,34 +85,66 @@ async def generate_daily_report(db: Session) -> dict:
 市场概况：{market_summary}
 
 请撰写今日市场审计报告。
-"""
+{REPORT_OUTPUT_FORMAT}"""
 
+    # 调用 AI
     ai_response = await chat([
-        {"role": "system", "content": REPORT_PROMPT},
+        {"role": "system", "content": REPORT_SYSTEM_PROMPT},
         {"role": "user", "content": user_message},
     ])
 
-    report = MarketReport(
-        report_date=today,
-        market_summary=market_summary,
-        index_data=json.dumps(index_data, ensure_ascii=False),
-        hot_sectors=json.dumps(sectors_data, ensure_ascii=False),
-        ai_report=ai_response,
-    )
+    # 解析 AI 响应为结构化数据
+    ai_report_text = ai_response
+    try:
+        ai_json_str = ai_response.strip().lstrip("```json").rstrip("```").strip()
+        report_data = json.loads(ai_json_str)
+        ai_report_text = (
+            f"【市场总览】\n{report_data.get('summary', '')}\n\n"
+            f"【今日亮点】\n" + "\n".join(f"- {h}" for h in report_data.get('highlights', [])) + "\n\n"
+            f"【今天该注意什么】\n" + "\n".join(f"- {t}" for t in report_data.get('tips', [])) + "\n\n"
+            f"【风险提醒】\n" + "\n".join(f"- {r}" for r in report_data.get('risks', []))
+        )
+    except (json.JSONDecodeError, KeyError):
+        # AI 返回非 JSON 格式，直接存储原文
+        ai_report_text = ai_response
+
+    # 保存到数据库
     if existing:
-        existing.market_summary = report.market_summary
-        existing.index_data = report.index_data
-        existing.hot_sectors = report.hot_sectors
-        existing.ai_report = report.ai_report
+        existing.market_summary = market_summary
+        existing.index_data = json.dumps(index_data, ensure_ascii=False)
+        existing.hot_sectors = json.dumps(sectors_data, ensure_ascii=False)
+        existing.ai_report = ai_report_text
+        existing.yesterday_limit_ups = today_limit_ups_json
+        existing.yesterday_limit_ups_performance = yesterday_limit_ups_perf
+        target_report = existing
     else:
-        db.add(report)
+        target_report = MarketReport(
+            report_date=today,
+            market_summary=market_summary,
+            index_data=json.dumps(index_data, ensure_ascii=False),
+            hot_sectors=json.dumps(sectors_data, ensure_ascii=False),
+            ai_report=ai_report_text,
+            yesterday_limit_ups=today_limit_ups_json,
+            yesterday_limit_ups_performance=yesterday_limit_ups_perf,
+        )
+        db.add(target_report)
     db.commit()
 
-    return {
-        "success": True,
-        "data": {},
-        "message": f"报告生成成功: {today}",
-    }
+    # 生成 HTML 报告
+    try:
+        html_path = await generate_html_report(
+            report_date=today,
+            market_summary=market_summary,
+            index_data=index_data,
+            sectors=sectors_data,
+            ai_report=ai_report_text,
+        )
+        target_report.html_report_path = html_path
+        db.commit()
+    except Exception as e:
+        print(f"[{today}] HTML 报告生成失败: {e}")
+
+    return {"success": True, "data": {}, "message": f"报告生成成功: {today}"}
 
 
 def get_report_by_date(db: Session, report_date: date) -> dict:
@@ -95,10 +152,8 @@ def get_report_by_date(db: Session, report_date: date) -> dict:
     report = db.query(MarketReport).filter(
         MarketReport.report_date == report_date
     ).first()
-
     if not report:
         return {"success": False, "error": f"未找到 {report_date} 的市场报告"}
-
     return {
         "success": True,
         "data": {
@@ -107,12 +162,13 @@ def get_report_by_date(db: Session, report_date: date) -> dict:
             "index_data": json.loads(report.index_data) if report.index_data else [],
             "hot_sectors": json.loads(report.hot_sectors) if report.hot_sectors else [],
             "ai_report": report.ai_report,
+            "html_report_path": report.html_report_path,
         },
     }
 
 
 def get_report_history(db: Session, limit: int = 7) -> dict:
-    """获取最近的报告列表（概要，不含完整 AI 内容）"""
+    """获取最近的报告列表"""
     reports = (
         db.query(MarketReport)
         .order_by(MarketReport.report_date.desc())
@@ -128,8 +184,9 @@ def get_report_history(db: Session, limit: int = 7) -> dict:
                 "index_data": json.loads(r.index_data) if r.index_data else [],
                 "hot_sectors": json.loads(r.hot_sectors) if r.hot_sectors else [],
                 "ai_report": r.ai_report,
+                "html_report_path": r.html_report_path,
             }
-            for r in reversed(reports)  # 正序，最早在前
+            for r in reversed(reports)
         ],
     }
 
@@ -143,17 +200,4 @@ def get_available_dates(db: Session, days: int = 30) -> dict:
         .order_by(MarketReport.report_date.desc())
         .all()
     )
-    return {
-        "success": True,
-        "data": [str(d[0]) for d in dates],
-    }
-
-
-def get_trade_dates_for_frontend(days: int = 30) -> dict:
-    """获取前端可用的交易日列表（用于日期选择器）"""
-    from app.utils.akshare_utils import get_trade_dates
-    try:
-        dates = get_trade_dates(days)
-        return {"success": True, "data": dates}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
+    return {"success": True, "data": [str(d[0]) for d in dates]}

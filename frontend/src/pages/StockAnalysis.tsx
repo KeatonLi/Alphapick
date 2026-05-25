@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { apiGet } from '../services/api'
+import { mockStockAnalysis } from '../services/mockData'
 
 interface AnalysisData {
   code: string
@@ -16,17 +16,11 @@ export default function StockAnalysis() {
 
   const handleAnalyze = async () => {
     if (!code.trim()) return
+    // 直接使用 mock 数据，暂不调用真实 API
     setLoading(true)
     setError('')
-    setData(null)
-    try {
-      const result = await apiGet<any>(`/stock/analyze?code=${encodeURIComponent(code)}`)
-      setData(result.data)
-    } catch (e: any) {
-      setError(e.message || '请求失败')
-    } finally {
-      setLoading(false)
-    }
+    setData({ ...mockStockAnalysis, code: code })
+    setLoading(false)
   }
 
   const changePct = data?.stock_info?.['涨跌幅']?.toString().replace('%', '') || '0'

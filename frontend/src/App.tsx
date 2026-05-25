@@ -1,10 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Navbar from './components/Navbar'
-import Market from './pages/Market'
-import Analysis from './pages/Analysis'
-import StockAnalysis from './pages/StockAnalysis'
-import DailyRecommend from './pages/DailyRecommend'
-import MarketReport from './pages/MarketReport'
+import DailyReport from './pages/DailyReport'
 
 export default function App() {
   return (
@@ -17,12 +13,8 @@ export default function App() {
 
         <main className="relative z-10">
           <Routes>
-            <Route path="/market" element={<Market />} />
-            <Route path="/analysis" element={<Analysis />} />
-            <Route path="/stock" element={<StockAnalysis />} />
-            <Route path="/recommend" element={<DailyRecommend />} />
-            <Route path="/report" element={<MarketReport />} />
-            <Route path="*" element={<Navigate to="/market" replace />} />
+            <Route path="/recommend" element={<DailyReport />} />
+            <Route path="*" element={<Navigate to="/recommend" replace />} />
           </Routes>
         </main>
 
