@@ -173,16 +173,13 @@ async def generate_html_report(
     # 指数对比
     chart_tasks["index_comparison"] = generate_index_comparison_chart(index_data)
 
-    # 更新 market_breadth 加上 limit up/down
-    market_breadth = {**mb}
-
     # 渲染 HTML
     html_content = _render_html_report(
         date_str=date_str,
         market_summary=market_summary,
         indices=index_data,
         sectors=sectors,
-        market_breadth=market_breadth,
+        market_breadth=mb,
         ai_report=ai_report,
         charts=chart_tasks,
     )

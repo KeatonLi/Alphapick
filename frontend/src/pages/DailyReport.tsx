@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { apiGet } from '../services/api'
+import { apiGet, apiPost } from '../services/api'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -184,7 +184,7 @@ function RecommendationsTab({ date }: { date: string }) {
         <div className="text-center py-16 text-text-muted">
           <div className="text-5xl mb-4">📋</div>
           <div className="text-sm">该日期暂无量化推荐</div>
-          <div className="text-xs mt-1">推荐数据由每日 16:00 自动生成</div>
+          <div className="text-xs mt-1">请点击上方「生成」标签手动生成</div>
         </div>
       )}
     </div>
@@ -272,7 +272,127 @@ function TrackingTab() {
 
 // ─── Main Page ─────────────────────────────────────────────────────────────
 
-type Tab = 'report' | 'recommend' | 'track'
+// ─── Tab 4: 一键生成 ───────────────────────────────────────────────────────
+
+function GenerateTab({ onGenerated }: { onGenerated: () => void }) {
+  const today = new Date().toISOString().split('T')[0]
+  const [date, setDate] = useState(today)
+  const [step, setStep] = useState(0)       // 0=未开始, 1=行情, 2=报告, 3=推荐, 4=现价, 5=完成
+  const [stepLabel, setStepLabel] = useState('')
+  const [msg, setMsg] = useState<{type: 'success'|'error'|'info'; text: string} | null>(null)
+  const [done, setDone] = useState(false)
+
+  const STEPS = ['抓取行情数据', '生成市场报告', '筛选均线候选+AI推荐', '更新现价收益率']
+
+  const runAll = async () => {
+    setDone(false)
+    setMsg(null)
+    setStep(1)
+
+    // Step 1: 生成报告（包含行情抓取）
+    setStepLabel(STEPS[0])
+    try {
+      await apiPost(`/report/generate?date=${date}`)
+    } catch (e: any) {
+      setStep(0)
+      setMsg({ type: 'error', text: `行情/报告失败: ${e.message}` })
+      return
+    }
+    setStep(2); setStepLabel(STEPS[1])
+
+    // Step 2: 生成推荐（均线候选 + AI）
+    try {
+      await apiPost(`/recommend/generate?date=${date}`)
+    } catch (e: any) {
+      setMsg({ type: 'error', text: `推荐生成失败: ${e.message}` })
+      setStep(2)
+      return
+    }
+    setStep(3); setStepLabel(STEPS[2])
+
+    // Step 3: 更新现价
+    try {
+      await apiPost('/recommend/update-prices')
+    } catch (e: any) {
+      setMsg({ type: 'error', text: `现价更新失败: ${e.message}` })
+      setStep(3)
+      return
+    }
+
+    setStep(4)
+    setStepLabel(STEPS[3])
+    setDone(true)
+    setMsg({ type: 'success', text: `✅ 全部生成完成（${date}）` })
+    onGenerated()
+  }
+
+  return (
+    <div className="space-y-6 fade-in-up max-w-xl mx-auto">
+      <div className="stock-card p-6 space-y-6">
+        <div className="text-sm font-semibold text-text-secondary">选择日期（默认今天）</div>
+        <input type="date" value={date} max={today}
+          onChange={e => setDate(e.target.value)}
+          className="w-full bg-white border border-border-default text-text-primary text-center px-4 py-2.5 rounded-xl font-mono text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all cursor-pointer"/>
+
+        {/* 步骤进度条 */}
+        {step > 0 && (
+          <div className="space-y-2">
+            <div className="text-xs text-blue-600 font-medium">{stepLabel || '执行中...'}</div>
+            <div className="flex gap-1">
+              {[1, 2, 3, 4].map(i => (
+                <div key={i} className={`flex-1 h-1.5 rounded-full transition-all duration-300 ${
+                  i < step ? 'bg-blue-500' :
+                  i === step ? 'bg-blue-400 animate-pulse' :
+                  'bg-gray-200'
+                }`}/>
+              ))}
+            </div>
+            <div className="text-xs text-text-muted">步骤 {Math.min(step, 4)}/4{step > 4 ? ' ✓' : ''}</div>
+          </div>
+        )}
+
+        <button onClick={runAll} disabled={step > 0 && !done}
+          className="w-full py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl text-base font-bold hover:from-blue-700 hover:to-blue-800 disabled:opacity-50 transition-all shadow-lg shadow-blue-200 disabled:cursor-not-allowed">
+          {step === 0 || done ? '🚀 一键生成（行情+报告+推荐）' : `${stepLabel}...`}
+        </button>
+
+        {done && (
+          <div className="flex gap-3">
+            <button onClick={() => { setStep(0); setDone(false); setMsg(null) }}
+              className="flex-1 py-2 border border-border-default rounded-xl text-sm hover:bg-blue-50 transition-all">
+              继续生成
+            </button>
+            <button onClick={() => {}}
+              className="flex-1 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold">
+              查看市场报告 →
+            </button>
+            <button onClick={() => {}}
+              className="flex-1 py-2 bg-amber-500 text-white rounded-xl text-sm font-semibold">
+              查看量化推荐 →
+            </button>
+          </div>
+        )}
+
+        {msg && !done && (
+          <div className={`rounded-xl px-4 py-3 text-sm font-medium ${
+            msg.type === 'success' ? 'bg-green-50 border border-green-200 text-green-700' :
+            msg.type === 'error' ? 'bg-red-50 border border-red-200 text-red-600' :
+            'bg-blue-50 border border-blue-200 text-blue-700'
+          }`}>{msg.text}</div>
+        )}
+      </div>
+
+      <div className="text-center text-xs text-text-muted space-y-1">
+        <div>预计耗时 2-3 分钟，请耐心等待</div>
+        <div>生成完成后自动刷新其他 Tab 数据</div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Main Page ─────────────────────────────────────────────────────────────
+
+type Tab = 'report' | 'recommend' | 'track' | 'generate'
 
 export default function DailyReport() {
   const today = new Date().toISOString().split('T')[0]
@@ -304,6 +424,7 @@ export default function DailyReport() {
     { key: 'report', label: '市场审计报告' },
     { key: 'recommend', label: '量化推荐' },
     { key: 'track', label: '收益跟踪' },
+    { key: 'generate', label: '生成' },
   ]
 
   return (
@@ -314,7 +435,7 @@ export default function DailyReport() {
         <h1 className="text-3xl md:text-4xl font-extrabold text-blue-700 mb-2 tracking-tight">
           每日<span className="text-amber-500">量化报告</span>
         </h1>
-        <p className="text-text-secondary text-sm">每日 16:00 自动生成，数据仅供参考</p>
+        <p className="text-text-secondary text-sm">手动生成报告和推荐，数据仅供参考</p>
       </div>
 
       {/* Tab bar */}
@@ -368,6 +489,7 @@ export default function DailyReport() {
       {tab === 'report' && <MarketReportTab report={report} loading={reportLoading}/>}
       {tab === 'recommend' && <RecommendationsTab date={selectedDate}/>}
       {tab === 'track' && <TrackingTab/>}
+      {tab === 'generate' && <GenerateTab onGenerated={() => setRefreshKey(k => k + 1)}/>}
 
     </div>
   )

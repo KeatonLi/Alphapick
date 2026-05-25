@@ -6,7 +6,6 @@ from slowapi.util import get_remote_address
 
 from app.database import get_db
 from app.services.recommend_service import (
-    get_daily_recommendations,
     get_recommend_stats,
     update_recommend_prices,
     get_recommend_by_date,

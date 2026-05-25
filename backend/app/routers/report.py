@@ -13,6 +13,7 @@ from app.services.report_service import (
     get_available_dates,
     generate_daily_report,
 )
+from app.services.html_report_service import generate_html_report
 
 router = APIRouter(prefix="/api/report", tags=["report"])
 limiter = Limiter(key_func=get_remote_address)
@@ -67,7 +68,6 @@ async def html_report(
     若报告尚未生成，返回 404。
     """
     from fastapi.responses import HTMLResponse
-    from app.services.report_service import get_report_by_date
     from app.services.html_report_service import get_html_report_path, read_html_report
 
     target_date = report_date or date.today()
@@ -94,8 +94,6 @@ async def generate_report(
     手动触发指定日期的市场报告生成（包括数据 + HTML）。
     若报告已存在，自动跳过数据生成，只生成 HTML。
     """
-    from app.services.html_report_service import generate_html_report
-
     target_date = report_date or date.today()
 
     # 检查报告是否已存在，不存在则生成
