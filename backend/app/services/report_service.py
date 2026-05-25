@@ -2,6 +2,8 @@
 import json
 from datetime import date, timedelta
 
+import akshare as ak
+import numpy as np
 from sqlalchemy.orm import Session
 
 from app.utils.akshare_utils import get_market_index, get_hot_sectors, get_trade_dates_for_frontend
@@ -33,6 +35,39 @@ async def generate_daily_report(db: Session, report_date: date | None = None) ->
 
     index_data = index_result["data"]
     sectors_data = sectors_result["data"]
+
+    # 抓取今日涨停股，存入供明日计算表现
+    try:
+        df_spot = ak.stock_zh_a_spot()
+        today_limit_ups = df_spot[df_spot["涨跌幅"] >= 9.5]["代码"].tolist()
+        today_limit_ups_json = json.dumps(today_limit_ups[:100], ensure_ascii=False)  # 最多100只
+    except Exception:
+        today_limit_ups_json = "[]"
+
+    # 计算昨日涨停股今日表现（从数据库读昨天的记录）
+    yesterday_limit_ups_perf = None
+    yesterday_report = db.query(MarketReport).filter(
+        MarketReport.report_date == today - timedelta(days=1)
+    ).first()
+    if yesterday_report and yesterday_report.yesterday_limit_ups:
+        try:
+            yesterday_codes = json.loads(yesterday_report.yesterday_limit_ups)
+            if yesterday_codes:
+                df_today = ak.stock_zh_a_spot()
+                today_perfs = []
+                for code in yesterday_codes[:50]:
+                    row = df_today[df_today["代码"] == code]
+                    if not row.empty:
+                        pct_str = str(row.iloc[0].get("涨跌幅", "0"))
+                        try:
+                            pct = float(pct_str)
+                            today_perfs.append(pct)
+                        except ValueError:
+                            continue
+                if today_perfs:
+                    yesterday_limit_ups_perf = round(float(np.mean(today_perfs)), 2)
+        except Exception:
+            pass
 
     # 市场概况
     up_count = sum(1 for i in index_data if i["change_pct"] > 0)
@@ -79,6 +114,8 @@ async def generate_daily_report(db: Session, report_date: date | None = None) ->
         existing.index_data = json.dumps(index_data, ensure_ascii=False)
         existing.hot_sectors = json.dumps(sectors_data, ensure_ascii=False)
         existing.ai_report = ai_report_text
+        existing.yesterday_limit_ups = today_limit_ups_json
+        existing.yesterday_limit_ups_performance = yesterday_limit_ups_perf
         target_report = existing
     else:
         target_report = MarketReport(
@@ -87,6 +124,8 @@ async def generate_daily_report(db: Session, report_date: date | None = None) ->
             index_data=json.dumps(index_data, ensure_ascii=False),
             hot_sectors=json.dumps(sectors_data, ensure_ascii=False),
             ai_report=ai_report_text,
+            yesterday_limit_ups=today_limit_ups_json,
+            yesterday_limit_ups_performance=yesterday_limit_ups_perf,
         )
         db.add(target_report)
     db.commit()

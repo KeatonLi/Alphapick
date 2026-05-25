@@ -390,9 +390,132 @@ function GenerateTab({ onGenerated }: { onGenerated: () => void }) {
   )
 }
 
+// ─── Tab: 市场情绪 ───────────────────────────────────────────────────────
+
+interface MoodData {
+  date: string; up: number; down: number; flat: number
+  limit_up: number; limit_down: number; total: number
+  temperature: number; temperature_label: string
+  yesterday_limit_ups_performance: number | null
+}
+
+function MarketMoodTab({ date }: { date: string }) {
+  const [mood, setMood] = useState<MoodData | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const load = async () => {
+    setLoading(true); setError('')
+    try {
+      const r = await apiGet<any>(`/mood/daily?date=${date}`)
+      if (r.success) setMood(r.data)
+      else setError(r.error || '获取失败')
+    } catch (e: any) { setError(e.message) }
+    finally { setLoading(false) }
+  }
+
+  useEffect(() => { load() }, [date])
+
+  const tempColor = (score: number) =>
+    score <= 30 ? 'text-blue-600' : score <= 50 ? 'text-slate-500' :
+    score <= 65 ? 'text-amber-500' : score <= 80 ? 'text-orange-500' : 'text-red-500'
+
+  const tempBg = (score: number) =>
+    score <= 30 ? 'from-blue-50 to-blue-100 border-blue-200' :
+    score <= 50 ? 'from-slate-50 to-slate-100 border-slate-200' :
+    score <= 65 ? 'from-amber-50 to-amber-100 border-amber-200' :
+    score <= 80 ? 'from-orange-50 to-orange-100 border-orange-200' :
+    'from-red-50 to-red-100 border-red-200'
+
+  const tempEmoji = (label: string) =>
+    label === '冰点' ? '🧊' : label === '冷淡' ? '❄' :
+    label === '平稳' ? '🌤' : label === '活跃' ? '🔥' : '🤯'
+
+  const tempBarColor = (score: number) =>
+    score <= 30 ? 'bg-blue-400' : score <= 50 ? 'bg-slate-400' :
+    score <= 65 ? 'bg-amber-400' : score <= 80 ? 'bg-orange-400' : 'bg-red-400'
+
+  if (loading) return <div className="space-y-4">{[0,1,2].map(i => <div key={i} className="skeleton h-28 rounded-2xl"/>)}</div>
+  if (error) return <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm">{error}</div>
+  if (!mood) return null
+
+  return (
+    <div className="space-y-5 fade-in-up">
+      {/* 涨跌家数卡片 */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {[
+          { label: '上涨', value: mood.up, color: 'from-red-50 to-red-100 border-red-200', text: 'text-red-500' },
+          { label: '下跌', value: mood.down, color: 'from-green-50 to-green-100 border-green-200', text: 'text-green-500' },
+          { label: '平盘', value: mood.flat, color: 'from-slate-50 to-slate-100 border-slate-200', text: 'text-slate-400' },
+          { label: '涨停', value: mood.limit_up, color: 'from-amber-50 to-amber-100 border-amber-200', text: 'text-amber-500' },
+        ].map((s, i) => (
+          <div key={i} className={`stock-card p-4 text-center bg-gradient-to-br ${s.color} border`}>
+            <div className={`text-2xl md:text-3xl font-extrabold ${s.text} mb-0.5`}>{s.value.toLocaleString()}</div>
+            <div className="text-xs text-text-muted">{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* 市场温度计 + 昨日涨停表现 */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className={`stock-card p-5 bg-gradient-to-br ${tempBg(mood.temperature)} border`}>
+          <div className="text-xs text-text-muted mb-2">市场温度计</div>
+          <div className="flex items-center gap-3">
+            <span className="text-4xl">{tempEmoji(mood.temperature_label)}</span>
+            <div>
+              <div className={`text-4xl font-extrabold ${tempColor(mood.temperature)}`}>{mood.temperature}</div>
+              <div className={`text-sm font-semibold ${tempColor(mood.temperature)}`}>{mood.temperature_label}</div>
+            </div>
+          </div>
+          <div className="mt-3 h-2 bg-white/50 rounded-full overflow-hidden">
+            <div className={`h-full rounded-full transition-all duration-700 ${tempBarColor(mood.temperature)}`} style={{ width: `${mood.temperature}%` }}/>
+          </div>
+        </div>
+
+        <div className="stock-card p-5 bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200">
+          <div className="text-xs text-text-muted mb-2">昨日涨停股今日表现</div>
+          {mood.yesterday_limit_ups_performance !== null ? (
+            <div>
+              <div className={`text-4xl font-extrabold ${mood.yesterday_limit_ups_performance >= 0 ? 'text-red-500' : 'text-green-500'}`}>
+                {mood.yesterday_limit_ups_performance >= 0 ? '+' : ''}{mood.yesterday_limit_ups_performance}%
+              </div>
+              <div className="text-xs text-text-muted mt-1">昨日涨停股今日平均涨幅</div>
+            </div>
+          ) : (
+            <div className="text-text-muted text-sm">暂无数据<br/><span className="text-xs">生成报告后次日可见</span></div>
+          )}
+        </div>
+      </div>
+
+      {/* 涨跌家数柱状图 */}
+      <div className="stock-card p-5">
+        <div className="text-sm font-semibold text-text-muted mb-4">涨跌家数分布</div>
+        <div className="flex gap-2 items-end h-32">
+          <div className="flex-1 flex flex-col items-center gap-1">
+            <div className="w-full bg-red-400 rounded-t-md" style={{ height: `${(mood.up / mood.total * 100).toFixed(1)}%` }} />
+            <div className="text-xs text-red-500 font-bold">{mood.up.toLocaleString()}</div>
+            <div className="text-xs text-text-muted">上涨</div>
+          </div>
+          <div className="flex-1 flex flex-col items-center gap-1">
+            <div className="w-full bg-green-400 rounded-t-md" style={{ height: `${(mood.down / mood.total * 100).toFixed(1)}%` }} />
+            <div className="text-xs text-green-500 font-bold">{mood.down.toLocaleString()}</div>
+            <div className="text-xs text-text-muted">下跌</div>
+          </div>
+          <div className="flex-1 flex flex-col items-center gap-1">
+            <div className="w-full bg-slate-300 rounded-t-md" style={{ height: `${(mood.flat / mood.total * 100).toFixed(1)}%` }} />
+            <div className="text-xs text-slate-500 font-bold">{mood.flat.toLocaleString()}</div>
+            <div className="text-xs text-text-muted">平盘</div>
+          </div>
+        </div>
+        <div className="text-center text-xs text-text-muted mt-3">全市场共 {mood.total.toLocaleString()} 只</div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Main Page ─────────────────────────────────────────────────────────────
 
-type Tab = 'report' | 'recommend' | 'track' | 'generate'
+type Tab = 'report' | 'recommend' | 'track' | 'generate' | 'mood'
 
 export default function DailyReport() {
   const today = new Date().toISOString().split('T')[0]
@@ -424,6 +547,7 @@ export default function DailyReport() {
     { key: 'report', label: '市场审计报告' },
     { key: 'recommend', label: '量化推荐' },
     { key: 'track', label: '收益跟踪' },
+    { key: 'mood', label: '市场情绪' },
     { key: 'generate', label: '生成' },
   ]
 
@@ -452,8 +576,8 @@ export default function DailyReport() {
         ))}
       </div>
 
-      {/* Date selector — only on report + recommend tabs */}
-      {(tab === 'report' || tab === 'recommend') && (
+      {/* Date selector — only on report + recommend + mood tabs */}
+      {(tab === 'report' || tab === 'recommend' || tab === 'mood') && (
         <div className="flex items-center justify-center gap-3 mb-6">
           <button onClick={() => {
             const idx = tradeDates.indexOf(selectedDate)
@@ -489,6 +613,7 @@ export default function DailyReport() {
       {tab === 'report' && <MarketReportTab report={report} loading={reportLoading}/>}
       {tab === 'recommend' && <RecommendationsTab date={selectedDate}/>}
       {tab === 'track' && <TrackingTab/>}
+      {tab === 'mood' && <MarketMoodTab date={selectedDate}/>}
       {tab === 'generate' && <GenerateTab onGenerated={() => setRefreshKey(k => k + 1)}/>}
 
     </div>

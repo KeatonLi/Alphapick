@@ -40,6 +40,8 @@ class MarketReport(Base):
     hot_sectors: Mapped[str | None] = mapped_column(Text, nullable=True, comment="热门板块 JSON")
     ai_report: Mapped[str | None] = mapped_column(Text, nullable=True, comment="AI 分析报告")
     html_report_path: Mapped[str | None] = mapped_column(String(500), nullable=True, comment="HTML 报告文件路径")
+    yesterday_limit_ups: Mapped[str | None] = mapped_column(Text, nullable=True, comment="昨日涨停股代码列表JSON")
+    yesterday_limit_ups_performance: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True, comment="昨日涨停股今日平均涨幅")
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), comment="创建时间"
     )

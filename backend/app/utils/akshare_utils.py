@@ -185,39 +185,106 @@ async def get_stock_daily(code: str, days: int = 60) -> dict:
 # ─── 全市场行情（用于候选池）────────────────────────────────────────────
 
 async def get_stock_list() -> dict:
-    """获取A股全市场实时行情列表"""
+    """获取A股全市场实时行情列表
+    数据来源：EastMoney数据中心获取股票列表 + 腾讯批量接口获取实时行情
+    """
+    import requests
+
     try:
-        df = ak.stock_zh_a_spot()
-        if df is None or df.empty:
+        # Step 1: 从 EastMoney 数据中心获取所有 A 股代码列表
+        all_codes = []
+        page = 1
+        while True:
+            url = (
+                "https://datacenter.eastmoney.com/api/data/v1/get"
+                "?reportName=RPT_F10_ORG_BASICINFO"
+                "&columns=SECURITY_CODE,SECURITY_NAME_ABBR"
+                f"&pageSize=500"
+                f"&pageNumber={page}"
+                "&source=HSF10&client=PC"
+            )
+            r = requests.get(url, headers={
+                "Referer": "https://data.eastmoney.com",
+                "User-Agent": "Mozilla/5.0",
+            }, timeout=15)
+            r.raise_for_status()
+            em_data = r.json()
+            items = em_data.get("result", {}).get("data", [])
+            if not items:
+                break
+            for item in items:
+                code = str(item.get("SECURITY_CODE", ""))
+                if code:
+                    all_codes.append({
+                        "code": code,
+                        "name": str(item.get("SECURITY_NAME_ABBR", "")),
+                    })
+            total_pages = em_data.get("result", {}).get("pages", 1)
+            if page >= total_pages or page >= 50:  # 最多50页（约25000条）
+                break
+            page += 1
+
+        if not all_codes:
             return {"success": False, "error": "股票列表为空"}
+
+        # Step 2: 腾讯批量查行情（每次最多100个代码）
         data = []
-        for _, row in df.iterrows():
-            code = str(row.get("代码", ""))
-            if not code or code in ("None", ""):
-                continue
+        batch_size = 100
+        headers = {
+            "Referer": "https://finance.qq.com",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        }
+
+        for i in range(0, len(all_codes), batch_size):
+            batch = all_codes[i:i + batch_size]
+            tencent_codes = [_to_tencent_code(c["code"]) for c in batch]
+            qt_url = f"https://qt.gtimg.cn/q={','.join(tencent_codes)}"
             try:
-                price_str = str(row.get("最新价", "0"))
-                price = float(price_str) if price_str not in ("0", "", "None") else 0
-                if price <= 0:
-                    continue
-                change_str = str(row.get("涨跌幅", "0"))
-                change_pct = float(change_str) if change_str not in ("", "None") else 0
-                vol_str = str(row.get("成交量", "0"))
-                volume = float(vol_str) if vol_str not in ("0", "", "None") else 0
-                turnover_str = str(row.get("换手率", "0"))
-                turnover = float(turnover_str.replace("%", "")) if turnover_str not in ("", "None") else 0
-                data.append({
-                    "code": code,
-                    "name": str(row.get("名称", "")),
-                    "price": price,
-                    "change_pct": change_pct,
-                    "volume": volume,
-                    "turnover": turnover,
-                })
-            except (ValueError, TypeError):
+                r = requests.get(qt_url, headers=headers, timeout=10)
+                lines = r.text.strip().split("\n")
+                code_idx_map = {c["code"]: idx for idx, c in enumerate(batch)}
+                price_map = {}
+
+                for line in lines:
+                    if "~\"" not in line:
+                        continue
+                    try:
+                        parts = line.split("~")
+                        if len(parts) < 35:
+                            continue
+                        raw_code = parts[2] if len(parts) > 2 else ""
+                        clean_code = _from_tencent_code(raw_code)
+                        if clean_code not in code_idx_map:
+                            continue
+                        price_str = parts[3] if len(parts) > 3 else "0"
+                        price = float(price_str) if price_str not in ("", "0") else 0
+                        if price <= 0:
+                            continue
+                        change_str = parts[32] if len(parts) > 32 else "0"
+                        change_pct = float(change_str) if change_str not in ("",) else 0
+                        vol_str = parts[6] if len(parts) > 6 else "0"
+                        volume = float(vol_str) if vol_str not in ("",) else 0
+                        turnover_str = parts[36] if len(parts) > 36 else "0"
+                        try:
+                            turnover = float(turnover_str) if turnover_str not in ("", "None") else 0
+                        except ValueError:
+                            turnover = 0
+                        orig = batch[code_idx_map[clean_code]]
+                        data.append({
+                            "code": clean_code,
+                            "name": orig["name"],
+                            "price": price,
+                            "change_pct": change_pct,
+                            "volume": volume,
+                            "turnover": turnover,
+                        })
+                    except (ValueError, IndexError):
+                        continue
+            except Exception:
                 continue
+
         if not data:
-            return {"success": False, "error": "股票数据解析失败"}
+            return {"success": False, "error": "行情数据获取失败"}
         return {"success": True, "data": data}
     except Exception as e:
         return {"success": False, "error": str(e)}
