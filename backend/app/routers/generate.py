@@ -176,8 +176,10 @@ async def start_report(
     db.commit()
     db.refresh(task)
 
-    # 后台执行
-    asyncio.create_task(_run_report(task.id, target_date))
+    # 后台执行（新线程，避免阻塞主事件循环）
+    import threading
+    threading.Thread(target=lambda: asyncio.run(_run_report(task.id, target_date)),
+                     daemon=True).start()
 
     return {"success": True, "data": {"task_id": task.id}}
 
@@ -208,8 +210,10 @@ async def start_recommend(
     db.commit()
     db.refresh(task)
 
-    # 后台执行
-    asyncio.create_task(_run_recommend(task.id, target_date))
+    # 后台执行（新线程）
+    import threading
+    threading.Thread(target=lambda: asyncio.run(_run_recommend(task.id, target_date)),
+                     daemon=True).start()
 
     return {"success": True, "data": {"task_id": task.id}}
 
@@ -261,7 +265,9 @@ async def start_all(
     db.commit()
     db.refresh(task)
 
-    asyncio.create_task(_run_all(task.id, target_date))
+    import threading
+    threading.Thread(target=lambda: asyncio.run(_run_all(task.id, target_date)),
+                     daemon=True).start()
 
     return {"success": True, "data": {"task_id": task.id}}
 
