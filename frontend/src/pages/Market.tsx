@@ -60,7 +60,7 @@ export default function Market() {
           <span className="text-blue-500">市场数据</span>实时行情
         </h1>
         <p className="text-text-secondary max-w-lg mx-auto text-sm leading-relaxed">
-          涵盖 A 股主要指数，实时追踪市场走势，把握整体行情脉搏
+          今日市场概况，数据来自每日生成报告缓存
         </p>
       </div>
 
@@ -73,6 +73,12 @@ export default function Market() {
       {loading ? (
         <div className="space-y-4">
           {[1, 2, 3].map(i => <div key={i} className="skeleton h-36 rounded-2xl" />)}
+        </div>
+      ) : indices.length === 0 && sectors.length === 0 ? (
+        <div className="text-center py-16 fade-in-up">
+          <div className="text-5xl mb-4 opacity-60">📊</div>
+          <div className="text-sm text-text-muted">暂无今日行情数据</div>
+          <div className="text-xs text-text-muted mt-1">请先前往「一键生成」页面生成今日报告</div>
         </div>
       ) : (
         <>

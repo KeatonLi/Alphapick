@@ -7,9 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db, SessionLocal
-from app.models import GenerationTask
-from app.models.report import MarketReport
-from app.models.recommend import Recommendation
+from app.models import GenerationTask, MarketReport, Recommendation
 from app.services.report_service import generate_daily_report
 from app.services.recommend_service import generate_recommendations, update_recommend_prices
 from app.services.candidate_service import get_ma_candidates, format_candidates_for_ai
@@ -212,6 +210,58 @@ async def start_recommend(
 
     # 后台执行
     asyncio.create_task(_run_recommend(task.id, target_date))
+
+    return {"success": True, "data": {"task_id": task.id}}
+
+
+async def _run_all(task_id: int, target_date: date):
+    """后台执行全部生成：报告 → 推荐 → 更新现价"""
+    db = SessionLocal()
+    try:
+        _update_task(task_id, status="running", current_step=1, total_steps=3,
+                     step_label="正在生成市场报告...", progress_pct=10)
+        result = await generate_daily_report(db, report_date=target_date)
+        if not result["success"]:
+            _update_task(task_id, status="failed", error_message=f"报告生成失败: {result.get('error')}", progress_pct=100)
+            return
+
+        _update_task(task_id, current_step=2, step_label="正在生成量化推荐...", progress_pct=40)
+        rec_result = await generate_recommendations(db, rec_date=target_date)
+        if not rec_result["success"] and "候选池股票不足" not in rec_result.get("error", ""):
+            _update_task(task_id, status="failed", error_message=f"推荐生成失败: {rec_result.get('error')}", progress_pct=100)
+            return
+
+        _update_task(task_id, current_step=3, step_label="正在更新现价...", progress_pct=75)
+        await update_recommend_prices(db)
+
+        _update_task(task_id, current_step=3, status="completed",
+                     step_label="全部生成完成 ✅",
+                     progress_pct=100)
+    except Exception as e:
+        _update_task(task_id, status="failed", error_message=str(e), progress_pct=100)
+    finally:
+        db.close()
+
+
+@router.post("/all")
+async def start_all(
+    report_date: date | None = Query(None, alias="date"),
+    db: Session = Depends(get_db),
+):
+    """异步启动全部生成：报告 + 推荐 + 更新现价"""
+    target_date = report_date or date.today()
+
+    task = GenerationTask(
+        task_type="all",
+        target_date=target_date,
+        status="pending",
+        total_steps=3,
+    )
+    db.add(task)
+    db.commit()
+    db.refresh(task)
+
+    asyncio.create_task(_run_all(task.id, target_date))
 
     return {"success": True, "data": {"task_id": task.id}}
 

@@ -6,6 +6,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
 from app.models.generation_task import GenerationTask
+from app.models.schedule_config import ScheduleConfig
 
 
 class Recommendation(Base):

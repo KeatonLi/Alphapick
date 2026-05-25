@@ -17,10 +17,11 @@ router = APIRouter(prefix="/api/recommend", tags=["recommend"])
 limiter = Limiter(key_func=get_remote_address)
 
 
+# ─── 读 MySQL 缓存，不限流 ────────────────────────────────────────────────
+
+
 @router.get("/daily")
-@limiter.limit("10/minute")
 async def daily(
-    request: Request,
     rec_date: date | None = Query(None, alias="date"),
     db: Session = Depends(get_db),
 ):
@@ -33,8 +34,7 @@ async def daily(
 
 
 @router.get("/today")
-@limiter.limit("10/minute")
-async def today(request: Request, db: Session = Depends(get_db)):
+async def today(db: Session = Depends(get_db)):
     """获取今日推荐（快捷接口）"""
     result = await get_recommend_by_date(db, date.today())
     if not result["success"]:
@@ -43,16 +43,14 @@ async def today(request: Request, db: Session = Depends(get_db)):
 
 
 @router.get("/history")
-@limiter.limit("30/minute")
-async def history(request: Request, db: Session = Depends(get_db)):
+async def history(db: Session = Depends(get_db)):
     """获取所有历史推荐（用于收益跟踪）"""
     result = get_all_recommendations(db)
     return result
 
 
 @router.get("/dates")
-@limiter.limit("30/minute")
-async def dates(request: Request, db: Session = Depends(get_db)):
+async def dates(db: Session = Depends(get_db)):
     """获取有推荐数据的日期列表"""
     from app.services.recommend_service import get_available_recommend_dates
     result = get_available_recommend_dates(db)
@@ -68,9 +66,13 @@ async def stats(db: Session = Depends(get_db)):
     return result
 
 
+# ─── 调外部 API，限流 ────────────────────────────────────────────────────
+
+
 @router.post("/generate")
-async def generate(rec_date: date | None = Query(None, alias="date"), db: Session = Depends(get_db)):
-    """手动触发生成指定日期的量化推荐（供手动调用，不走页面）"""
+@limiter.limit("3/minute")
+async def generate(request: Request, rec_date: date | None = Query(None, alias="date"), db: Session = Depends(get_db)):
+    """手动触发生成指定日期的量化推荐"""
     target_date = rec_date or date.today()
     result = await generate_recommendations(db, target_date)
     if not result["success"]:
@@ -79,7 +81,8 @@ async def generate(rec_date: date | None = Query(None, alias="date"), db: Sessio
 
 
 @router.post("/update-prices")
-async def update_prices(db: Session = Depends(get_db)):
+@limiter.limit("3/minute")
+async def update_prices(request: Request, db: Session = Depends(get_db)):
     """更新所有推荐股票的最新价格"""
     result = await update_recommend_prices(db)
     if not result["success"]:
