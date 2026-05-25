@@ -99,23 +99,22 @@ async def get_market_index() -> dict:
 # ─── 板块行情 ────────────────────────────────────────────────────────────
 
 async def get_hot_sectors(top_n: int = 10) -> dict:
-    """获取热门板块，使用东方财富概念板块接口"""
+    """获取热门板块（行业板块），按涨跌幅排序"""
     try:
-        df = ak.stock_board_concept_name_em()
+        df = ak.stock_sector_spot()
         if df is None or df.empty:
             return {"success": False, "error": "板块数据为空"}
-        df = df.sort_values("涨跌幅", ascending=False).head(top_n * 2)
+        df = df.sort_values("涨跌幅", ascending=False).head(top_n)
         data = []
         for _, row in df.iterrows():
-            if len(data) >= top_n:
-                break
             try:
                 change_str = str(row.get("涨跌幅", "0"))
                 change_pct = float(change_str) if change_str not in ("", "None") else 0
+                leading = str(row.get("股票名称", ""))
                 data.append({
-                    "name": str(row.get("板块名称", "")),
+                    "name": str(row.get("板块", "")),
                     "change_pct": round(change_pct, 2),
-                    "leading_stock": str(row.get("相关股票", ""))[:20],
+                    "leading_stock": leading,
                     "driver": "",
                 })
             except (ValueError, TypeError):
