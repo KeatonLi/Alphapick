@@ -2,10 +2,8 @@ import { NavLink } from 'react-router-dom'
 
 const navItems = [
   { path: '/report', label: '市场报告', icon: '📊' },
-  { path: '/market', label: '实时行情', icon: '📈' },
-  { path: '/recommend', label: '量化推荐', icon: '🎯' },
+  { path: '/recommend', label: '智能推荐', icon: '🎯' },
   { path: '/tracking', label: '收益跟踪', icon: '📋' },
-  { path: '/settings', label: '设置', icon: '⚙️' },
 ]
 
 export default function Navbar() {

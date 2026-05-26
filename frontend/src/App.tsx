@@ -1,10 +1,8 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Navbar from './components/Navbar'
 import ReportPage from './pages/ReportPage'
-import Market from './pages/Market'
 import RecommendPage from './pages/RecommendPage'
 import TrackingPage from './pages/TrackingPage'
-import SettingsPage from './pages/SettingsPage'
 
 export default function App() {
   return (
@@ -15,10 +13,8 @@ export default function App() {
         <main className="relative z-10">
           <Routes>
             <Route path="/report" element={<ReportPage />} />
-            <Route path="/market" element={<Market />} />
             <Route path="/recommend" element={<RecommendPage />} />
             <Route path="/tracking" element={<TrackingPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
             <Route path="*" element={<Navigate to="/report" replace />} />
           </Routes>
         </main>
