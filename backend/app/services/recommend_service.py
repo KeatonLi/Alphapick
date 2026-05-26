@@ -144,6 +144,10 @@ def get_all_recommendations(db: Session) -> dict:
                 "price_day1": float(r.price_day1) if r.price_day1 else 0,
                 "price_day2": float(r.price_day2) if r.price_day2 else 0,
                 "price_day3": float(r.price_day3) if r.price_day3 else 0,
+                "return_rate_day1": float(r.return_rate_day1) * 100 if r.return_rate_day1 else 0,
+                "return_rate_day2": float(r.return_rate_day2) * 100 if r.return_rate_day2 else 0,
+                "return_rate_day3": float(r.return_rate_day3) * 100 if r.return_rate_day3 else 0,
+                "final_return_rate": float(r.final_return_rate) * 100 if r.final_return_rate else 0,
             }
             for r in recs
         ],
@@ -196,15 +200,24 @@ async def update_recommend_prices(db: Session) -> dict:
         price = price_map[rec.stock_code]
         rec.tracking_days = (rec.tracking_days or 0) + 1
         day = rec.tracking_days
+        base = float(rec.recommend_price)
+        if base <= 0:
+            continue
+        day_return = (price - base) / base
+
         if day == 1:
             rec.price_day1 = price
+            rec.return_rate_day1 = day_return
         elif day == 2:
             rec.price_day2 = price
+            rec.return_rate_day2 = day_return
         elif day == 3:
             rec.price_day3 = price
+            rec.return_rate_day3 = day_return
+            rec.final_return_rate = day_return
+
         rec.current_price = price
-        if rec.recommend_price and float(rec.recommend_price) > 0:
-            rec.return_rate = (price - float(rec.recommend_price)) / float(rec.recommend_price)
+        rec.return_rate = day_return
         updated += 1
 
     db.commit()

@@ -5,11 +5,24 @@ interface HistoryRec {
   id: number; recommend_date: string; stock_code: string; stock_name: string
   recommend_price: number; current_price: number; return_rate: number; reason: string
   tracking_days: number; price_day1: number; price_day2: number; price_day3: number
+  return_rate_day1: number; return_rate_day2: number; return_rate_day3: number
+  final_return_rate: number
 }
 
 function fmt(n: number, d = 2) { return n.toFixed(d) }
 
 const DAY_LABELS = ['', '持股第一天', '持股第二天', '持股第三天']
+
+function fmtRate(n: number) { return (n >= 0 ? '+' : '') + fmt(n) + '%' }
+
+function RateBadge({ rate }: { rate: number }) {
+  if (rate === 0) return null
+  return (
+    <span className={`font-mono text-[11px] font-semibold ${rate >= 0 ? 'text-red-500' : 'text-green-600'}`}>
+      {fmtRate(rate)}
+    </span>
+  )
+}
 
 export default function TrackingPage() {
   const [recs, setRecs] = useState<HistoryRec[]>([])
@@ -30,9 +43,10 @@ export default function TrackingPage() {
   }, {})
   const dates = Object.keys(grouped).sort((a, b) => b.localeCompare(a))
 
-  const allRates = recs.filter(r => r.current_price > 0).map(r => r.return_rate || 0)
-  const avgReturn = allRates.length ? allRates.reduce((a, b) => a + b, 0) / allRates.length : 0
-  const winCount = allRates.filter(r => r > 0).length
+  const completedRecs = recs.filter(r => r.final_return_rate !== 0)
+  const completedRates = completedRecs.map(r => r.final_return_rate)
+  const avgFinalReturn = completedRates.length ? completedRates.reduce((a, b) => a + b, 0) / completedRates.length : 0
+  const winCount = completedRates.filter(r => r > 0).length
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
@@ -41,15 +55,15 @@ export default function TrackingPage() {
         <h1 className="text-2xl sm:text-3xl font-extrabold text-blue-700 mb-1 tracking-tight">
           收益<span className="text-amber-500">跟踪</span>
         </h1>
-        <p className="text-xs sm:text-sm text-text-secondary">历史推荐股票 · 三交易日持收益</p>
+        <p className="text-xs sm:text-sm text-text-secondary">历史推荐股票 · 三个交易日持仓收益</p>
       </div>
 
       {/* Summary bar */}
-      {!loading && recs.length > 0 && (
+      {!loading && completedRates.length > 0 && (
         <div className="stock-card p-4 mb-5 flex items-center justify-around text-center">
           <div>
-            <div className="text-lg sm:text-xl font-extrabold text-blue-700">{recs.length}</div>
-            <div className="text-[11px] text-text-muted">总推荐</div>
+            <div className="text-lg sm:text-xl font-extrabold text-blue-700">{completedRates.length}</div>
+            <div className="text-[11px] text-text-muted">已完结</div>
           </div>
           <div className="w-px h-8 bg-border-default" />
           <div>
@@ -58,15 +72,15 @@ export default function TrackingPage() {
           </div>
           <div className="w-px h-8 bg-border-default" />
           <div>
-            <div className={`text-lg sm:text-xl font-extrabold ${avgReturn >= 0 ? 'text-red-500' : 'text-green-600'}`}>
-              {avgReturn >= 0 ? '+' : ''}{fmt(avgReturn)}%
+            <div className={`text-lg sm:text-xl font-extrabold ${avgFinalReturn >= 0 ? 'text-red-500' : 'text-green-600'}`}>
+              {avgFinalReturn >= 0 ? '+' : ''}{fmt(avgFinalReturn)}%
             </div>
-            <div className="text-[11px] text-text-muted">平均收益</div>
+            <div className="text-[11px] text-text-muted">平均最终收益</div>
           </div>
           <div className="w-px h-8 bg-border-default" />
           <div>
             <div className="text-lg sm:text-xl font-extrabold text-amber-500">
-              {allRates.length ? fmt(winCount / allRates.length * 100) : '0'}%
+              {completedRates.length ? fmt(winCount / completedRates.length * 100) : '0'}%
             </div>
             <div className="text-[11px] text-text-muted">胜率</div>
           </div>
@@ -100,7 +114,7 @@ export default function TrackingPage() {
                 <div className="flex items-center gap-3">
                   {(() => {
                     const dayRecs = grouped[date]
-                    const dayRates = dayRecs.filter(r => r.current_price > 0).map(r => r.return_rate || 0)
+                    const dayRates = dayRecs.filter(r => r.final_return_rate !== 0).map(r => r.final_return_rate)
                     const dayAvg = dayRates.length ? dayRates.reduce((a, b) => a + b, 0) / dayRates.length : 0
                     return (
                       <>
@@ -118,8 +132,9 @@ export default function TrackingPage() {
               <div className="divide-y divide-border-default/60">
                 {grouped[date].map((rec) => {
                   const td = rec.tracking_days || 0
-                  const completed = td >= 3
-                  const prices = [0, rec.price_day1, rec.price_day2, rec.price_day3]
+                  const completed = rec.final_return_rate !== 0
+                  const rates = [0, rec.return_rate_day1, rec.return_rate_day2, rec.return_rate_day3]
+                  const finalRate = rec.final_return_rate
                   return (
                     <div key={rec.id} className={`px-4 py-3 transition-colors ${completed ? 'bg-green-50/30' : 'hover:bg-blue-50/40'}`}>
                       {/* Header row */}
@@ -146,13 +161,11 @@ export default function TrackingPage() {
                           </div>
                         )}
                       </div>
-                      {/* Tracking days */}
+                      {/* Tracking days row */}
                       <div className="flex gap-2">
                         {[1, 2, 3].map(day => {
-                          const hasPrice = prices[day] > 0
-                          const dayRate = hasPrice && rec.recommend_price > 0
-                            ? (prices[day] - rec.recommend_price) / rec.recommend_price * 100
-                            : 0
+                          const hasPrice = (rec as any)[`price_day${day}`] > 0
+                          const dayRate = rates[day]
                           const isCurrent = day === td
                           return (
                             <div
@@ -163,18 +176,26 @@ export default function TrackingPage() {
                             >
                               <div className="text-[10px] text-text-muted mb-1">{DAY_LABELS[day]}</div>
                               <div className="font-mono font-bold text-sm">
-                                {hasPrice ? fmt(prices[day]) : '—'}
+                                {hasPrice ? fmt((rec as any)[`price_day${day}`]) : '—'}
                               </div>
-                              {hasPrice && (
-                                <div className={`font-mono text-[11px] font-semibold ${dayRate >= 0 ? 'text-red-500' : 'text-green-600'}`}>
-                                  {dayRate >= 0 ? '+' : ''}{fmt(dayRate)}%
-                                </div>
-                              )}
+                              {hasPrice && <RateBadge rate={dayRate} />}
                               {!hasPrice && <div className="text-[10px] text-text-muted mt-1">待更新</div>}
                             </div>
                           )
                         })}
                       </div>
+                      {/* Final return row */}
+                      {completed && (
+                        <div className="mt-2 flex items-center justify-end gap-2 pt-2 border-t border-border-default/60">
+                          <span className="text-xs text-text-muted">最终收益</span>
+                          <span className={`font-mono font-bold text-sm ${finalRate >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                            {finalRate >= 0 ? '+' : ''}{fmt(finalRate)}%
+                          </span>
+                          <span className="text-[11px] text-text-muted">
+                            {fmt(rec.recommend_price)} → {fmt((rec as any).price_day3)}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   )
                 })}

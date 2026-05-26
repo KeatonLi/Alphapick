@@ -30,6 +30,10 @@ class Recommendation(Base):
     price_day1: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 3), nullable=True, comment="持股第一天价格")
     price_day2: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 3), nullable=True, comment="持股第二天价格")
     price_day3: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 3), nullable=True, comment="持股第三天价格")
+    return_rate_day1: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4), nullable=True, comment="第一天收益率")
+    return_rate_day2: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4), nullable=True, comment="第二天收益率")
+    return_rate_day3: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4), nullable=True, comment="第三天收益率")
+    final_return_rate: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4), nullable=True, comment="三个交易日最终收益率")
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), comment="创建时间"
     )
