@@ -8,12 +8,12 @@ QuantForge 是 AI 驱动的 A 股量化分析平台，前端 React+TypeScript，
 
 ## 常用命令
 
-### 前端开发
+### 部署
 ```bash
-cd frontend && npm install
-npm run dev          # 开发服务器 localhost:5173
-npm run build        # 生产构建（构建产物在 dist/）
+bash deploy.sh                    # 唯一部署方式！脚本自动处理：停止旧服务 → kill 端口占用 → 上传文件 → 安装依赖 → 启动前后端
 ```
+
+**重要：不要手动启动服务。** 不要在服务器上手动跑 uvicorn、systemctl 或 nohup。`deploy.sh` 会先杀掉旧进程、释放 8084（后端）和 3002（前端）端口，再重新部署。部署前记得 commit + push 代码。
 
 ### 后端开发
 ```bash
@@ -21,10 +21,11 @@ cd backend && pip install -r requirements.txt
 python -m uvicorn app.main:app --reload --port 8000
 ```
 
-### 部署
+### 前端开发
 ```bash
-bash deploy.sh                    # Linux/Git Bash
-bash deploy-windows.sh            # Windows 原生 bash
+cd frontend && npm install
+npm run dev          # 开发服务器 localhost:5173
+npm run build        # 生产构建
 ```
 
 ### 定时脚本
@@ -47,9 +48,9 @@ python backend/update_prices.py                   # 更新所有推荐股的现�
 - `services/mockData.ts` — 非核心页面的 mock 数据
 
 ### 数据流向
-1. `generate_report.py` 调用 `report_service.generate_daily_report` + `recommend_service.get_recommend_by_date`
-2. 推荐生成：全市场股票 → AKShare 腾讯批量接口 → AI 筛选 5 只 → 存入 MySQL
-3. HTML 报告由 `html_report_service.generate_html_report` 生成到文件系统
+1. 推荐生成：THS 服务端选股池（理想选股 + 持续强势股，~500只）→ 并发获取日线，MA5>MA10>MA20 多头筛选 → AI 精选 5 只 → 存入 MySQL
+2. 收益跟踪：`update_recommend_prices` 只更新 `tracking_days < 3` 的记录，每天推进一天，3 天后冻结
+3. 市场报告：AKShare 指数数据 + 板块数据 + AI 分析报告 → MySQL + 文件系统
 
 ### 关键约束
 - 数据源：新浪被封，使用 EastMoney 数据中心 + 腾讯财经批量接口
