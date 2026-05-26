@@ -102,13 +102,6 @@ def get_available_recommend_dates(db: Session, days: int = 30) -> dict:
     return {"success": True, "data": [str(d[0]) for d in dates]}
 
 
-def get_trade_dates_for_frontend(days: int = 30) -> dict:
-    """获取前端可用的交易日列表
-    @deprecated 使用 akshare_utils.get_trade_dates_for_frontend
-    """
-    return get_trade_dates_for_frontend(days=days)
-
-
 async def get_recommend_stats(db: Session) -> dict:
     total = db.query(func.count(Recommendation.id)).scalar() or 0
     if total == 0:

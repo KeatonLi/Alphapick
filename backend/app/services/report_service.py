@@ -3,11 +3,10 @@ import json
 from datetime import date, timedelta
 from typing import Optional
 
-import akshare as ak
 import numpy as np
 from sqlalchemy.orm import Session
 
-from app.utils.akshare_utils import get_market_index, get_hot_sectors, get_trade_dates_for_frontend
+from app.utils.akshare_utils import get_market_index, get_hot_sectors, get_stock_list
 from app.services.html_report_service import generate_html_report
 from app.utils.ai_client import chat
 from app.models import MarketReport
@@ -37,38 +36,36 @@ async def generate_daily_report(db: Session, report_date: Optional[date] = None)
     index_data = index_result["data"]
     sectors_data = sectors_result["data"]
 
-    # 抓取今日涨停股，存入供明日计算表现
-    try:
-        df_spot = ak.stock_zh_a_spot()
-        today_limit_ups = df_spot[df_spot["涨跌幅"] >= 9.5]["代码"].tolist()
-        today_limit_ups_json = json.dumps(today_limit_ups[:100], ensure_ascii=False)  # 最多100只
-    except Exception:
-        today_limit_ups_json = "[]"
-
-    # 计算昨日涨停股今日表现（从数据库读昨天的记录）
+    # 获取全市场实时行情（腾讯批量接口，带缓存）
+    stock_list_result = await get_stock_list()
+    today_limit_ups_json = "[]"
     yesterday_limit_ups_perf = None
-    yesterday_report = db.query(MarketReport).filter(
-        MarketReport.report_date == today - timedelta(days=1)
-    ).first()
-    if yesterday_report and yesterday_report.yesterday_limit_ups:
-        try:
-            yesterday_codes = json.loads(yesterday_report.yesterday_limit_ups)
-            if yesterday_codes:
-                df_today = ak.stock_zh_a_spot()
-                today_perfs = []
-                for code in yesterday_codes[:50]:
-                    row = df_today[df_today["代码"] == code]
-                    if not row.empty:
-                        pct_str = str(row.iloc[0].get("涨跌幅", "0"))
-                        try:
-                            pct = float(pct_str)
-                            today_perfs.append(pct)
-                        except ValueError:
-                            continue
-                if today_perfs:
-                    yesterday_limit_ups_perf = round(float(np.mean(today_perfs)), 2)
-        except Exception:
-            pass
+
+    if stock_list_result["success"]:
+        stocks = stock_list_result["data"]
+        # 今日涨停股
+        limit_up_codes = [s["code"] for s in stocks if s.get("change_pct", 0) >= 9.5]
+        today_limit_ups_json = json.dumps(limit_up_codes[:100], ensure_ascii=False)
+
+        # 计算昨日涨停股今日表现（从数据库读昨天的记录）
+        yesterday_report = db.query(MarketReport).filter(
+            MarketReport.report_date == today - timedelta(days=1)
+        ).first()
+        if yesterday_report and yesterday_report.yesterday_limit_ups:
+            try:
+                yesterday_codes = json.loads(yesterday_report.yesterday_limit_ups)
+                if yesterday_codes:
+                    stock_map = {s["code"]: s for s in stocks}
+                    today_perfs = []
+                    for code in yesterday_codes[:50]:
+                        if code in stock_map:
+                            pct = stock_map[code].get("change_pct", 0)
+                            if pct != 0:
+                                today_perfs.append(pct)
+                    if today_perfs:
+                        yesterday_limit_ups_perf = round(float(np.mean(today_perfs)), 2)
+            except Exception:
+                pass
 
     # 市场概况
     up_count = sum(1 for i in index_data if i["change_pct"] > 0)

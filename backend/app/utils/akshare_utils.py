@@ -186,7 +186,39 @@ async def get_stock_daily(code: str, days: int = 60) -> dict:
 
 # ─── 全市场行情（用于候选池）────────────────────────────────────────────
 
-async def get_stock_list() -> dict:
+import time
+import json
+
+_stock_list_cache = {
+    "data": None,
+    "timestamp": 0,
+    "cache_key": "",
+}
+
+_CACHE_TTL = 300  # 5分钟内存缓存，避免重复抓取全市场数据
+
+
+async def get_stock_list(force_refresh: bool = False) -> dict:
+    """获取A股全市场实时行情列表（带5分钟内存缓存）
+    数据来源：EastMoney数据中心获取股票列表 + 腾讯批量接口获取实时行情
+    """
+    now = time.time()
+    cache_valid = (
+        _stock_list_cache["data"] is not None
+        and not force_refresh
+        and now - _stock_list_cache["timestamp"] < _CACHE_TTL
+    )
+    if cache_valid:
+        return _stock_list_cache["data"]
+
+    result = await _fetch_stock_list_raw()
+    if result["success"]:
+        _stock_list_cache["data"] = result
+        _stock_list_cache["timestamp"] = now
+    return result
+
+
+async def _fetch_stock_list_raw() -> dict:
     """获取A股全市场实时行情列表
     数据来源：EastMoney数据中心获取股票列表 + 腾讯批量接口获取实时行情
     """
