@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 from datetime import date
+from typing import Optional
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
@@ -22,7 +23,7 @@ limiter = Limiter(key_func=get_remote_address)
 
 @router.get("/daily")
 async def daily(
-    rec_date: date | None = Query(None, alias="date"),
+    rec_date: Optional[date] = Query(None, alias="date"),
     db: Session = Depends(get_db),
 ):
     """获取指定日期的推荐股票，默认今天"""
@@ -71,7 +72,7 @@ async def stats(db: Session = Depends(get_db)):
 
 @router.post("/generate")
 @limiter.limit("3/minute")
-async def generate(request: Request, rec_date: date | None = Query(None, alias="date"), db: Session = Depends(get_db)):
+async def generate(request: Request, rec_date: Optional[date] = Query(None, alias="date"), db: Session = Depends(get_db)):
     """手动触发生成指定日期的量化推荐"""
     target_date = rec_date or date.today()
     result = await generate_recommendations(db, target_date)

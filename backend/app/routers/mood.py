@@ -2,6 +2,7 @@
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 from datetime import date
+from typing import Optional
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
@@ -16,7 +17,7 @@ limiter = Limiter(key_func=get_remote_address)
 @limiter.limit("10/minute")
 async def daily(
     request: Request,
-    report_date: date | None = Query(None, alias="date"),
+    report_date: Optional[date] = Query(None, alias="date"),
     db: Session = Depends(get_db),
 ):
     """获取指定日期的市场情绪数据"""

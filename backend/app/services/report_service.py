@@ -1,6 +1,7 @@
 # backend/app/services/report_service.py
 import json
 from datetime import date, timedelta
+from typing import Optional
 
 import akshare as ak
 import numpy as np
@@ -13,7 +14,7 @@ from app.models import MarketReport
 from app.prompts import REPORT_SYSTEM_PROMPT, REPORT_OUTPUT_FORMAT
 
 
-async def generate_daily_report(db: Session, report_date: date | None = None) -> dict:
+async def generate_daily_report(db: Session, report_date: Optional[date] = None) -> dict:
     """生成指定日期市场报告并保存到数据库"""
     today = report_date if report_date is not None else date.today()
 

@@ -1,6 +1,7 @@
 # backend/app/services/recommend_service.py
 import json
 from datetime import date, timedelta
+from typing import Optional
 
 from sqlalchemy.orm import Session
 from sqlalchemy import func, cast, Numeric
@@ -34,7 +35,7 @@ async def get_recommend_by_date(db: Session, rec_date: date) -> dict:
     return {"success": True, "data": [], "from_cache": False, "date": str(rec_date)}
 
 
-async def generate_recommendations(db: Session, rec_date: date | None = None) -> dict:
+async def generate_recommendations(db: Session, rec_date: Optional[date] = None) -> dict:
     """为指定日期生成量化推荐（均线候选 + AI 精选）"""
     target = rec_date or date.today()
 

@@ -2,6 +2,7 @@
 import asyncio
 import json
 from datetime import date, datetime
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -152,7 +153,7 @@ async def _run_recommend(task_id: int, target_date: date):
 
 @router.post("/report")
 async def start_report(
-    report_date: date | None = Query(None, alias="date"),
+    report_date: Optional[date] = Query(None, alias="date"),
     db: Session = Depends(get_db),
 ):
     """异步启动报告生成，返回 task_id"""
@@ -186,7 +187,7 @@ async def start_report(
 
 @router.post("/recommend")
 async def start_recommend(
-    rec_date: date | None = Query(None, alias="date"),
+    rec_date: Optional[date] = Query(None, alias="date"),
     db: Session = Depends(get_db),
 ):
     """异步启动推荐生成，返回 task_id"""
@@ -249,7 +250,7 @@ async def _run_all(task_id: int, target_date: date):
 
 @router.post("/all")
 async def start_all(
-    report_date: date | None = Query(None, alias="date"),
+    report_date: Optional[date] = Query(None, alias="date"),
     db: Session = Depends(get_db),
 ):
     """异步启动全部生成：报告 + 推荐 + 更新现价"""

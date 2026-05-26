@@ -1,5 +1,6 @@
 from datetime import date
 import json
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
@@ -27,7 +28,7 @@ limiter = Limiter(key_func=get_remote_address)
 
 @router.get("/daily")
 async def daily(
-    report_date: date | None = Query(None, alias="date"),
+    report_date: Optional[date] = Query(None, alias="date"),
     db: Session = Depends(get_db),
 ):
     """获取指定日期的市场报告（只读），默认今天"""
@@ -61,7 +62,7 @@ async def trade_dates(days: int = Query(365)):
 
 @router.get("/html")
 async def html_report(
-    report_date: date | None = Query(None, alias="date"),
+    report_date: Optional[date] = Query(None, alias="date"),
     db: Session = Depends(get_db),
 ):
     """
@@ -92,7 +93,7 @@ async def html_report(
 @limiter.limit("6/minute")
 async def detail(
     request: Request,
-    report_date: date | None = Query(None, alias="date"),
+    report_date: Optional[date] = Query(None, alias="date"),
     db: Session = Depends(get_db),
 ):
     """获取指定日期的完整市场报告详情（含图表）"""
@@ -163,7 +164,7 @@ async def detail(
 @limiter.limit("3/minute")
 async def generate_report(
     request: Request,
-    report_date: date | None = Query(None, alias="date"),
+    report_date: Optional[date] = Query(None, alias="date"),
     db: Session = Depends(get_db),
 ):
     """手动触发指定日期的市场报告生成（包括数据 + HTML）"""
