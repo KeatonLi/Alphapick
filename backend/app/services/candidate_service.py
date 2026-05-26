@@ -84,7 +84,7 @@ def get_ths_candidates() -> dict:
             if not code or code in seen:
                 continue
             try:
-                price = float(row.get('收盘价', 0) or 0)
+                price = float(row.get('最新价', 0) or 0)
                 change_pct = float(row.get('涨跌幅', 0) or 0)
                 turnover = float(row.get('换手率', 0) or 0)
                 prev_high = float(row.get('前期高点', 0) or 0)
@@ -139,8 +139,8 @@ async def get_ma_filtered_candidates(top_n: int = 50) -> dict:
                 if not result['success'] or len(result['data']) < 21:
                     return None
                 daily_data = result['data']
-                closes = [d['close'] for d in daily_data]
-                volumes = [d['volume'] for d in daily_data]
+                closes = [d['收盘'] for d in daily_data]
+                volumes = [d['成交量'] for d in daily_data]
 
                 ma5 = np.mean(closes[-5:])
                 ma10 = np.mean(closes[-10:])
