@@ -26,6 +26,10 @@ class Recommendation(Base):
     current_price: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 3), nullable=True, comment="最新价格")
     return_rate: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4), nullable=True, comment="收益率")
     reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="推荐理由")
+    tracking_days: Mapped[int] = mapped_column(Integer, default=0, comment="已跟踪交易日数（0-3）")
+    price_day1: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 3), nullable=True, comment="持股第一天价格")
+    price_day2: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 3), nullable=True, comment="持股第二天价格")
+    price_day3: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 3), nullable=True, comment="持股第三天价格")
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), comment="创建时间"
     )

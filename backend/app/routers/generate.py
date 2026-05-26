@@ -11,7 +11,7 @@ from app.database import get_db, SessionLocal
 from app.models import GenerationTask, MarketReport, Recommendation
 from app.services.report_service import generate_daily_report
 from app.services.recommend_service import generate_recommendations, update_recommend_prices
-from app.services.candidate_service import get_ma_candidates, format_candidates_for_ai
+from app.services.candidate_service import get_ma_filtered_candidates, format_candidates_for_ai
 from app.utils.ai_client import chat
 from app.prompts import RECOMMEND_SYSTEM_PROMPT, RECOMMEND_OUTPUT_FORMAT
 
@@ -60,14 +60,14 @@ async def _run_recommend(task_id: int, target_date: date):
     """后台执行推荐生成"""
     try:
         # Step 1: 拉取全市场股票
-        _update_task(task_id, status="running", current_step=1, total_steps=5,
+        _update_task(task_id, status="running", current_step=1, total_steps=4,
                      step_label="正在拉取全市场股票行情...", progress_pct=5)
         await asyncio.sleep(0.5)
 
         # Step 2: 均线多头筛选
         _update_task(task_id, current_step=2,
                      step_label=f"均线多头筛选中（目标 200 只候选）...", progress_pct=20)
-        candidate_result = await get_ma_candidates(top_n=200)
+        candidate_result = await get_ma_filtered_candidates(top_n=50)
         if not candidate_result["success"]:
             _update_task(task_id, status="failed",
                          error_message=f"候选池筛选失败: {candidate_result['error']}", progress_pct=100)
@@ -130,13 +130,8 @@ async def _run_recommend(task_id: int, target_date: date):
         finally:
             db.close()
 
-        # Step 4: 更新现价
-        _update_task(task_id, current_step=4, step_label="正在更新现价收益率...", progress_pct=90)
-        db2 = SessionLocal()
-        try:
-            await update_recommend_prices(db2)
-        finally:
-            db2.close()
+        # Step 4: 完成（现价由日调度自动跟踪）
+        _update_task(task_id, current_step=4, step_label="推荐数据已保存，现价将在后续调度中自动跟踪...", progress_pct=90)
 
         # 完成
         _update_task(task_id, current_step=5, status="completed",
@@ -205,7 +200,7 @@ async def start_recommend(
         task_type="recommend",
         target_date=target_date,
         status="pending",
-        total_steps=5,
+        total_steps=4,
     )
     db.add(task)
     db.commit()

@@ -4,10 +4,13 @@ import { apiGet } from '../services/api'
 interface HistoryRec {
   id: number; recommend_date: string; stock_code: string; stock_name: string
   recommend_price: number; current_price: number; return_rate: number; reason: string
+  tracking_days: number; price_day1: number; price_day2: number; price_day3: number
 }
 
 function fmt(n: number, d = 2) { return n.toFixed(d) }
 function fmtRate(n: number) { return (n >= 0 ? '+' : '') + fmt(n) + '%' }
+
+const DAY_LABELS = ['', '持股第一天', '持股第二天', '持股第三天']
 
 export default function TrackingPage() {
   const [recs, setRecs] = useState<HistoryRec[]>([])
@@ -39,7 +42,7 @@ export default function TrackingPage() {
         <h1 className="text-2xl sm:text-3xl font-extrabold text-blue-700 mb-1 tracking-tight">
           收益<span className="text-amber-500">跟踪</span>
         </h1>
-        <p className="text-xs sm:text-sm text-text-secondary">历史推荐股票收益率追踪</p>
+        <p className="text-xs sm:text-sm text-text-secondary">历史推荐股票 · 三交易日持收益</p>
       </div>
 
       {/* Summary bar */}
@@ -117,30 +120,63 @@ export default function TrackingPage() {
                 {grouped[date].map((rec) => {
                   const rate = rec.return_rate || 0
                   const up = rate >= 0
+                  const td = rec.tracking_days || 0
+                  const completed = td >= 3
+                  const prices = [0, rec.price_day1, rec.price_day2, rec.price_day3]
                   return (
-                    <div key={rec.id} className="flex items-center gap-3 px-4 py-3 hover:bg-blue-50/40 transition-colors">
-                      <div className="w-16 shrink-0">
-                        <div className="font-bold text-blue-800 text-sm truncate">{rec.stock_name}</div>
-                        <div className="text-[11px] text-text-muted font-mono">{rec.stock_code}</div>
-                      </div>
-                      <div className="flex-1 min-w-0 hidden sm:block">
-                        <div className="text-xs text-text-secondary line-clamp-1">{rec.reason || '—'}</div>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <div className="text-[11px] text-text-muted">推荐</div>
-                        <div className="font-mono font-semibold text-xs">{fmt(rec.recommend_price)}</div>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <div className="text-[11px] text-text-muted">现价</div>
-                        <div className="font-mono font-semibold text-xs">
-                          {rec.current_price > 0 ? fmt(rec.current_price) : <span className="text-text-muted">—</span>}
+                    <div key={rec.id} className={`px-4 py-3 transition-colors ${completed ? 'bg-green-50/30' : 'hover:bg-blue-50/40'}`}>
+                      {/* Header row */}
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="w-16 shrink-0">
+                          <div className="font-bold text-blue-800 text-sm truncate">{rec.stock_name}</div>
+                          <div className="text-[11px] text-text-muted font-mono">{rec.stock_code}</div>
                         </div>
-                      </div>
-                      <div className="text-right shrink-0 w-16">
-                        <div className="text-[11px] text-text-muted">收益</div>
-                        <div className={`font-mono font-bold text-xs ${rec.current_price > 0 ? (up ? 'text-green-600' : 'text-red-500') : 'text-text-muted'}`}>
-                          {rec.current_price > 0 ? fmtRate(rate) : '—'}
+                        <div className="flex-1 min-w-0 hidden sm:block">
+                          <div className="text-xs text-text-secondary line-clamp-1">{rec.reason || '—'}</div>
                         </div>
+                        <div className="text-right shrink-0">
+                          <div className="text-[11px] text-text-muted">推荐价</div>
+                          <div className="font-mono font-semibold text-sm">{fmt(rec.recommend_price)}</div>
+                        </div>
+                        {completed && (
+                          <div className="shrink-0 px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-[10px] font-semibold">
+                            已完结
+                          </div>
+                        )}
+                        {!completed && td > 0 && (
+                          <div className="shrink-0 px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-semibold">
+                            跟踪中
+                          </div>
+                        )}
+                      </div>
+                      {/* Tracking days */}
+                      <div className="flex gap-2">
+                        {[1, 2, 3].map(day => {
+                          const hasPrice = prices[day] > 0
+                          const dayRate = hasPrice && rec.recommend_price > 0
+                            ? (prices[day] - rec.recommend_price) / rec.recommend_price * 100
+                            : 0
+                          const isCurrent = day === td
+                          return (
+                            <div
+                              key={day}
+                              className={`flex-1 rounded-xl px-3 py-2 text-center border transition-all ${
+                                isCurrent && !completed ? 'border-blue-300 bg-blue-50 shadow-sm' : hasPrice ? 'border-green-200 bg-green-50/50' : 'border-gray-100 bg-gray-50/50'
+                              }`}
+                            >
+                              <div className="text-[10px] text-text-muted mb-1">{DAY_LABELS[day]}</div>
+                              <div className="font-mono font-bold text-sm">
+                                {hasPrice ? fmt(prices[day]) : '—'}
+                              </div>
+                              {hasPrice && (
+                                <div className={`font-mono text-[11px] font-semibold ${dayRate >= 0 ? 'text-red-500' : 'text-green-600'}`}>
+                                  {dayRate >= 0 ? '+' : ''}{fmt(dayRate)}%
+                                </div>
+                              )}
+                              {!hasPrice && <div className="text-[10px] text-text-muted mt-1">待更新</div>}
+                            </div>
+                          )
+                        })}
                       </div>
                     </div>
                   )

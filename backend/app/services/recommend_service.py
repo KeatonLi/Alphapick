@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, cast, Numeric
 
 from app.utils.akshare_utils import get_trade_dates_for_frontend
-from app.services.candidate_service import get_ma_candidates, format_candidates_for_ai
+from app.services.candidate_service import get_ma_filtered_candidates, format_candidates_for_ai
 from app.utils.ai_client import chat
 from app.models import Recommendation
 from app.prompts import RECOMMEND_SYSTEM_PROMPT, RECOMMEND_OUTPUT_FORMAT
@@ -47,7 +47,7 @@ async def generate_recommendations(db: Session, rec_date: Optional[date] = None)
         return {"success": True, "data": {}, "message": f"今日推荐已存在，跳过生成"}
 
     # 筛选均线多头候选池
-    candidate_result = await get_ma_candidates(top_n=200)
+    candidate_result = await get_ma_filtered_candidates(top_n=50)
     if not candidate_result["success"]:
         return {"success": False, "error": f"候选池筛选失败: {candidate_result['error']}"}
 
@@ -140,6 +140,10 @@ def get_all_recommendations(db: Session) -> dict:
                 "current_price": float(r.current_price) if r.current_price else 0,
                 "return_rate": float(r.return_rate) * 100 if r.return_rate else 0,
                 "reason": r.reason or "",
+                "tracking_days": r.tracking_days or 0,
+                "price_day1": float(r.price_day1) if r.price_day1 else 0,
+                "price_day2": float(r.price_day2) if r.price_day2 else 0,
+                "price_day3": float(r.price_day3) if r.price_day3 else 0,
             }
             for r in recs
         ],
@@ -147,12 +151,14 @@ def get_all_recommendations(db: Session) -> dict:
 
 
 async def update_recommend_prices(db: Session) -> dict:
-    """更新所有推荐记录的最新价格（使用 akshare 腾讯接口）"""
+    """更新推荐记录价格（只更新未满 3 个交易日的记录）"""
     import requests
 
-    recs = db.query(Recommendation).all()
+    recs = db.query(Recommendation).filter(
+        Recommendation.tracking_days < 3
+    ).all()
     if not recs:
-        return {"success": True, "data": {"updated": 0}}
+        return {"success": True, "data": {"updated": 0, "message": "所有记录已满 3 个交易日，无需更新"}}
 
     from app.utils.akshare_utils import _to_tencent_code, _from_tencent_code
 
@@ -185,14 +191,21 @@ async def update_recommend_prices(db: Session) -> dict:
 
     updated = 0
     for rec in recs:
-        if rec.stock_code in price_map:
-            rec.current_price = price_map[rec.stock_code]
-            if rec.recommend_price and float(rec.recommend_price) > 0:
-                rec.return_rate = (
-                    (float(rec.current_price) - float(rec.recommend_price))
-                    / float(rec.recommend_price)
-                )
-            updated += 1
+        if rec.stock_code not in price_map:
+            continue
+        price = price_map[rec.stock_code]
+        rec.tracking_days = (rec.tracking_days or 0) + 1
+        day = rec.tracking_days
+        if day == 1:
+            rec.price_day1 = price
+        elif day == 2:
+            rec.price_day2 = price
+        elif day == 3:
+            rec.price_day3 = price
+        rec.current_price = price
+        if rec.recommend_price and float(rec.recommend_price) > 0:
+            rec.return_rate = (price - float(rec.recommend_price)) / float(rec.recommend_price)
+        updated += 1
 
     db.commit()
     return {"success": True, "data": {"updated": updated}}
