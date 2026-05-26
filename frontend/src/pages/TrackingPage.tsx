@@ -8,7 +8,6 @@ interface HistoryRec {
 }
 
 function fmt(n: number, d = 2) { return n.toFixed(d) }
-function fmtRate(n: number) { return (n >= 0 ? '+' : '') + fmt(n) + '%' }
 
 const DAY_LABELS = ['', '持股第一天', '持股第二天', '持股第三天']
 
@@ -118,8 +117,6 @@ export default function TrackingPage() {
               </div>
               <div className="divide-y divide-border-default/60">
                 {grouped[date].map((rec) => {
-                  const rate = rec.return_rate || 0
-                  const up = rate >= 0
                   const td = rec.tracking_days || 0
                   const completed = td >= 3
                   const prices = [0, rec.price_day1, rec.price_day2, rec.price_day3]
