@@ -1,87 +1,146 @@
 # backend/app/services/candidate_service.py
 """
-均线多头候选池筛选服务
-从全市场筛选均线多头排列的股票作为推荐候选池
-
-设计原则：
-- 全市场实时数据：腾讯批量接口，一次请求获取所有股票今日行情
-- 预过滤：用今日成交量/价格/涨幅初步筛选，将候选从5000只缩到200只以内
-- 日线数据：只对预过滤后的候选股票逐个获取，计算MA
-- 整体控制在 200 次日线请求以内（而不是 5000 次）
+量化推荐候选池服务
+数据来源：同花顺服务端筛选好的选股池
+- 理想选股 (stock_rank_lxsz_ths): 连涨天数+换手率筛选，~192只，0.5秒
+- 持续强势股 (stock_rank_cxg_ths): 持续创新高，~398只，1.9秒
+两个池合并去重后，对每只股票取日线计算 MA 条件
 """
 
 import asyncio
 import numpy as np
 from typing import Optional
 
-from app.utils.akshare_utils import get_stock_list, get_stock_daily
-
-# ─── 预过滤参数（今日实时数据） ──────────────────────────────────────────
+import akshare as ak
+from app.utils.akshare_utils import get_stock_daily
 
 MA_SHORT = 5
 MA_MID = 10
 MA_LONG = 20
 
-MIN_CHANGE_PCT = 0
-MAX_CHANGE_PCT = 10
 MIN_PRICE = 5
 MAX_PRICE = 200
-MIN_VOLUME_RATIO = 1.5  # 成交量放大倍数（相对20日均量，估算用）
-
-# 预过滤后最多取 top_n 只（按成交量降序），控制日线请求次数
-MAX_PREFILTERED = 200
+MIN_CONTINUOUS_DAYS = 3  # 最少连涨天数
 
 
-async def get_ma_candidates(top_n: int = 200) -> dict:
+def _to_code(raw: str) -> str:
+    """THS返回的股票代码可能是 6位数字，转成标准格式"""
+    raw = str(raw).strip()
+    if len(raw) == 6:
+        if raw.startswith(('0', '3')):
+            return f"sz{raw}"
+        elif raw.startswith(('4', '8')):
+            return f"bj{raw}"
+        else:
+            return f"sh{raw}"
+    return raw
+
+
+def get_ths_candidates() -> dict:
     """
-    获取均线多头的股票候选池
-
-    筛选分两阶段：
-    1. 预过滤（腾讯批量实时数据，无需额外请求）：
-       - 涨幅 0%~10%（排除暴跌/涨停）
-       - 价格 5-200 元
-       - 成交量 > 0
-       - 按今日成交量降序，只保留 top 200
-    2. 日线筛选（逐个获取日线数据）：
-       - MA5 > MA10 > MA20（多头排列）
-       - 收盘价 > MA20
-       - 估算量比 > 1.5
+    从同花顺服务端筛选池获取候选股票列表
+    合并 理想选股 + 持续强势股，按连涨天数过滤
     """
-    list_result = await get_stock_list()
-    if not list_result["success"]:
-        return {"success": False, "error": list_result["error"]}
+    lxsz = ak.stock_rank_lxsz_ths()  # 理想选股
+    cxg = ak.stock_rank_cxg_ths()     # 持续强势股
 
-    all_stocks = list_result["data"]
-    if not all_stocks:
-        return {"success": False, "error": "股票列表为空"}
+    seen = set()
+    candidates = []
 
-    # ─── Stage 1: 预过滤（基于今日实时数据，无需额外请求） ───────────────
-    pre_filtered = [
-        s for s in all_stocks
-        if MIN_CHANGE_PCT <= s.get("change_pct", -999) <= MAX_CHANGE_PCT
-        and MIN_PRICE <= s.get("price", 0) <= MAX_PRICE
-        and s.get("volume", 0) > 0
-    ]
+    # 理想选股
+    if lxsz is not None and not lxsz.empty:
+        for _, row in lxsz.iterrows():
+            code = _to_code(row.get('股票代码', ''))
+            if not code or code in seen:
+                continue
+            try:
+                price = float(row.get('收盘价', 0) or 0)
+                change_pct = float(row.get('涨跌幅', 0) or 0)
+                continuous_days = int(row.get('连涨天数', 0) or 0)
+                turnover = float(row.get('累计换手率', 0) or 0)
+                sector = str(row.get('所属行业', ''))
+            except (ValueError, TypeError):
+                continue
+            if continuous_days < MIN_CONTINUOUS_DAYS:
+                continue
+            if price <= 0 or price > MAX_PRICE:
+                continue
+            seen.add(code)
+            candidates.append({
+                'code': code,
+                'name': str(row.get('股票简称', '')),
+                'price': price,
+                'change_pct': change_pct,
+                'continuous_days': continuous_days,
+                'turnover': turnover,
+                'sector': sector,
+                'source': 'lxsz',
+            })
 
-    # 按今日成交量降序，取 top N（控制日线请求数量）
-    pre_filtered.sort(key=lambda s: s.get("volume", 0), reverse=True)
-    pre_filtered = pre_filtered[:MAX_PREFILTERED]
+    # 持续强势股
+    if cxg is not None and not cxg.empty:
+        for _, row in cxg.iterrows():
+            code = _to_code(row.get('股票代码', ''))
+            if not code or code in seen:
+                continue
+            try:
+                price = float(row.get('收盘价', 0) or 0)
+                change_pct = float(row.get('涨跌幅', 0) or 0)
+                turnover = float(row.get('换手率', 0) or 0)
+                prev_high = float(row.get('前期高点', 0) or 0)
+            except (ValueError, TypeError):
+                continue
+            if price <= 0 or price > MAX_PRICE:
+                continue
+            seen.add(code)
+            candidates.append({
+                'code': code,
+                'name': str(row.get('股票简称', '')),
+                'price': price,
+                'change_pct': change_pct,
+                'continuous_days': 0,  # 持续强势股无连涨天数，用0表示
+                'turnover': turnover,
+                'sector': '',
+                'source': 'cxg',
+            })
 
-    if not pre_filtered:
-        return {"success": False, "error": f"预过滤后无候选股票（原始 {len(all_stocks)} 只）"}
+    return {
+        'success': True,
+        'data': candidates,
+        'total': len(candidates),
+        'from_lxsz': len([c for c in candidates if c['source'] == 'lxsz']),
+        'from_cxg': len([c for c in candidates if c['source'] == 'cxg']),
+    }
 
-    # ─── Stage 2: 并发获取日线数据 ──────────────────────────────────────
-    semaphore = asyncio.Semaphore(20)
 
-    async def fetch_and_check(code: str, stock: dict) -> Optional[dict]:
+async def get_ma_filtered_candidates(top_n: int = 50) -> dict:
+    """
+    获取经过 MA 多头条件过滤的候选股票
+
+    Step 1: 从 THS 服务端池获取候选（~500只）
+    Step 2: 对候选股票并发获取日线，计算 MA5>MA10>MA20 条件
+    Step 3: 按换手率降序取 top_n
+    """
+    ths_result = get_ths_candidates()
+    if not ths_result['success']:
+        return ths_result
+
+    candidates_base = ths_result['data']
+    if not candidates_base:
+        return {'success': False, 'error': 'THS 选股池返回为空'}
+
+    # ─── Stage 2: 并发获取日线，筛选 MA 多头 ───────────────────────────────
+    semaphore = asyncio.Semaphore(15)
+
+    async def fetch_and_check(stock: dict) -> Optional[dict]:
         async with semaphore:
             try:
-                result = await get_stock_daily(code, days=25)
-                if not result["success"] or len(result["data"]) < 21:
+                result = await get_stock_daily(stock['code'], days=25)
+                if not result['success'] or len(result['data']) < 21:
                     return None
-                daily_data = result["data"]
-                closes = [d["close"] for d in daily_data]
-                volumes = [d["volume"] for d in daily_data]
+                daily_data = result['data']
+                closes = [d['close'] for d in daily_data]
+                volumes = [d['volume'] for d in daily_data]
 
                 ma5 = np.mean(closes[-5:])
                 ma10 = np.mean(closes[-10:])
@@ -89,40 +148,39 @@ async def get_ma_candidates(top_n: int = 200) -> dict:
                 current_price = closes[-1]
                 avg_vol_20 = np.mean(volumes[-20:])
                 current_vol = volumes[-1]
+                vol_ratio = current_vol / avg_vol_20 if avg_vol_20 > 0 else 0
 
+                # MA 多头排列
                 if not (ma5 > ma10 > ma20):
                     return None
+                # 价格在均线上方
                 if current_price < ma20:
-                    return None
-                vol_ratio = current_vol / avg_vol_20 if avg_vol_20 > 0 else 0
-                if vol_ratio < MIN_VOLUME_RATIO:
                     return None
 
                 return {
                     **stock,
-                    "ma5": round(ma5, 2),
-                    "ma10": round(ma10, 2),
-                    "ma20": round(ma20, 2),
-                    "volume_ratio": round(vol_ratio, 2),
+                    'ma5': round(ma5, 2),
+                    'ma10': round(ma10, 2),
+                    'ma20': round(ma20, 2),
+                    'volume_ratio': round(vol_ratio, 2),
                 }
             except Exception:
                 return None
 
-    tasks = [fetch_and_check(s["code"], s) for s in pre_filtered]
+    tasks = [fetch_and_check(s) for s in candidates_base]
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
     candidates = [r for r in results if isinstance(r, dict) and r is not None]
 
-    # 按量比降序，取 top_n
-    candidates.sort(key=lambda x: x["volume_ratio"], reverse=True)
+    # 按换手率降序
+    candidates.sort(key=lambda x: x.get('turnover', 0), reverse=True)
     candidates = candidates[:top_n]
 
     return {
-        "success": True,
-        "data": candidates,
-        "total_scanned": len(all_stocks),
-        "pre_filtered": len(pre_filtered),
-        "ma_candidates": len(candidates),
+        'success': True,
+        'data': candidates,
+        'total_ths': len(candidates_base),
+        'after_ma_filter': len(candidates),
     }
 
 
@@ -130,9 +188,12 @@ def format_candidates_for_ai(candidates: list) -> str:
     """将候选池格式化为 AI 输入"""
     lines = []
     for s in candidates:
+        source_tag = '⭐' if s.get('source') == 'lxsz' else '◆'
         lines.append(
-            f"{s['code']} {s['name']} 现价:{s['price']} 涨幅:{s['change_pct']:.2f}% "
-            f"换手:{s.get('turnover', 0):.2f}% 量比:{s.get('volume_ratio', 0):.1f}倍 "
-            f"MA5:{s.get('ma5', 0)} MA10:{s.get('ma10', 0)} MA20:{s.get('ma20', 0)}"
+            f"{source_tag}{s['code']} {s['name']} "
+            f"现价:{s['price']} 涨幅:{s.get('change_pct', 0):.2f}% "
+            f"换手:{s.get('turnover', 0):.2f}% 连涨:{s.get('continuous_days', 0)}天 "
+            f"MA5:{s.get('ma5', 0)} MA10:{s.get('ma10', 0)} MA20:{s.get('ma20', 0)} "
+            f"板块:{s.get('sector', '')}"
         )
-    return "\n".join(lines)
+    return '\n'.join(lines)
