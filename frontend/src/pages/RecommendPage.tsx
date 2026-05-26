@@ -57,7 +57,7 @@ export default function RecommendPage() {
         <h1 className="text-2xl sm:text-3xl font-extrabold text-blue-700 mb-1 tracking-tight">
           量化<span className="text-amber-500">推荐</span>
         </h1>
-        <p className="text-xs sm:text-sm text-text-secondary">均线多头候选 + AI 精选 5 只</p>
+        <p className="text-xs sm:text-sm text-text-secondary">热点筛选 × 消息面分析 → AI 精选</p>
       </div>
 
       {/* Date selector */}
@@ -112,7 +112,7 @@ export default function RecommendPage() {
         <div className="text-center py-14 fade-in-up">
           <div className="text-5xl mb-3 opacity-60">📋</div>
           <div className="text-sm text-text-muted">该日期暂无量化推荐</div>
-          <div className="text-xs text-text-muted mt-1">请先前往「<a href="/generate" className="text-blue-500 hover:underline">一键生成</a>」页面生成推荐</div>
+          <div className="text-xs text-text-muted mt-1">请先前往「<a href="/settings" className="text-blue-500 hover:underline">设置</a>」页面生成推荐</div>
         </div>
       )}
 

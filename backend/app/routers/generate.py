@@ -59,14 +59,9 @@ async def _run_report(task_id: int, target_date: date):
 async def _run_recommend(task_id: int, target_date: date):
     """后台执行推荐生成"""
     try:
-        # Step 1: 拉取全市场股票
-        _update_task(task_id, status="running", current_step=1, total_steps=4,
-                     step_label="正在拉取全市场股票行情...", progress_pct=5)
-        await asyncio.sleep(0.5)
-
-        # Step 2: 均线多头筛选
-        _update_task(task_id, current_step=2,
-                     step_label=f"均线多头筛选中（目标 200 只候选）...", progress_pct=20)
+        # Step 1: THS 池 ∩ 热度排名 → 主板候选 → 消息面
+        _update_task(task_id, status="running", current_step=1, total_steps=3,
+                     step_label="正在获取 THS 选股池 + 东方财富热度排名...", progress_pct=10)
         candidate_result = await get_ma_filtered_candidates(top_n=50)
         if not candidate_result["success"]:
             _update_task(task_id, status="failed",
@@ -74,28 +69,29 @@ async def _run_recommend(task_id: int, target_date: date):
             return
 
         candidates = candidate_result.get("data", [])
-        _update_task(task_id, step_label=f"均线多头筛选完成，共 {len(candidates)} 只候选",
+        _update_task(task_id, step_label=f"THS池{candidate_result['total_ths']}只 ∩ 热度前{candidate_result['hot_top_n']} → {len(candidates)}只主板候选（含消息面）",
                      candidate_stocks=json.dumps([
                          {"code": s["code"], "name": s["name"], "price": s["price"],
-                          "change_pct": s["change_pct"], "volume_ratio": s.get("volume_ratio", 0),
-                          "ma5": s.get("ma5"), "ma10": s.get("ma10"), "ma20": s.get("ma20")}
+                          "change_pct": s["change_pct"], "turnover": s.get("turnover", 0),
+                          "continuous_days": s.get("continuous_days", 0), "sector": s.get("sector", ""),
+                          "hot_rank": s.get("hot_rank"), "news": s.get("news", [])}
                          for s in candidates
                      ], ensure_ascii=False),
-                     progress_pct=50)
+                     progress_pct=40)
 
-        if len(candidates) < 5:
-            _update_task(task_id, status="failed",
-                         error_message=f"候选池股票不足（{len(candidates)}只），至少需要5只",
+        if not candidates:
+            _update_task(task_id, status="completed",
+                         step_label="无候选股票，跳过推荐",
+                         result=json.dumps({"date": str(target_date), "count": 0, "total_candidates": 0}, ensure_ascii=False),
                          progress_pct=100)
             return
 
-        # Step 3: AI 精选
-        _update_task(task_id, current_step=3,
+        # Step 2: AI 精选
+        _update_task(task_id, current_step=2,
                      step_label="AI 正在从候选池中精选 5 只...", progress_pct=65)
-        ai_candidates = candidates[:50]
-        user_message = f"""候选股票数据（均线多头排列，成交量放大）：
+        user_message = f"""候选股票数据：
 
-{format_candidates_for_ai(ai_candidates)}
+{format_candidates_for_ai(candidates)}
 
 {RECOMMEND_OUTPUT_FORMAT}"""
         ai_response = await chat([
@@ -130,11 +126,8 @@ async def _run_recommend(task_id: int, target_date: date):
         finally:
             db.close()
 
-        # Step 4: 完成（现价由日调度自动跟踪）
-        _update_task(task_id, current_step=4, step_label="推荐数据已保存，现价将在后续调度中自动跟踪...", progress_pct=90)
-
-        # 完成
-        _update_task(task_id, current_step=5, status="completed",
+        # Step 3: 完成
+        _update_task(task_id, current_step=3, status="completed",
                      step_label=f"推荐生成完成 ✅ 共 {len(recommendations)} 只",
                      result=json.dumps({
                          "date": str(target_date),
@@ -227,7 +220,7 @@ async def _run_all(task_id: int, target_date: date):
 
         _update_task(task_id, current_step=2, step_label="正在生成量化推荐...", progress_pct=40)
         rec_result = await generate_recommendations(db, rec_date=target_date)
-        if not rec_result["success"] and "候选池股票不足" not in rec_result.get("error", ""):
+        if not rec_result["success"]:
             _update_task(task_id, status="failed", error_message=f"推荐生成失败: {rec_result.get('error')}", progress_pct=100)
             return
 

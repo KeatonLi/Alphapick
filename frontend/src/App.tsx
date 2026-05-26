@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Navbar from './components/Navbar'
+import HomePage from './pages/HomePage'
 import ReportPage from './pages/ReportPage'
 import RecommendPage from './pages/RecommendPage'
 import TrackingPage from './pages/TrackingPage'
@@ -13,11 +14,12 @@ export default function App() {
         <Navbar />
         <main className="relative z-10">
           <Routes>
+            <Route path="/" element={<HomePage />} />
             <Route path="/report" element={<ReportPage />} />
             <Route path="/recommend" element={<RecommendPage />} />
             <Route path="/tracking" element={<TrackingPage />} />
             <Route path="/settings" element={<SettingsPage />} />
-            <Route path="*" element={<Navigate to="/report" replace />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
         <footer className="relative z-10 border-t border-border-default py-5 mt-10 bg-white/50">

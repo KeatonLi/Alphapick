@@ -15,7 +15,6 @@ from app.services.report_service import (
     get_available_dates,
     generate_daily_report,
 )
-from app.services.html_report_service import generate_html_report
 from app.services.chart_service import generate_all_charts
 from app.utils.akshare_utils import get_market_index, get_hot_sectors, get_stock_list, get_stock_daily
 
@@ -56,34 +55,8 @@ async def dates(db: Session = Depends(get_db)):
 @router.get("/trade-dates")
 async def trade_dates(days: int = Query(365)):
     """获取交易日列表（用于日期选择器）"""
-    from app.services.report_service import get_trade_dates_for_frontend
+    from app.utils.akshare_utils import get_trade_dates_for_frontend
     return get_trade_dates_for_frontend(days=days)
-
-
-@router.get("/html")
-async def html_report(
-    report_date: Optional[date] = Query(None, alias="date"),
-    db: Session = Depends(get_db),
-):
-    """
-    获取指定日期的 HTML 报告文件。
-    若报告尚未生成，返回 404。
-    """
-    from fastapi.responses import HTMLResponse
-    from app.services.html_report_service import get_html_report_path, read_html_report
-
-    target_date = report_date or date.today()
-    result = get_report_by_date(db, target_date)
-    if not result["success"]:
-        raise HTTPException(status_code=404, detail=result["error"])
-
-    html_path = get_html_report_path(target_date)
-    if html_path:
-        html_content = read_html_report(html_path)
-        if html_content:
-            return HTMLResponse(content=html_content, media_type="text/html")
-
-    raise HTTPException(status_code=404, detail=f"{target_date} 的 HTML 报告尚未生成，请先调用 /api/report/generate 接口")
 
 
 # ─── 调外部 API（AKShare / AI），限流 ─────────────────────────────────────
@@ -167,28 +140,15 @@ async def generate_report(
     report_date: Optional[date] = Query(None, alias="date"),
     db: Session = Depends(get_db),
 ):
-    """手动触发指定日期的市场报告生成（包括数据 + HTML）"""
+    """手动触发指定日期的市场报告生成"""
     target_date = report_date or date.today()
 
     result = get_report_by_date(db, target_date)
-    if not result["success"]:
-        gen_result = await generate_daily_report(db, report_date=target_date)
-        if not gen_result["success"]:
-            raise HTTPException(status_code=500, detail=gen_result.get("error", "报告生成失败"))
-        result = get_report_by_date(db, target_date)
+    if result["success"]:
+        return {"success": True, "data": {"report_date": str(target_date)}, "message": "报告已存在"}
 
-    data = result["data"]
-    html_path = await generate_html_report(
-        report_date=target_date,
-        market_summary=data["market_summary"],
-        index_data=data["index_data"],
-        sectors=data["hot_sectors"],
-        ai_report=data["ai_report"],
-    )
+    gen_result = await generate_daily_report(db, report_date=target_date)
+    if not gen_result["success"]:
+        raise HTTPException(status_code=500, detail=gen_result.get("error", "报告生成失败"))
 
-    report = db.query(MarketReport).filter(MarketReport.report_date == target_date).first()
-    if report:
-        report.html_report_path = html_path
-        db.commit()
-
-    return {"success": True, "data": {"html_path": html_path, "report_date": str(target_date)}}
+    return {"success": True, "data": {"report_date": str(target_date)}}

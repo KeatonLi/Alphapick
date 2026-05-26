@@ -3,11 +3,12 @@ import json
 from datetime import date, timedelta
 from typing import Optional
 
+import akshare as ak
 import numpy as np
+import requests
 from sqlalchemy.orm import Session
 
-from app.utils.akshare_utils import get_market_index, get_hot_sectors, get_stock_list
-from app.services.html_report_service import generate_html_report
+from app.utils.akshare_utils import get_market_index, get_hot_sectors, _to_tencent_code
 from app.utils.ai_client import chat
 from app.models import MarketReport
 from app.prompts import REPORT_SYSTEM_PROMPT, REPORT_OUTPUT_FORMAT
@@ -36,18 +37,17 @@ async def generate_daily_report(db: Session, report_date: Optional[date] = None)
     index_data = index_result["data"]
     sectors_data = sectors_result["data"]
 
-    # 获取全市场实时行情（腾讯批量接口，带缓存）
-    stock_list_result = await get_stock_list()
-    today_limit_ups_json = "[]"
+    # ── 涨停板池（替代原来的全市场分页） ──────────────────────────────────
+    today_limit_up_codes = "[]"
     yesterday_limit_ups_perf = None
 
-    if stock_list_result["success"]:
-        stocks = stock_list_result["data"]
-        # 今日涨停股
-        limit_up_codes = [s["code"] for s in stocks if s.get("change_pct", 0) >= 9.5]
-        today_limit_ups_json = json.dumps(limit_up_codes[:100], ensure_ascii=False)
+    try:
+        zt_df = ak.stock_zt_pool_em(date=today.strftime("%Y%m%d"))
+        if zt_df is not None and not zt_df.empty:
+            codes = zt_df["代码"].tolist()
+            today_limit_up_codes = json.dumps(codes, ensure_ascii=False)
 
-        # 计算昨日涨停股今日表现（从数据库读昨天的记录）
+        # 查询昨日涨停股今日表现
         yesterday_report = db.query(MarketReport).filter(
             MarketReport.report_date == today - timedelta(days=1)
         ).first()
@@ -55,17 +55,33 @@ async def generate_daily_report(db: Session, report_date: Optional[date] = None)
             try:
                 yesterday_codes = json.loads(yesterday_report.yesterday_limit_ups)
                 if yesterday_codes:
-                    stock_map = {s["code"]: s for s in stocks}
-                    today_perfs = []
-                    for code in yesterday_codes[:50]:
-                        if code in stock_map:
-                            pct = stock_map[code].get("change_pct", 0)
-                            if pct != 0:
-                                today_perfs.append(pct)
-                    if today_perfs:
-                        yesterday_limit_ups_perf = round(float(np.mean(today_perfs)), 2)
+                    # 腾讯批量查询昨日涨停股的今日行情
+                    batch = yesterday_codes[:80]
+                    tencent_codes = [_to_tencent_code(c) for c in batch]
+                    if tencent_codes:
+                        r = requests.get(
+                            f"https://qt.gtimg.cn/q={','.join(tencent_codes)}",
+                            headers={"Referer": "https://finance.qq.com", "User-Agent": "Mozilla/5.0"},
+                            timeout=10,
+                        )
+                        today_perfs = []
+                        for line in r.text.strip().split("\n"):
+                            if "~\"" not in line:
+                                continue
+                            parts = line.split("~")
+                            if len(parts) > 32:
+                                try:
+                                    change_pct = float(parts[32]) if parts[32] not in ("",) else 0
+                                    if change_pct != 0:
+                                        today_perfs.append(change_pct)
+                                except (ValueError, IndexError):
+                                    continue
+                        if today_perfs:
+                            yesterday_limit_ups_perf = round(float(np.mean(today_perfs)), 2)
             except Exception:
                 pass
+    except Exception:
+        pass
 
     # 市场概况
     up_count = sum(1 for i in index_data if i["change_pct"] > 0)
@@ -103,7 +119,6 @@ async def generate_daily_report(db: Session, report_date: Optional[date] = None)
             f"【风险提醒】\n" + "\n".join(f"- {r}" for r in report_data.get('risks', []))
         )
     except (json.JSONDecodeError, KeyError):
-        # AI 返回非 JSON 格式，直接存储原文
         ai_report_text = ai_response
 
     # 保存到数据库
@@ -112,7 +127,7 @@ async def generate_daily_report(db: Session, report_date: Optional[date] = None)
         existing.index_data = json.dumps(index_data, ensure_ascii=False)
         existing.hot_sectors = json.dumps(sectors_data, ensure_ascii=False)
         existing.ai_report = ai_report_text
-        existing.yesterday_limit_ups = today_limit_ups_json
+        existing.yesterday_limit_ups = today_limit_up_codes
         existing.yesterday_limit_ups_performance = yesterday_limit_ups_perf
         target_report = existing
     else:
@@ -122,25 +137,11 @@ async def generate_daily_report(db: Session, report_date: Optional[date] = None)
             index_data=json.dumps(index_data, ensure_ascii=False),
             hot_sectors=json.dumps(sectors_data, ensure_ascii=False),
             ai_report=ai_report_text,
-            yesterday_limit_ups=today_limit_ups_json,
+            yesterday_limit_ups=today_limit_up_codes,
             yesterday_limit_ups_performance=yesterday_limit_ups_perf,
         )
         db.add(target_report)
     db.commit()
-
-    # 生成 HTML 报告
-    try:
-        html_path = await generate_html_report(
-            report_date=today,
-            market_summary=market_summary,
-            index_data=index_data,
-            sectors=sectors_data,
-            ai_report=ai_report_text,
-        )
-        target_report.html_report_path = html_path
-        db.commit()
-    except Exception as e:
-        print(f"[{today}] HTML 报告生成失败: {e}")
 
     return {"success": True, "data": {}, "message": f"报告生成成功: {today}"}
 

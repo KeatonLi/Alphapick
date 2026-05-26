@@ -36,7 +36,7 @@ async def get_recommend_by_date(db: Session, rec_date: date) -> dict:
 
 
 async def generate_recommendations(db: Session, rec_date: Optional[date] = None) -> dict:
-    """为指定日期生成量化推荐（均线候选 + AI 精选）"""
+    """为指定日期生成量化推荐（THS 候选池 + AI 精选）"""
     target = rec_date or date.today()
 
     # 检查是否已有推荐
@@ -46,21 +46,19 @@ async def generate_recommendations(db: Session, rec_date: Optional[date] = None)
     if existing:
         return {"success": True, "data": {}, "message": f"今日推荐已存在，跳过生成"}
 
-    # 筛选均线多头候选池
+    # 获取候选池（THS ∩ 热度排名 → 主板 → 消息面）
     candidate_result = await get_ma_filtered_candidates(top_n=50)
     if not candidate_result["success"]:
         return {"success": False, "error": f"候选池筛选失败: {candidate_result['error']}"}
 
     candidates = candidate_result["data"]
-    if len(candidates) < 5:
-        return {"success": False, "error": f"候选池股票不足（{len(candidates)}只），无法生成推荐"}
 
-    # 取前50只给AI筛选
-    ai_candidates = candidates[:50]
+    if not candidates:
+        return {"success": True, "data": {"count": 0}, "message": "无候选股票，跳过AI精选"}
 
-    user_message = f"""候选股票数据（均线多头排列，成交量放大）：
+    user_message = f"""候选股票数据：
 
-{format_candidates_for_ai(ai_candidates)}
+{format_candidates_for_ai(candidates)}
 
 {RECOMMEND_OUTPUT_FORMAT}"""
     ai_response = await chat([

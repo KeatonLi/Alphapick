@@ -1,9 +1,10 @@
 import { NavLink } from 'react-router-dom'
 
 const navItems = [
+  { path: '/', label: '首页', icon: '🏠' },
   { path: '/report', label: '市场报告', icon: '📊' },
   { path: '/recommend', label: '智能推荐', icon: '🎯' },
-  { path: '/tracking', label: '收益跟踪', icon: '📋' },
+  { path: '/tracking', label: '收益跟踪', icon: '📈' },
   { path: '/settings', label: '设置', icon: '⚙️' },
 ]
 
@@ -18,7 +19,7 @@ export default function Navbar() {
   return (
     <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-border-default shadow-sm">
       <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between gap-2">
-        <NavLink to="/report" className="flex items-center gap-2.5 shrink-0">
+        <NavLink to="/" className="flex items-center gap-2.5 shrink-0">
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white font-bold text-xs shadow-md shadow-blue-200">
             QF
           </div>
