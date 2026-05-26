@@ -40,7 +40,6 @@ export default function SettingsPage() {
   }, [])
 
   const busy = (s: StatusT) => s === 'pending' || s === 'running'
-  const idle = (s: StatusT) => s === 'idle' || s === 'completed' || s === 'failed'
 
   // ── 轮询 ──
   const poll = (taskId: number, t: 'r' | 'c' | 'a') => {
@@ -52,8 +51,8 @@ export default function SettingsPage() {
 
         if (t === 'r') {
           setR(p => ({ ...p, step: d.current_step, total: d.total_steps, label: d.step_label || '', pct: d.progress_pct, status: d.status }))
-          if (d.status === 'completed') { clearInterval(iv); setR(p => ({ ...p, msg: { type: 'success', text: `✅ 报告完成（${d.target_date}）` } })) }
-          else if (d.status === 'failed') { clearInterval(iv); setR(p => ({ ...p, msg: { type: 'error', text: d.error_message || '失败' } })) }
+          if (d.status === 'completed') { clearInterval(iv); setR(p => ({ ...p, msg: { type: 'success' as const, text: `✅ 报告完成（${d.target_date}）` } })) }
+          else if (d.status === 'failed') { clearInterval(iv); setR(p => ({ ...p, msg: { type: 'error' as const, text: d.error_message || '失败' } })) }
         }
 
         if (t === 'c') {
@@ -61,16 +60,16 @@ export default function SettingsPage() {
           if (d.status === 'completed') {
             clearInterval(iv)
             const cnt = d.result?.count
-            if (cnt === 0 || cnt === undefined) setC(p => ({ ...p, msg: { type: 'warn', text: `⚠️ ${d.target_date} 无候选主板股票` } }))
-            else setC(p => ({ ...p, msg: { type: 'success', text: `✅ ${d.target_date} 推荐完成，共 ${cnt} 只` } }))
-          } else if (d.status === 'failed') { clearInterval(iv); setC(p => ({ ...p, msg: { type: 'error', text: d.error_message || '失败' } })) }
+            if (cnt === 0 || cnt === undefined) setC(p => ({ ...p, msg: { type: 'warn' as const, text: `⚠️ ${d.target_date} 无候选主板股票` } }))
+            else setC(p => ({ ...p, msg: { type: 'success' as const, text: `✅ ${d.target_date} 推荐完成，共 ${cnt} 只` } }))
+          } else if (d.status === 'failed') { clearInterval(iv); setC(p => ({ ...p, msg: { type: 'error' as const, text: d.error_message || '失败' } })) }
         }
 
         if (t === 'a') {
           setA(p => ({ ...p, step: d.current_step, total: d.total_steps, label: d.step_label || '', pct: d.progress_pct, status: d.status }))
-          if (d.candidate_stocks?.length > 0) setC(p => ({ ...p, candidates: d.candidate_stocks }))
-          if (d.status === 'completed') { clearInterval(iv); setA(p => ({ ...p, msg: { type: 'success', text: '✅ 全部完成' } })) }
-          else if (d.status === 'failed') { clearInterval(iv); setA(p => ({ ...p, msg: { type: 'error', text: d.error_message || '失败' } })) }
+          if (d.candidate_stocks?.length > 0) setC(p => ({ ...p, candidates: d.candidate_stocks }) as any)
+          if (d.status === 'completed') { clearInterval(iv); setA(p => ({ ...p, msg: { type: 'success' as const, text: '✅ 全部完成' } })) }
+          else if (d.status === 'failed') { clearInterval(iv); setA(p => ({ ...p, msg: { type: 'error' as const, text: d.error_message || '失败' } })) }
         }
       } catch { /* */ }
     }, 1000)
@@ -79,17 +78,17 @@ export default function SettingsPage() {
   // ── 启动 ──
   const start = async (ep: string, t: 'r' | 'c' | 'a') => {
     const set = t === 'r' ? setR : t === 'c' ? setC : setA
-    set(p => ({ ...p, status: 'pending', msg: null }))
+    ;(set as any)((p: any) => ({ ...p, status: 'pending', msg: null }))
     try {
       const res = await apiPost(`${ep}?date=${date}`)
       if (res.success && res.data?.task_id) {
-        set(p => ({ ...p, status: 'running' }))
+        ;(set as any)((p: any) => ({ ...p, status: 'running' }))
         poll(res.data.task_id, t)
       } else if (res.data?.message) {
-        set(p => ({ ...p, status: 'completed', msg: { type: 'success', text: res.data.message } }))
+        ;(set as any)((p: any) => ({ ...p, status: 'completed', msg: { type: 'success', text: res.data.message } }))
       }
     } catch (e: any) {
-      set(p => ({ ...p, status: 'failed', msg: { type: 'error', text: `启动失败: ${e.message}` } }))
+      ;(set as any)((p: any) => ({ ...p, status: 'failed', msg: { type: 'error', text: `启动失败: ${e.message}` } }))
     }
   }
 
