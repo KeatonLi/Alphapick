@@ -3,6 +3,7 @@ import Navbar from './components/Navbar'
 import ReportPage from './pages/ReportPage'
 import RecommendPage from './pages/RecommendPage'
 import TrackingPage from './pages/TrackingPage'
+import SettingsPage from './pages/SettingsPage'
 
 export default function App() {
   return (
@@ -15,6 +16,7 @@ export default function App() {
             <Route path="/report" element={<ReportPage />} />
             <Route path="/recommend" element={<RecommendPage />} />
             <Route path="/tracking" element={<TrackingPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
             <Route path="*" element={<Navigate to="/report" replace />} />
           </Routes>
         </main>
