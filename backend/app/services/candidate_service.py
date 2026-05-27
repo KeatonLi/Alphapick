@@ -129,45 +129,54 @@ _HOT_CACHE_TTL = 300
 
 
 def _fetch_hot_rank() -> dict:
-    """获取东方财富热度排名前 50，带 5 分钟缓存"""
+    """获取东方财富热度排名前 50，带 5 分钟缓存，失败自动重试 3 次"""
     import time
     now = time.time()
     if (_HOT_RANK_CACHE["data"] is not None
             and now - _HOT_RANK_CACHE["timestamp"] < _HOT_CACHE_TTL):
         return _HOT_RANK_CACHE["data"]
 
-    try:
-        url = "https://push2.eastmoney.com/api/qt/clist/get"
-        params = {
-            'pn': 1, 'pz': 100, 'po': 1, 'np': 1,
-            'fields': 'f12,f14,f2,f3,f62',
-            'fid': 'f62',
-            'fs': 'm:0+t:6+f:!2,m:0+t:80+f:!2,m:1+t:2+f:!2,m:1+t:23+f:!2',
-        }
-        headers = {'User-Agent': 'Mozilla/5.0', 'Referer': 'https://quote.eastmoney.com/'}
-        r = requests.get(url, params=params, headers=headers, timeout=15)
-        items = r.json().get('data', {}).get('diff', [])
+    url = "https://push2.eastmoney.com/api/qt/clist/get"
+    params = {
+        'pn': 1, 'pz': 100, 'po': 1, 'np': 1,
+        'fields': 'f12,f14,f2,f3,f62',
+        'fid': 'f62',
+        'fs': 'm:0+t:6+f:!2,m:0+t:80+f:!2,m:1+t:2+f:!2,m:1+t:23+f:!2',
+    }
+    headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36', 'Referer': 'https://quote.eastmoney.com/'}
 
-        result = []
-        for i, item in enumerate(items):
-            code = str(item.get('f12', ''))
-            if not code:
-                continue
-            result.append({
-                'code': code,
-                'name': item.get('f14', ''),
-                'hot_score': item.get('f62', 0),
-                'hot_rank': i + 1,
-                'price': item.get('f2', 0) / 100 if item.get('f2') else 0,
-                'change_pct': item.get('f3', 0) / 100 if item.get('f3') else 0,
-            })
+    last_err = None
+    for attempt in range(3):
+        try:
+            r = requests.get(url, params=params, headers=headers, timeout=15)
+            r.raise_for_status()
+            items = r.json().get('data', {}).get('diff', [])
 
-        output = {'success': True, 'data': result}
-        _HOT_RANK_CACHE["data"] = output
-        _HOT_RANK_CACHE["timestamp"] = now
-        return output
-    except Exception as e:
-        return {'success': False, 'error': str(e)}
+            result = []
+            for i, item in enumerate(items):
+                code = str(item.get('f12', ''))
+                if not code:
+                    continue
+                result.append({
+                    'code': code,
+                    'name': item.get('f14', ''),
+                    'hot_score': item.get('f62', 0),
+                    'hot_rank': i + 1,
+                    'price': item.get('f2', 0) / 100 if item.get('f2') else 0,
+                    'change_pct': item.get('f3', 0) / 100 if item.get('f3') else 0,
+                })
+
+            output = {'success': True, 'data': result}
+            _HOT_RANK_CACHE["data"] = output
+            _HOT_RANK_CACHE["timestamp"] = now
+            return output
+        except Exception as e:
+            last_err = e
+            if attempt < 2:
+                import time as _t
+                _t.sleep(2 * (attempt + 1))
+
+    return {'success': False, 'error': str(last_err)}
 
 
 # ─── 个股新闻 ────────────────────────────────────────────────────────────
