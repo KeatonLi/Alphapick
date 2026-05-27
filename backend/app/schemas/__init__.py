@@ -7,6 +7,14 @@ from app.schemas.analysis import (
     ReturnDistributionResponse,
     Insight,
     InsightsResponse,
+    PriceRangeStat,
+    PriceRangeStatsResponse,
+    StockTypeStat,
+    StockTypeStatsResponse,
+    VolatilityStat,
+    VolatilityStatsResponse,
+    TrendDataPoint,
+    SuccessTrendResponse,
 )
 
 __all__ = [
@@ -18,4 +26,12 @@ __all__ = [
     "ReturnDistributionResponse",
     "Insight",
     "InsightsResponse",
+    "PriceRangeStat",
+    "PriceRangeStatsResponse",
+    "StockTypeStat",
+    "StockTypeStatsResponse",
+    "VolatilityStat",
+    "VolatilityStatsResponse",
+    "TrendDataPoint",
+    "SuccessTrendResponse",
 ]
