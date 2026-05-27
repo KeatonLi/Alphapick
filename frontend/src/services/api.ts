@@ -24,6 +24,30 @@ export async function apiPost<T = any>(path: string, body?: any): Promise<T> {
   return res.json()
 }
 
+export async function apiPut<T = any>(path: string, body?: any): Promise<T> {
+  const url = path.startsWith('http') ? path : `${API_BASE}${path}`
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: body ? { 'Content-Type': 'application/json' } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }))
+    throw new Error(err.detail || '请求失败')
+  }
+  return res.json()
+}
+
+export async function apiDelete<T = any>(path: string): Promise<T> {
+  const url = path.startsWith('http') ? path : `${API_BASE}${path}`
+  const res = await fetch(url, { method: 'DELETE' })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }))
+    throw new Error(err.detail || '请求失败')
+  }
+  return res.json()
+}
+
 // ─── 数据分析 API ────────────────────────────────────────────────────────
 
 export interface WeekdayStat {
