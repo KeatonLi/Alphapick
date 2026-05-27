@@ -41,7 +41,7 @@ export default function ConsoleToolbar({
   batchBusy, hasTrackingSelected,
 }: ConsoleToolbarProps) {
   const [inputVal, setInputVal] = useState(search)
-  const timer = useRef<ReturnType<typeof setTimeout>>()
+  const timer = useRef<number | undefined>(undefined)
 
   useEffect(() => {
     setInputVal(search)
