@@ -6,6 +6,7 @@ const navItems = [
   { path: '/recommend', label: '智能推荐', icon: '🎯' },
   { path: '/tracking', label: '收益跟踪', icon: '📈' },
   { path: '/poster', label: '海报', icon: '🖼️' },
+  { path: '/analysis', label: '数据分析', icon: '🔬' },
   { path: '/settings', label: '设置', icon: '⚙️' },
 ]
 

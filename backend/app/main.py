@@ -9,7 +9,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
-from app.routers import stock, recommend, report, mood, generate, schedule
+from app.routers import stock, recommend, report, mood, generate, schedule, analysis
 from app.database import engine, Base
 
 Base.metadata.create_all(bind=engine)
@@ -35,6 +35,7 @@ app.include_router(report.router)
 app.include_router(mood.router)
 app.include_router(generate.router)
 app.include_router(schedule.router)
+app.include_router(analysis.router)
 
 
 # ─── 定时任务调度器 ──────────────────────────────────────────────────────
