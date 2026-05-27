@@ -260,3 +260,45 @@ async def update_recommend_prices(db: Session) -> dict:
 
     db.commit()
     return {"success": True, "data": {"updated": updated}}
+
+
+def edit_day_recommendations(db: Session, rec_date: date, updates: list) -> dict:
+    """编辑某日推荐：批量更新各条记录的字段，可选删除某些条
+
+    updates 格式: [{"id": 123, "recommend_price": 25.5, "reason": "...", "delete": false}]
+    """
+    recs = db.query(Recommendation).filter(
+        Recommendation.recommend_date == rec_date
+    ).all()
+    rec_map = {r.id: r for r in recs}
+
+    updated_count = 0
+    deleted_count = 0
+    for item in updates:
+        rid = item.get("id")
+        if rid not in rec_map:
+            continue
+        rec = rec_map[rid]
+
+        if item.get("delete"):
+            db.delete(rec)
+            deleted_count += 1
+            continue
+
+        if "recommend_price" in item:
+            rec.recommend_price = item["recommend_price"]
+        if "reason" in item:
+            rec.reason = item["reason"]
+        updated_count += 1
+
+    db.commit()
+    return {"success": True, "data": {"updated": updated_count, "deleted": deleted_count}}
+
+
+def delete_day_recommendations(db: Session, rec_date: date) -> dict:
+    """删除某日全部推荐记录"""
+    count = db.query(Recommendation).filter(
+        Recommendation.recommend_date == rec_date
+    ).delete()
+    db.commit()
+    return {"success": True, "data": {"deleted": count}}
