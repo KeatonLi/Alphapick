@@ -4,6 +4,7 @@ import HomePage from './pages/HomePage'
 import ReportPage from './pages/ReportPage'
 import RecommendPage from './pages/RecommendPage'
 import TrackingPage from './pages/TrackingPage'
+import ConsolePage from './pages/ConsolePage'
 import PosterPage from './pages/PosterPage'
 import AnalysisPage from './pages/AnalysisPage'
 import SettingsPage from './pages/SettingsPage'
@@ -20,6 +21,7 @@ export default function App() {
             <Route path="/report" element={<ReportPage />} />
             <Route path="/recommend" element={<RecommendPage />} />
             <Route path="/tracking" element={<TrackingPage />} />
+            <Route path="/console" element={<ConsolePage />} />
             <Route path="/poster" element={<PosterPage />} />
             <Route path="/analysis" element={<AnalysisPage />} />
             <Route path="/settings" element={<SettingsPage />} />
