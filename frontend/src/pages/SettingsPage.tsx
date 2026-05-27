@@ -40,18 +40,6 @@ function PBar({ pct, label, cur, tot }: { pct: number; label: string; cur: numbe
   )
 }
 
-function StatusBadge({ s }: { s: StatusT }) {
-  const map: Record<StatusT, { cls: string; label: string }> = {
-    idle: { cls: 'bg-gray-100 text-gray-500', label: '就绪' },
-    pending: { cls: 'bg-blue-100 text-blue-700 animate-pulse', label: '启动中' },
-    running: { cls: 'bg-blue-100 text-blue-700 animate-pulse', label: '执行中' },
-    completed: { cls: 'bg-green-100 text-green-700', label: '已完成' },
-    failed: { cls: 'bg-red-100 text-red-600', label: '失败' },
-  }
-  const { cls, label } = map[s]
-  return <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${cls}`}>{label}</span>
-}
-
 // ── Tab components ──
 
 function RecommendTab({ date }: { date: string }) {
