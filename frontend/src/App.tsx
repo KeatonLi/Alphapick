@@ -22,7 +22,7 @@ export default function App() {
             <Route path="/tracking" element={<TrackingPage />} />
             <Route path="/poster" element={<PosterPage />} />
             <Route path="/analysis" element={<AnalysisPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/console" element={<SettingsPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
