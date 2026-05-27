@@ -1,5 +1,6 @@
 from datetime import date
 import json
+import os
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -15,6 +16,8 @@ from app.services.report_service import (
     get_report_history,
     get_available_dates,
     generate_daily_report,
+    edit_report_fields,
+    delete_report,
 )
 from app.services.chart_service import generate_all_charts
 from app.services.poster_service import generate_poster, generate_poster_base64
@@ -239,3 +242,41 @@ async def poster_base64(
         raise HTTPException(status_code=500, detail="海报生成失败")
 
     return {"success": True, "data": {"base64": b64, "date": str(target_date)}}
+
+
+@router.put("/day/{report_date}")
+async def edit_day_report(
+    report_date: date,
+    fields: dict,
+    db: Session = Depends(get_db),
+):
+    """编辑报告文本字段"""
+    result = edit_report_fields(db, report_date, fields)
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+
+@router.delete("/day/{report_date}")
+async def delete_day_report(
+    report_date: date,
+    db: Session = Depends(get_db),
+):
+    """删除某日市场报告"""
+    result = delete_report(db, report_date)
+    if not result["success"]:
+        raise HTTPException(status_code=404, detail=result["error"])
+    return result
+
+
+@router.delete("/poster/{report_date}")
+async def delete_poster(
+    report_date: date,
+):
+    """删除指定日期的海报缓存文件"""
+    poster_dir = os.path.join(os.path.dirname(__file__), "..", "static", "posters")
+    poster_path = os.path.join(poster_dir, f"poster_{report_date}.png")
+    if os.path.exists(poster_path):
+        os.remove(poster_path)
+        return {"success": True, "data": {"deleted": str(report_date)}}
+    return {"success": True, "data": {"deleted": 0, "message": "海报文件不存在，无需删除"}}
