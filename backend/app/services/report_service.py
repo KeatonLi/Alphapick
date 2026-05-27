@@ -200,3 +200,31 @@ def get_available_dates(db: Session, days: int = 30) -> dict:
         .all()
     )
     return {"success": True, "data": [str(d[0]) for d in dates]}
+
+
+def edit_report_fields(db: Session, report_date: date, fields: dict) -> dict:
+    """编辑报告的文本字段（market_summary / ai_report）"""
+    report = db.query(MarketReport).filter(
+        MarketReport.report_date == report_date
+    ).first()
+    if not report:
+        return {"success": False, "error": f"未找到 {report_date} 的市场报告"}
+
+    if "market_summary" in fields:
+        report.market_summary = fields["market_summary"]
+    if "ai_report" in fields:
+        report.ai_report = fields["ai_report"]
+
+    db.commit()
+    return {"success": True, "data": {"date": str(report_date)}}
+
+
+def delete_report(db: Session, report_date: date) -> dict:
+    """删除某日市场报告"""
+    count = db.query(MarketReport).filter(
+        MarketReport.report_date == report_date
+    ).delete()
+    db.commit()
+    if count == 0:
+        return {"success": False, "error": f"未找到 {report_date} 的市场报告"}
+    return {"success": True, "data": {"deleted": count}}
