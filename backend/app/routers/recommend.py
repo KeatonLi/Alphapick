@@ -12,6 +12,8 @@ from app.services.recommend_service import (
     get_recommend_by_date,
     get_all_recommendations,
     generate_recommendations,
+    edit_day_recommendations,
+    delete_day_recommendations,
 )
 
 router = APIRouter(prefix="/api/recommend", tags=["recommend"])
@@ -88,4 +90,27 @@ async def update_prices(request: Request, db: Session = Depends(get_db)):
     result = await update_recommend_prices(db)
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+
+@router.put("/day/{rec_date}")
+async def edit_day(
+    rec_date: date,
+    updates: list,
+    db: Session = Depends(get_db),
+):
+    """编辑某日推荐（批量更新/删除单条）"""
+    result = edit_day_recommendations(db, rec_date, updates)
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+
+@router.delete("/day/{rec_date}")
+async def delete_day(
+    rec_date: date,
+    db: Session = Depends(get_db),
+):
+    """删除某日全部推荐"""
+    result = delete_day_recommendations(db, rec_date)
     return result
