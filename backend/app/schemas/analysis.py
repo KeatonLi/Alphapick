@@ -86,7 +86,7 @@ class VolatilityStat(BaseModel):
 
 
 class VolatilityStatsResponse(BaseModel):
-    data: Dict[str, VolatilityStat]
+    data: VolatilityStat
     summary: Dict[str, Any]
 
 

@@ -10,6 +10,10 @@ from app.services.analysis_service import (
     get_holding_period_stats,
     get_return_distribution,
     generate_insights,
+    get_price_range_stats,
+    get_stock_type_stats,
+    get_volatility_stats,
+    get_success_trend,
 )
 
 router = APIRouter(prefix="/api/analysis", tags=["analysis"])
@@ -54,3 +58,43 @@ def insights(
 ):
     """自动生成关键洞察"""
     return generate_insights(db, start_date, end_date)
+
+
+@router.get("/price-range-stats")
+def price_range_stats(
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
+    db: Session = Depends(get_db),
+):
+    """统计不同价格区间的推荐效果"""
+    return get_price_range_stats(db, start_date, end_date)
+
+
+@router.get("/stock-type-stats")
+def stock_type_stats(
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
+    db: Session = Depends(get_db),
+):
+    """统计不同股票代码类型的推荐效果"""
+    return get_stock_type_stats(db, start_date, end_date)
+
+
+@router.get("/volatility-stats")
+def volatility_stats(
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
+    db: Session = Depends(get_db),
+):
+    """统计收益波动性"""
+    return get_volatility_stats(db, start_date, end_date)
+
+
+@router.get("/success-trend")
+def success_trend(
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
+    db: Session = Depends(get_db),
+):
+    """统计月度成功率趋势"""
+    return get_success_trend(db, start_date, end_date)

@@ -111,3 +111,100 @@ export const analysisApi = {
     return apiGet<InsightsResponse>(`/analysis/insights?${params}`)
   },
 }
+
+// ─── 扩展分析 API ──────────────────────────────────────────────────────
+
+export interface PriceRangeStat {
+  count: number
+  win_count: number
+  win_rate: number
+  avg_return: number
+  avg_price?: number
+  max_return?: number
+  min_return?: number
+}
+
+export interface PriceRangeStatsResponse {
+  data: Record<string, PriceRangeStat>
+  summary: Record<string, unknown>
+}
+
+export interface StockTypeStat {
+  count: number
+  win_count: number
+  win_rate: number
+  avg_return: number
+  max_return?: number
+  min_return?: number
+}
+
+export interface StockTypeStatsResponse {
+  data: Record<string, StockTypeStat>
+  summary: Record<string, unknown>
+}
+
+export interface VolatilityStat {
+  avg_max_gain: number
+  max_gain_std: number
+  median_max_gain: number
+  gain_positive_rate: number
+  avg_max_drawdown: number
+  max_drawdown_std: number
+  median_max_drawdown: number
+  final_return_std: number
+}
+
+export interface VolatilityStatsResponse {
+  data: VolatilityStat
+  summary: {
+    total_recommendations: number
+    volatility_assessment: string
+  }
+}
+
+export interface TrendDataPoint {
+  month: string
+  count: number
+  win_rate: number
+  avg_return: number
+}
+
+export interface SuccessTrendResponse {
+  data: TrendDataPoint[]
+  summary: {
+    total_months: number
+    trend_direction: string
+    best_month: string
+    worst_month: string
+  }
+}
+
+export const extendedAnalysisApi = {
+  getPriceRangeStats: (startDate?: string, endDate?: string) => {
+    const params = new URLSearchParams()
+    if (startDate) params.append('start_date', startDate)
+    if (endDate) params.append('end_date', endDate)
+    return apiGet<PriceRangeStatsResponse>(`/analysis/price-range-stats?${params}`)
+  },
+
+  getStockTypeStats: (startDate?: string, endDate?: string) => {
+    const params = new URLSearchParams()
+    if (startDate) params.append('start_date', startDate)
+    if (endDate) params.append('end_date', endDate)
+    return apiGet<StockTypeStatsResponse>(`/analysis/stock-type-stats?${params}`)
+  },
+
+  getVolatilityStats: (startDate?: string, endDate?: string) => {
+    const params = new URLSearchParams()
+    if (startDate) params.append('start_date', startDate)
+    if (endDate) params.append('end_date', endDate)
+    return apiGet<VolatilityStatsResponse>(`/analysis/volatility-stats?${params}`)
+  },
+
+  getSuccessTrend: (startDate?: string, endDate?: string) => {
+    const params = new URLSearchParams()
+    if (startDate) params.append('start_date', startDate)
+    if (endDate) params.append('end_date', endDate)
+    return apiGet<SuccessTrendResponse>(`/analysis/success-trend?${params}`)
+  },
+}
