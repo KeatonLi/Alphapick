@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Body
 from sqlalchemy.orm import Session
 from datetime import date
 from typing import Optional
@@ -12,6 +12,11 @@ from app.services.recommend_service import (
     get_recommend_by_date,
     get_all_recommendations,
     generate_recommendations,
+    delete_recommendation,
+    reset_recommend_tracking,
+    update_single_recommend_price,
+    batch_reset_tracking,
+    batch_delete_recommendations,
 )
 
 router = APIRouter(prefix="/api/recommend", tags=["recommend"])
@@ -82,10 +87,55 @@ async def generate(request: Request, rec_date: Optional[date] = Query(None, alia
 
 
 @router.post("/update-prices")
-@limiter.limit("3/minute")
+@limiter.limit("10/minute")
 async def update_prices(request: Request, db: Session = Depends(get_db)):
     """更新所有推荐股票的最新价格"""
     result = await update_recommend_prices(db)
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+
+# ─── 控制台：精细化管理 ─────────────────────────────────────────────────
+
+
+@router.delete("/item/{rec_id}")
+async def delete_item(rec_id: int, db: Session = Depends(get_db)):
+    """删除一条推荐记录"""
+    result = delete_recommendation(db, rec_id)
+    if not result["success"]:
+        raise HTTPException(status_code=404, detail=result["error"])
+    return result
+
+
+@router.post("/item/{rec_id}/reset")
+async def reset_item(rec_id: int, db: Session = Depends(get_db)):
+    """重置一条推荐的收益跟踪（清空跟踪数据，状态回到 tracking）"""
+    result = reset_recommend_tracking(db, rec_id)
+    if not result["success"]:
+        raise HTTPException(status_code=404, detail=result["error"])
+    return result
+
+
+@router.post("/item/{rec_id}/update")
+@limiter.limit("20/minute")
+async def update_item(request: Request, rec_id: int, db: Session = Depends(get_db)):
+    """单独更新一条推荐的价格"""
+    result = await update_single_recommend_price(db, rec_id)
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+
+@router.post("/batch/reset")
+async def batch_reset(ids: list[int] = Body(...), db: Session = Depends(get_db)):
+    """批量重置多条推荐的收益跟踪"""
+    result = batch_reset_tracking(db, ids)
+    return result
+
+
+@router.post("/batch/delete")
+async def batch_delete(ids: list[int] = Body(...), db: Session = Depends(get_db)):
+    """批量删除多条推荐记录"""
+    result = batch_delete_recommendations(db, ids)
     return result

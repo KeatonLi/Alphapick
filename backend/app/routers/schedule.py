@@ -117,11 +117,6 @@ def run_scheduled_tasks():
                 result = asyncio.run(generate_recommendations(db, rec_date=today))
                 results.append(f"推荐: {'成功' if result['success'] else '失败'}")
 
-            from app.services.recommend_service import update_recommend_prices
-            import asyncio
-            price_result = asyncio.run(update_recommend_prices(db))
-            results.append(f"现价: {'成功' if price_result['success'] else '失败'}")
-
         config.last_run_at = now
         config.last_run_result = " | ".join(results)
         db.commit()

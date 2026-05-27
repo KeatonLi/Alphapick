@@ -3,6 +3,7 @@ import json
 from datetime import date, timedelta
 from typing import Optional
 
+import pandas as pd
 from sqlalchemy.orm import Session
 from sqlalchemy import func, cast, Numeric
 
@@ -177,86 +178,294 @@ def get_all_recommendations(db: Session) -> dict:
 
 
 async def update_recommend_prices(db: Session) -> dict:
-    """更新推荐记录价格（只更新 status=tracking 的记录）"""
-    import requests
+    """基于交易日回溯填充推荐股票收盘价
+
+    对每条 tracking 状态的记录，计算 recommend_date 之后的第1/2/3个交易日，
+    如果该交易日 ≤ today 且数据未填，则拉取当日收盘价回填。
+    幂等：已有数据不重复覆盖。
+    纯按钮触发，无自动调度。
+    """
+    import asyncio
+    import akshare as ak
+    from app.utils.akshare_utils import _to_sina_code, get_trade_days_after
+
+    today = date.today()
 
     recs = db.query(Recommendation).filter(
         Recommendation.status == "tracking"
     ).all()
     if not recs:
-        return {"success": True, "data": {"updated": 0, "message": "所有记录已完结，无需更新"}}
-
-    from app.utils.akshare_utils import _to_tencent_code, _from_tencent_code
-
-    tencent_codes = [_to_tencent_code(r.stock_code) for r in recs]
-    batch_size = 80
-    price_map = {}
-
-    for i in range(0, len(tencent_codes), batch_size):
-        batch = tencent_codes[i:i + batch_size]
-        try:
-            r = requests.get(
-                f"https://qt.gtimg.cn/q={','.join(batch)}",
-                headers={"Referer": "https://finance.qq.com", "User-Agent": "Mozilla/5.0"},
-                timeout=10,
-            )
-            for line in r.text.strip().split("\n"):
-                if "~\"" not in line:
-                    continue
-                parts = line.split("~")
-                if len(parts) > 4:
-                    clean = _from_tencent_code(parts[2] if len(parts) > 2 else "")
-                    try:
-                        price = float(parts[3]) if parts[3] not in ("", "0") else 0
-                        if price > 0:
-                            price_map[clean] = price
-                    except (ValueError, IndexError):
-                        continue
-        except Exception:
-            continue
+        return {"success": True, "data": {"updated": 0, "message": "没有 tracking 状态的记录"}}
 
     updated = 0
+
     for rec in recs:
-        if rec.stock_code not in price_map:
-            continue
-        price = price_map[rec.stock_code]
-        rec.tracking_days = (rec.tracking_days or 0) + 1
-        day = rec.tracking_days
         base = float(rec.recommend_price)
         if base <= 0:
             continue
-        day_return = (price - base) / base
 
-        if day == 1:
-            rec.price_day1 = price
-            rec.return_rate_day1 = day_return
-        elif day == 2:
-            rec.price_day2 = price
-            rec.return_rate_day2 = day_return
-        elif day == 3:
-            rec.price_day3 = price
-            rec.return_rate_day3 = day_return
-            rec.final_return_rate = day_return
-            rec.status = "completed"
+        rec_date = rec.recommend_date
+        # 推荐当天或更晚 → 还没到第一个交易日，跳过
+        if rec_date >= today:
+            continue
 
-        rec.current_price = price
-        rec.return_rate = day_return
+        # 获取 T 之后第 1..3 个交易日
+        trade_days = get_trade_days_after(rec_date, 3)
+        if not trade_days:
+            continue
 
-        # 计算衍生指标：最高收益和最大回撤
-        prices = [float(rec.recommend_price)]
-        if rec.price_day1:
-            prices.append(float(rec.price_day1))
-        if rec.price_day2:
-            prices.append(float(rec.price_day2))
-        if rec.price_day3:
-            prices.append(float(rec.price_day3))
+        # 确定哪些天需要补填
+        needs_fetch = []
+        day_map = {}  # date -> (day_index, price_attr, rate_attr)
+        for i, d in enumerate(trade_days):
+            if d > today:
+                break
+            day_idx = i + 1
+            price_attr = f"price_day{day_idx}"
+            rate_attr = f"return_rate_day{day_idx}"
+            if getattr(rec, price_attr) is not None:
+                continue  # 已有数据不覆盖
+            needs_fetch.append(d)
+            day_map[d] = (day_idx, price_attr, rate_attr)
 
-        max_price = max(prices)
-        min_price = min(prices)
-        rec.max_gain = (max_price - base) / base
-        rec.max_drawdown = (min_price - base) / base
+        if not needs_fetch:
+            continue
 
-        updated += 1
+        # 拉取历史日线数据
+        sina_code = _to_sina_code(rec.stock_code)
+        try:
+            loop = asyncio.get_event_loop()
+            df = await loop.run_in_executor(
+                None,
+                lambda: ak.stock_zh_a_daily(
+                    symbol=sina_code,
+                    start_date=needs_fetch[0].strftime("%Y%m%d"),
+                    end_date=needs_fetch[-1].strftime("%Y%m%d"),
+                    adjust="qfq",
+                ),
+            )
+        except Exception:
+            # 单只股票失败不影响其他
+            continue
+
+        if df is None or df.empty:
+            continue
+
+        # 从日线数据提取指定日期的收盘价
+        for _, row in df.iterrows():
+            raw_date = row["date"]
+            if isinstance(raw_date, pd.Timestamp):
+                row_date = raw_date.date()
+            else:
+                row_date = pd.Timestamp(str(raw_date)).date()
+
+            if row_date not in day_map:
+                continue
+
+            close_price = float(row["close"])
+            if close_price <= 0:
+                continue
+
+            day_idx, price_attr, rate_attr = day_map[row_date]
+            day_return = (close_price - base) / base
+
+            setattr(rec, price_attr, close_price)
+            setattr(rec, rate_attr, day_return)
+
+            # 如果是第3天 → 完结
+            if day_idx == 3:
+                rec.status = "completed"
+                rec.final_return_rate = day_return
+
+            # 更新 current_price / return_rate 为最新一天的数据
+            rec.current_price = close_price
+            rec.return_rate = day_return
+
+            updated += 1
+
+        # 全部填完后统一算 tracking_days 和衍生指标
+        all_prices = [base]
+        td = 0
+        for i in range(1, 4):
+            p = getattr(rec, f"price_day{i}", None)
+            if p is not None:
+                td = i
+                all_prices.append(float(p))
+        rec.tracking_days = td
+
+        if td > 0:
+            max_p = max(all_prices)
+            min_p = min(all_prices)
+            rec.max_gain = (max_p - base) / base
+            rec.max_drawdown = (min_p - base) / base
+
+        rec.price_updated_date = today
 
     db.commit()
     return {"success": True, "data": {"updated": updated}}
+
+
+def delete_recommendation(db: Session, rec_id: int) -> dict:
+    """删除一条推荐记录"""
+    rec = db.query(Recommendation).filter(Recommendation.id == rec_id).first()
+    if not rec:
+        return {"success": False, "error": "记录不存在"}
+    db.delete(rec)
+    db.commit()
+    return {"success": True, "data": {"id": rec_id}}
+
+
+def reset_recommend_tracking(db: Session, rec_id: int) -> dict:
+    """重置一条推荐的收益跟踪数据"""
+    rec = db.query(Recommendation).filter(Recommendation.id == rec_id).first()
+    if not rec:
+        return {"success": False, "error": "记录不存在"}
+    rec.tracking_days = 0
+    rec.status = "tracking"
+    rec.price_day1 = None
+    rec.price_day2 = None
+    rec.price_day3 = None
+    rec.return_rate_day1 = None
+    rec.return_rate_day2 = None
+    rec.return_rate_day3 = None
+    rec.final_return_rate = None
+    rec.max_gain = None
+    rec.max_drawdown = None
+    rec.current_price = None
+    rec.return_rate = None
+    rec.price_updated_date = None
+    db.commit()
+    return {"success": True, "data": {"id": rec_id}}
+
+
+async def update_single_recommend_price(db: Session, rec_id: int) -> dict:
+    """单独更新一条推荐的收益跟踪价格"""
+    rec = db.query(Recommendation).filter(Recommendation.id == rec_id).first()
+    if not rec:
+        return {"success": False, "error": "记录不存在"}
+    if rec.status == "completed":
+        return {"success": False, "error": "该记录已完结，如需重新跟踪请先重置"}
+
+    import asyncio
+    import akshare as ak
+    from app.utils.akshare_utils import _to_sina_code, get_trade_days_after
+
+    today = date.today()
+    rec_date = rec.recommend_date
+    if rec_date >= today:
+        return {"success": True, "data": {"message": "推荐当天尚未开始跟踪"}}
+
+    base = float(rec.recommend_price)
+    if base <= 0:
+        return {"success": False, "error": "推荐价格异常"}
+
+    trade_days = get_trade_days_after(rec_date, 3)
+    if not trade_days:
+        return {"success": False, "error": "无法获取交易日"}
+
+    # 找到第一个需要填充的交易日
+    needs_fetch = []
+    day_map = {}
+    for i, d in enumerate(trade_days):
+        if d > today:
+            break
+        day_idx = i + 1
+        price_attr = f"price_day{day_idx}"
+        rate_attr = f"return_rate_day{day_idx}"
+        if getattr(rec, price_attr) is not None:
+            continue
+        needs_fetch.append(d)
+        day_map[d] = (day_idx, price_attr, rate_attr)
+
+    if not needs_fetch:
+        return {"success": True, "data": {"message": "所有交易日数据已存在，无需更新"}}
+
+    sina_code = _to_sina_code(rec.stock_code)
+    try:
+        loop = asyncio.get_event_loop()
+        df = await loop.run_in_executor(
+            None,
+            lambda: ak.stock_zh_a_daily(
+                symbol=sina_code,
+                start_date=needs_fetch[0].strftime("%Y%m%d"),
+                end_date=needs_fetch[-1].strftime("%Y%m%d"),
+                adjust="qfq",
+            ),
+        )
+    except Exception as e:
+        return {"success": False, "error": f"获取行情失败: {str(e)}"}
+
+    if df is None or df.empty:
+        return {"success": False, "error": "行情数据为空"}
+
+    filled = 0
+    for _, row in df.iterrows():
+        raw_date = row["date"]
+        if isinstance(raw_date, pd.Timestamp):
+            row_date = raw_date.date()
+        else:
+            row_date = pd.Timestamp(str(raw_date)).date()
+
+        if row_date not in day_map:
+            continue
+        close_price = float(row["close"])
+        if close_price <= 0:
+            continue
+
+        day_idx, price_attr, rate_attr = day_map[row_date]
+        day_return = (close_price - base) / base
+
+        setattr(rec, price_attr, close_price)
+        setattr(rec, rate_attr, day_return)
+        filled += 1
+
+        if day_idx == 3:
+            rec.status = "completed"
+            rec.final_return_rate = day_return
+
+        rec.current_price = close_price
+        rec.return_rate = day_return
+
+    if filled:
+        # 重算 tracking_days 和衍生指标
+        all_prices = [base]
+        td = 0
+        for i in range(1, 4):
+            p = getattr(rec, f"price_day{i}", None)
+            if p is not None:
+                td = i
+                all_prices.append(float(p))
+        rec.tracking_days = td
+
+        if td > 0:
+            rec.max_gain = (max(all_prices) - base) / base
+            rec.max_drawdown = (min(all_prices) - base) / base
+
+        rec.price_updated_date = today
+        db.commit()
+
+    return {"success": True, "data": {"filled": filled, "id": rec_id}}
+
+
+def batch_reset_tracking(db: Session, ids: list[int]) -> dict:
+    """批量重置多条推荐的收益跟踪数据"""
+    results = {"reset": 0, "errors": []}
+    for rid in ids:
+        result = reset_recommend_tracking(db, rid)
+        if result["success"]:
+            results["reset"] += 1
+        else:
+            results["errors"].append({"id": rid, "error": result["error"]})
+    return {"success": True, "data": results}
+
+
+def batch_delete_recommendations(db: Session, ids: list[int]) -> dict:
+    """批量删除多条推荐记录"""
+    results = {"deleted": 0, "errors": []}
+    for rid in ids:
+        result = delete_recommendation(db, rid)
+        if result["success"]:
+            results["deleted"] += 1
+        else:
+            results["errors"].append({"id": rid, "error": result["error"]})
+    return {"success": True, "data": results}

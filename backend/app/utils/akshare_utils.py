@@ -326,6 +326,47 @@ async def _fetch_stock_list_raw() -> dict:
 
 # ─── 交易日 ───────────────────────────────────────────────────────────────
 
+def is_trade_date(d: date) -> bool:
+    """判断指定日期是否为 A 股交易日"""
+    # 周末直接返回 False
+    if d.weekday() >= 5:
+        return False
+    try:
+        df = ak.tool_trade_date_hsiec()
+        if df is None or df.empty:
+            return False
+        date_col = df.columns[0]
+        df[date_col] = pd.to_datetime(df[date_col])
+        target = pd.Timestamp(d)
+        return ((df[date_col].dt.date == target.date()).any())
+    except Exception:
+        # fallback: 周末判断 + 简单规则
+        return d.weekday() < 5
+
+
+def get_trade_days_after(from_date: date, n: int) -> list[date]:
+    """获取 from_date 之后的第 1 到第 n 个交易日（按升序返回）"""
+    try:
+        df = ak.tool_trade_date_hsiec()
+        if df is None or df.empty:
+            raise ValueError("交易日历为空")
+        date_col = df.columns[0]
+        df[date_col] = pd.to_datetime(df[date_col])
+        after = df[df[date_col] > pd.Timestamp(from_date)] \
+                  .sort_values(date_col) \
+                  .head(n)
+        return [row[date_col].date() for _, row in after.iterrows()]
+    except Exception:
+        # fallback: 按工作日推算
+        result = []
+        d = from_date + timedelta(days=1)
+        while len(result) < n:
+            if d.weekday() < 5:
+                result.append(d)
+            d += timedelta(days=1)
+        return result
+
+
 def get_trade_dates(days: int = 30) -> list[str]:
     """获取最近N个交易日"""
     today = date.today()

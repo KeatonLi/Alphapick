@@ -24,6 +24,27 @@ export async function apiPost<T = any>(path: string, body?: any): Promise<T> {
   return res.json()
 }
 
+export async function apiDelete<T = any>(path: string): Promise<T> {
+  const url = path.startsWith('http') ? path : `${API_BASE}${path}`
+  const res = await fetch(url, { method: 'DELETE' })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }))
+    throw new Error(err.detail || '请求失败')
+  }
+  return res.json()
+}
+
+// ─── 收益跟踪数据类型 ───────────────────────────────────────────
+
+export interface HistoryRec {
+  id: number; recommend_date: string; stock_code: string; stock_name: string
+  recommend_price: number; current_price: number; return_rate: number; reason: string
+  tracking_days: number; status: string
+  price_day1: number; price_day2: number; price_day3: number
+  return_rate_day1: number; return_rate_day2: number; return_rate_day3: number
+  final_return_rate: number; max_gain: number; max_drawdown: number
+}
+
 // ─── 数据分析 API ────────────────────────────────────────────────────────
 
 export interface WeekdayStat {
