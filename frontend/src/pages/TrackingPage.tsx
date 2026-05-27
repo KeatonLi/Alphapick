@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { apiGet, apiPost } from '../services/api'
+import { apiGet } from '../services/api'
 import type { HistoryRec } from '../services/api'
 
 function fmt(n: number, d = 2) { return n.toFixed(d) }
@@ -21,8 +21,6 @@ export default function TrackingPage() {
   const [recs, setRecs] = useState<HistoryRec[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [updating, setUpdating] = useState(false)
-  const [updateMsg, setUpdateMsg] = useState('')
 
   const fetchData = async () => {
     try {
@@ -87,32 +85,6 @@ export default function TrackingPage() {
           </div>
         </div>
       )}
-
-      {/* 更新价格按钮 */}
-      <div className="flex items-center justify-end gap-3 mb-4">
-        {updateMsg && <span className="text-xs text-text-muted">{updateMsg}</span>}
-        <button
-          onClick={async () => {
-            setUpdating(true); setUpdateMsg('')
-            try {
-              const res = await apiPost<any>('/recommend/update-prices')
-              if (res.success) {
-                setUpdateMsg(`更新完成: ${res.data?.updated || 0} 条`)
-                fetchData()
-              } else {
-                setUpdateMsg(res.error || '更新失败')
-              }
-            } catch (e: any) { setUpdateMsg(e.message || '请求失败') }
-            finally { setUpdating(false) }
-          }}
-          disabled={updating}
-          className={`px-4 py-1.5 rounded-xl text-xs font-semibold text-white transition-all ${
-            updating ? 'bg-blue-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 active:scale-95'
-          }`}
-        >
-          {updating ? '更新中...' : '更新价格'}
-        </button>
-      </div>
 
       {/* Loading */}
       {loading && <div className="space-y-3">{[0,1,2].map(i => <div key={i} className="skeleton h-24 rounded-2xl"/>)}</div>}
