@@ -21,6 +21,10 @@ export default function SettingsPage() {
   const [pLoading, setPLoading] = useState(false)
   const [pMsg, setPMsg] = useState<MsgT | null>(null)
 
+  // ── 海报 ──
+  const [posterLoading, setPosterLoading] = useState(false)
+  const [posterMsg, setPosterMsg] = useState<MsgT | null>(null)
+
   // ── 候选池 ──
   const [showCands, setShowCands] = useState(false)
 
@@ -98,6 +102,32 @@ export default function SettingsPage() {
     try { const r = await apiPost('/recommend/update-prices'); setPMsg({ type: 'success', text: `✅ 现价更新完成，共 ${r.data?.data?.updated || 0} 只` }) }
     catch (e: any) { setPMsg({ type: 'error', text: `更新失败: ${e.message}` }) }
     finally { setPLoading(false) }
+  }
+
+  // ── 海报 ──
+  const API_BASE = import.meta.env.VITE_API_URL || '/api'
+  const genPoster = async () => {
+    setPosterLoading(true); setPosterMsg(null)
+    try {
+      const resp = await fetch(`${API_BASE}/report/poster?date=${date}`)
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ detail: '海报生成失败' }))
+        setPosterMsg({ type: 'error', text: err.detail || '海报生成失败' })
+        return
+      }
+      const blob = await resp.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `QuantForge_市场日报_${date}.png`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      setPosterMsg({ type: 'success', text: `✅ 海报已生成并下载（${date}）` })
+    } catch (e: any) {
+      setPosterMsg({ type: 'error', text: `生成失败: ${e.message}` })
+    } finally { setPosterLoading(false) }
   }
 
   // ── 定时任务 ──
@@ -249,6 +279,21 @@ export default function SettingsPage() {
               {pLoading ? '更新中...' : '💰 更新现价'}
             </button>
             {pMsg && <Msg msg={pMsg} />}
+          </div>
+
+          {/* ── 生成海报 ── */}
+          <div className="stock-card p-4 space-y-3 mt-3 border-l-4 border-l-purple-400">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-sm font-bold text-purple-600">生成海报</div>
+                <div className="text-[11px] text-text-muted">基于当日报告生成公众号推文海报，自动下载 PNG</div>
+              </div>
+            </div>
+            <button onClick={genPoster} disabled={posterLoading}
+              className="w-full py-2 bg-gradient-to-r from-purple-500 to-violet-600 text-white rounded-xl text-sm font-bold hover:from-purple-600 hover:to-violet-700 disabled:opacity-50 transition-all shadow-md shadow-purple-200 disabled:cursor-not-allowed">
+              {posterLoading ? '生成中...' : '🖼️ 生成海报'}
+            </button>
+            {posterMsg && <Msg msg={posterMsg} />}
           </div>
         </Section>
 

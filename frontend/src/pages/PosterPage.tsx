@@ -9,6 +9,20 @@ interface PosterState {
   hasReport: boolean
 }
 
+function Skeleton({ className }: { className?: string }) {
+  return <div className={`skeleton rounded-2xl ${className || 'h-36'}`} />
+}
+
+function EmptyState({ icon, text, action }: { icon: string; text: string; action?: string }) {
+  return (
+    <div className="text-center py-16 fade-in-up">
+      <div className="text-5xl mb-4 opacity-60">{icon}</div>
+      <div className="text-sm text-text-muted">{text}</div>
+      {action && <div className="text-xs text-text-muted mt-1.5">{action}</div>}
+    </div>
+  )
+}
+
 export default function PosterPage() {
   const today = new Date().toISOString().split('T')[0]
   const [selectedDate, setSelectedDate] = useState(today)
@@ -68,7 +82,6 @@ export default function PosterPage() {
       await navigator.clipboard.writeText(url)
       alert('链接已复制到剪贴板')
     } catch {
-      // fallback
       const input = document.createElement('input')
       input.value = url
       document.body.appendChild(input)
@@ -97,7 +110,7 @@ export default function PosterPage() {
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/></svg>
           </button>
           <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)}
-            max={today}
+            max={today} min={tradeDates.length ? tradeDates[tradeDates.length - 1] : ''}
             className="appearance-none bg-white border border-border-default text-text-primary text-center px-3 py-1.5 rounded-xl font-mono text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all shadow-sm w-36"/>
           <button onClick={() => setSelectedDate(tradeDates[dateIdx - 1])} disabled={!canPrev}
             className="p-1.5 rounded-lg bg-white border border-border-default text-text-secondary hover:text-blue-600 disabled:opacity-25 transition-all shadow-sm">
@@ -121,25 +134,30 @@ export default function PosterPage() {
         )}
       </div>
 
+      {/* Loading */}
+      {state.loading && (
+        <div className="flex justify-center">
+          <div className="w-full max-w-md space-y-4">
+            <Skeleton className="aspect-[9/16]" />
+            <p className="text-center text-sm text-text-muted">正在生成海报...</p>
+          </div>
+        </div>
+      )}
+
+      {/* Empty */}
+      {!state.loading && !state.hasReport && !state.error && (
+        <EmptyState icon="🖼️" text="选择日期生成市场日报海报" action="请先在「市场报告」页面确认该日期有报告" />
+      )}
+
+      {/* Error */}
+      {!state.loading && state.error && (
+        <EmptyState icon="📋" text={state.error} action="请先在「设置」页面生成该日期的市场报告" />
+      )}
+
       {/* Poster preview */}
-      <div className="flex justify-center">
-        {state.loading && (
+      {!state.loading && state.hasReport && posterUrl && (
+        <div className="flex justify-center fade-in-up">
           <div className="w-full max-w-md">
-            <div className="skeleton rounded-2xl" style={{ aspectRatio: '9/16', maxHeight: '70vh' }} />
-            <p className="text-center text-sm text-text-muted mt-4">正在生成海报...</p>
-          </div>
-        )}
-
-        {state.error && (
-          <div className="text-center py-16 fade-in-up">
-            <div className="text-5xl mb-4 opacity-60">📋</div>
-            <div className="text-sm text-text-muted">{state.error}</div>
-            <div className="text-xs text-text-muted mt-1.5">请先在「设置」页面生成该日期的市场报告</div>
-          </div>
-        )}
-
-        {state.hasReport && posterUrl && (
-          <div className="fade-in-up w-full max-w-md">
             <div className="stock-card p-3 sm:p-4">
               <img ref={imgRef} src={posterUrl} alt={`市场日报 ${selectedDate}`}
                 className="w-full rounded-lg shadow-lg"
@@ -149,8 +167,8 @@ export default function PosterPage() {
               长按图片保存 · 或点击「下载海报」按钮
             </p>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   )
 }
