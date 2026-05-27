@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback } from 'react'
+import { useEffect, useState, useMemo, useCallback, type ReactNode } from 'react'
 import { apiGet, apiPost, apiDelete, type HistoryRec } from '../services/api'
 import ConfirmModal from '../components/ConfirmModal'
 import ConsoleToolbar from '../components/tracking/ConsoleToolbar'
@@ -35,7 +35,7 @@ export default function TrackingPage() {
 
   // ── Confirm Modal ──
   const [confirm, setConfirm] = useState<{
-    open: boolean; title: string; message: string; variant: 'danger' | 'warning'
+    open: boolean; title: string; message: string | ReactNode; variant: 'danger' | 'warning'
     onConfirm: () => void
   }>({ open: false, title: '', message: '', variant: 'warning', onConfirm: () => {} })
 
