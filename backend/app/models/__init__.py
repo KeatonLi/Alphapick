@@ -27,6 +27,7 @@ class Recommendation(Base):
     return_rate: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4), nullable=True, comment="收益率")
     reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="推荐理由")
     tracking_days: Mapped[int] = mapped_column(Integer, default=0, comment="已跟踪交易日数（0-3）")
+    status: Mapped[str] = mapped_column(String(20), default="tracking", comment="状态：tracking/completed")
     price_day1: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 3), nullable=True, comment="持股第一天价格")
     price_day2: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 3), nullable=True, comment="持股第二天价格")
     price_day3: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 3), nullable=True, comment="持股第三天价格")
@@ -34,6 +35,8 @@ class Recommendation(Base):
     return_rate_day2: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4), nullable=True, comment="第二天收益率")
     return_rate_day3: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4), nullable=True, comment="第三天收益率")
     final_return_rate: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4), nullable=True, comment="三个交易日最终收益率")
+    max_gain: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4), nullable=True, comment="最高收益率（三天中最高价相对推荐价）")
+    max_drawdown: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4), nullable=True, comment="最大回撤（三天中最低价相对推荐价）")
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), comment="创建时间"
     )

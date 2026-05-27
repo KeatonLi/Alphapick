@@ -4,6 +4,7 @@ import HomePage from './pages/HomePage'
 import ReportPage from './pages/ReportPage'
 import RecommendPage from './pages/RecommendPage'
 import TrackingPage from './pages/TrackingPage'
+import PosterPage from './pages/PosterPage'
 import SettingsPage from './pages/SettingsPage'
 
 export default function App() {
@@ -18,6 +19,7 @@ export default function App() {
             <Route path="/report" element={<ReportPage />} />
             <Route path="/recommend" element={<RecommendPage />} />
             <Route path="/tracking" element={<TrackingPage />} />
+            <Route path="/poster" element={<PosterPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

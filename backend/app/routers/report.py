@@ -3,6 +3,7 @@ import json
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -16,6 +17,7 @@ from app.services.report_service import (
     generate_daily_report,
 )
 from app.services.chart_service import generate_all_charts
+from app.services.poster_service import generate_poster, generate_poster_base64
 from app.utils.akshare_utils import get_market_index, get_hot_sectors, get_stock_list, get_stock_daily
 
 router = APIRouter(prefix="/api/report", tags=["report"])
@@ -152,3 +154,88 @@ async def generate_report(
         raise HTTPException(status_code=500, detail=gen_result.get("error", "报告生成失败"))
 
     return {"success": True, "data": {"report_date": str(target_date)}}
+
+
+# ─── 市场海报 ─────────────────────────────────────────────────────────────────
+
+
+@router.get("/poster")
+async def poster_image(
+    report_date: Optional[date] = Query(None, alias="date"),
+    db: Session = Depends(get_db),
+):
+    """获取指定日期的市场日报海报图片（PNG）"""
+    target_date = report_date or date.today()
+    result = get_report_by_date(db, target_date)
+    if not result["success"]:
+        raise HTTPException(status_code=404, detail="暂无该日期的市场报告")
+
+    data = result["data"]
+    index_data = data.get("index_data", [])
+    if isinstance(index_data, str):
+        try:
+            index_data = json.loads(index_data)
+        except json.JSONDecodeError:
+            index_data = []
+
+    hot_sectors = data.get("hot_sectors", [])
+    if isinstance(hot_sectors, str):
+        try:
+            hot_sectors = json.loads(hot_sectors)
+        except json.JSONDecodeError:
+            hot_sectors = []
+
+    png_bytes = generate_poster(
+        report_date=str(target_date),
+        market_summary=data.get("market_summary", ""),
+        index_data=index_data,
+        hot_sectors=hot_sectors,
+        ai_report=data.get("ai_report", ""),
+    )
+    if not png_bytes:
+        raise HTTPException(status_code=500, detail="海报生成失败，请检查 Pillow 是否安装")
+
+    return Response(
+        content=png_bytes,
+        media_type="image/png",
+        headers={"Content-Disposition": f'inline; filename="market_report_{target_date}.png"'},
+    )
+
+
+@router.get("/poster/base64")
+async def poster_base64(
+    report_date: Optional[date] = Query(None, alias="date"),
+    db: Session = Depends(get_db),
+):
+    """获取指定日期的市场日报海报（Base64 编码）"""
+    target_date = report_date or date.today()
+    result = get_report_by_date(db, target_date)
+    if not result["success"]:
+        raise HTTPException(status_code=404, detail="暂无该日期的市场报告")
+
+    data = result["data"]
+    index_data = data.get("index_data", [])
+    if isinstance(index_data, str):
+        try:
+            index_data = json.loads(index_data)
+        except json.JSONDecodeError:
+            index_data = []
+
+    hot_sectors = data.get("hot_sectors", [])
+    if isinstance(hot_sectors, str):
+        try:
+            hot_sectors = json.loads(hot_sectors)
+        except json.JSONDecodeError:
+            hot_sectors = []
+
+    b64 = generate_poster_base64(
+        report_date=str(target_date),
+        market_summary=data.get("market_summary", ""),
+        index_data=index_data,
+        hot_sectors=hot_sectors,
+        ai_report=data.get("ai_report", ""),
+    )
+    if not b64:
+        raise HTTPException(status_code=500, detail="海报生成失败")
+
+    return {"success": True, "data": {"base64": b64, "date": str(target_date)}}

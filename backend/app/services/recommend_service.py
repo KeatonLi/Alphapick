@@ -103,18 +103,39 @@ def get_available_recommend_dates(db: Session, days: int = 30) -> dict:
 async def get_recommend_stats(db: Session) -> dict:
     total = db.query(func.count(Recommendation.id)).scalar() or 0
     if total == 0:
-        return {"success": True, "data": {"total": 0, "win_count": 0, "win_rate": 0, "avg_return": 0}}
-    win_count = db.query(func.count(Recommendation.id)).filter(
-        cast(Recommendation.return_rate, Numeric) > 0
+        return {"success": True, "data": {"total": 0, "completed": 0, "win_count": 0, "win_rate": 0, "avg_return": 0, "avg_max_gain": 0, "avg_max_drawdown": 0}}
+
+    completed = db.query(func.count(Recommendation.id)).filter(
+        Recommendation.status == "completed"
     ).scalar() or 0
-    avg_return = db.query(func.avg(Recommendation.return_rate)).scalar() or 0
+
+    if completed == 0:
+        return {"success": True, "data": {"total": total, "completed": 0, "win_count": 0, "win_rate": 0, "avg_return": 0, "avg_max_gain": 0, "avg_max_drawdown": 0}}
+
+    win_count = db.query(func.count(Recommendation.id)).filter(
+        Recommendation.status == "completed",
+        cast(Recommendation.final_return_rate, Numeric) > 0
+    ).scalar() or 0
+    avg_return = db.query(func.avg(Recommendation.final_return_rate)).filter(
+        Recommendation.status == "completed"
+    ).scalar() or 0
+    avg_max_gain = db.query(func.avg(Recommendation.max_gain)).filter(
+        Recommendation.status == "completed"
+    ).scalar() or 0
+    avg_max_drawdown = db.query(func.avg(Recommendation.max_drawdown)).filter(
+        Recommendation.status == "completed"
+    ).scalar() or 0
+
     return {
         "success": True,
         "data": {
             "total": total,
+            "completed": completed,
             "win_count": win_count,
-            "win_rate": round(win_count / total * 100, 2) if total > 0 else 0,
+            "win_rate": round(win_count / completed * 100, 2) if completed > 0 else 0,
             "avg_return": round(float(avg_return) * 100, 2),
+            "avg_max_gain": round(float(avg_max_gain) * 100, 2),
+            "avg_max_drawdown": round(float(avg_max_drawdown) * 100, 2),
         },
     }
 
@@ -139,6 +160,7 @@ def get_all_recommendations(db: Session) -> dict:
                 "return_rate": float(r.return_rate) * 100 if r.return_rate else 0,
                 "reason": r.reason or "",
                 "tracking_days": r.tracking_days or 0,
+                "status": r.status or "tracking",
                 "price_day1": float(r.price_day1) if r.price_day1 else 0,
                 "price_day2": float(r.price_day2) if r.price_day2 else 0,
                 "price_day3": float(r.price_day3) if r.price_day3 else 0,
@@ -146,6 +168,8 @@ def get_all_recommendations(db: Session) -> dict:
                 "return_rate_day2": float(r.return_rate_day2) * 100 if r.return_rate_day2 else 0,
                 "return_rate_day3": float(r.return_rate_day3) * 100 if r.return_rate_day3 else 0,
                 "final_return_rate": float(r.final_return_rate) * 100 if r.final_return_rate else 0,
+                "max_gain": float(r.max_gain) * 100 if r.max_gain else 0,
+                "max_drawdown": float(r.max_drawdown) * 100 if r.max_drawdown else 0,
             }
             for r in recs
         ],
@@ -153,14 +177,14 @@ def get_all_recommendations(db: Session) -> dict:
 
 
 async def update_recommend_prices(db: Session) -> dict:
-    """更新推荐记录价格（只更新未满 3 个交易日的记录）"""
+    """更新推荐记录价格（只更新 status=tracking 的记录）"""
     import requests
 
     recs = db.query(Recommendation).filter(
-        Recommendation.tracking_days < 3
+        Recommendation.status == "tracking"
     ).all()
     if not recs:
-        return {"success": True, "data": {"updated": 0, "message": "所有记录已满 3 个交易日，无需更新"}}
+        return {"success": True, "data": {"updated": 0, "message": "所有记录已完结，无需更新"}}
 
     from app.utils.akshare_utils import _to_tencent_code, _from_tencent_code
 
@@ -213,9 +237,25 @@ async def update_recommend_prices(db: Session) -> dict:
             rec.price_day3 = price
             rec.return_rate_day3 = day_return
             rec.final_return_rate = day_return
+            rec.status = "completed"
 
         rec.current_price = price
         rec.return_rate = day_return
+
+        # 计算衍生指标：最高收益和最大回撤
+        prices = [float(rec.recommend_price)]
+        if rec.price_day1:
+            prices.append(float(rec.price_day1))
+        if rec.price_day2:
+            prices.append(float(rec.price_day2))
+        if rec.price_day3:
+            prices.append(float(rec.price_day3))
+
+        max_price = max(prices)
+        min_price = min(prices)
+        rec.max_gain = (max_price - base) / base
+        rec.max_drawdown = (min_price - base) / base
+
         updated += 1
 
     db.commit()

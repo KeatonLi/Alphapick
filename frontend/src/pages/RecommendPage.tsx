@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { apiGet } from '../services/api'
 
 interface StockRec { stock_code: string; stock_name: string; recommend_price: number; reason: string }
-interface Stats { total: number; win_count: number; win_rate: number; avg_return: number }
+interface Stats { total: number; completed: number; win_count: number; win_rate: number; avg_return: number; avg_max_gain: number; avg_max_drawdown: number }
 
 function fmt(n: number, d = 2) { return n.toFixed(d) }
 
@@ -82,18 +82,30 @@ export default function RecommendPage() {
 
       {/* Stats */}
       {!loading && stats && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-5">
-          {[
-            { label: '累计推荐', value: stats.total, color: 'from-blue-50 to-blue-100', border: 'border-blue-200', text: 'text-blue-600' },
-            { label: '盈利次数', value: stats.win_count, color: 'from-green-50 to-green-100', border: 'border-green-200', text: 'text-green-600' },
-            { label: '胜率', value: `${stats.win_rate}%`, color: 'from-amber-50 to-amber-100', border: 'border-amber-200', text: 'text-amber-600' },
-            { label: '平均收益', value: `${stats.avg_return}%`, color: 'from-purple-50 to-purple-100', border: 'border-purple-200', text: 'text-purple-600' },
-          ].map((s, i) => (
-            <div key={i} className={`stock-card p-3 text-center bg-gradient-to-br ${s.color} border ${s.border}`}>
-              <div className={`text-lg sm:text-xl font-extrabold ${s.text} mb-0.5`}>{s.value}</div>
-              <div className="text-[11px] text-text-muted">{s.label}</div>
+        <div className="space-y-2.5 mb-5">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            {[
+              { label: '累计推荐', value: stats.total, color: 'from-blue-50 to-blue-100', border: 'border-blue-200', text: 'text-blue-600' },
+              { label: '已完结', value: stats.completed, color: 'from-slate-50 to-slate-100', border: 'border-slate-200', text: 'text-slate-600' },
+              { label: '胜率', value: `${stats.win_rate}%`, color: 'from-amber-50 to-amber-100', border: 'border-amber-200', text: 'text-amber-600' },
+              { label: '平均收益', value: `${stats.avg_return}%`, color: stats.avg_return >= 0 ? 'from-red-50 to-red-100' : 'from-green-50 to-green-100', border: stats.avg_return >= 0 ? 'border-red-200' : 'border-green-200', text: stats.avg_return >= 0 ? 'text-red-600' : 'text-green-600' },
+            ].map((s, i) => (
+              <div key={i} className={`stock-card p-3 text-center bg-gradient-to-br ${s.color} border ${s.border}`}>
+                <div className={`text-lg sm:text-xl font-extrabold ${s.text} mb-0.5`}>{s.value}</div>
+                <div className="text-[11px] text-text-muted">{s.label}</div>
+              </div>
+            ))}
+          </div>
+          <div className="grid grid-cols-2 gap-2.5">
+            <div className="stock-card p-3 text-center bg-gradient-to-br from-red-50 to-red-100/50 border border-red-200">
+              <div className="text-lg font-extrabold text-red-500 mb-0.5">+{stats.avg_max_gain}%</div>
+              <div className="text-[11px] text-text-muted">平均最高收益</div>
             </div>
-          ))}
+            <div className="stock-card p-3 text-center bg-gradient-to-br from-green-50 to-green-100/50 border border-green-200">
+              <div className="text-lg font-extrabold text-green-600 mb-0.5">{stats.avg_max_drawdown}%</div>
+              <div className="text-[11px] text-text-muted">平均最大回撤</div>
+            </div>
+          </div>
         </div>
       )}
 

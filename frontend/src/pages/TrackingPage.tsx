@@ -4,9 +4,10 @@ import { apiGet } from '../services/api'
 interface HistoryRec {
   id: number; recommend_date: string; stock_code: string; stock_name: string
   recommend_price: number; current_price: number; return_rate: number; reason: string
-  tracking_days: number; price_day1: number; price_day2: number; price_day3: number
+  tracking_days: number; status: string
+  price_day1: number; price_day2: number; price_day3: number
   return_rate_day1: number; return_rate_day2: number; return_rate_day3: number
-  final_return_rate: number
+  final_return_rate: number; max_gain: number; max_drawdown: number
 }
 
 function fmt(n: number, d = 2) { return n.toFixed(d) }
@@ -43,7 +44,7 @@ export default function TrackingPage() {
   }, {})
   const dates = Object.keys(grouped).sort((a, b) => b.localeCompare(a))
 
-  const completedRecs = recs.filter(r => r.final_return_rate !== 0)
+  const completedRecs = recs.filter(r => r.status === 'completed')
   const completedRates = completedRecs.map(r => r.final_return_rate)
   const avgFinalReturn = completedRates.length ? completedRates.reduce((a, b) => a + b, 0) / completedRates.length : 0
   const winCount = completedRates.filter(r => r > 0).length
@@ -114,7 +115,7 @@ export default function TrackingPage() {
                 <div className="flex items-center gap-3">
                   {(() => {
                     const dayRecs = grouped[date]
-                    const dayRates = dayRecs.filter(r => r.final_return_rate !== 0).map(r => r.final_return_rate)
+                    const dayRates = dayRecs.filter(r => r.status === 'completed').map(r => r.final_return_rate)
                     const dayAvg = dayRates.length ? dayRates.reduce((a, b) => a + b, 0) / dayRates.length : 0
                     return (
                       <>
@@ -132,7 +133,7 @@ export default function TrackingPage() {
               <div className="divide-y divide-border-default/60">
                 {grouped[date].map((rec) => {
                   const td = rec.tracking_days || 0
-                  const completed = rec.final_return_rate !== 0
+                  const completed = rec.status === 'completed'
                   const rates = [0, rec.return_rate_day1, rec.return_rate_day2, rec.return_rate_day3]
                   const finalRate = rec.final_return_rate
                   return (
@@ -186,14 +187,28 @@ export default function TrackingPage() {
                       </div>
                       {/* Final return row */}
                       {completed && (
-                        <div className="mt-2 flex items-center justify-end gap-2 pt-2 border-t border-border-default/60">
-                          <span className="text-xs text-text-muted">最终收益</span>
-                          <span className={`font-mono font-bold text-sm ${finalRate >= 0 ? 'text-green-600' : 'text-red-500'}`}>
-                            {finalRate >= 0 ? '+' : ''}{fmt(finalRate)}%
-                          </span>
-                          <span className="text-[11px] text-text-muted">
-                            {fmt(rec.recommend_price)} → {fmt((rec as any).price_day3)}
-                          </span>
+                        <div className="mt-2 flex items-center justify-between pt-2 border-t border-border-default/60">
+                          <div className="flex items-center gap-3">
+                            {rec.max_gain > 0 && (
+                              <span className="text-[11px] text-text-muted">
+                                最高 <span className="font-mono font-semibold text-red-500">+{fmt(rec.max_gain)}%</span>
+                              </span>
+                            )}
+                            {rec.max_drawdown < 0 && (
+                              <span className="text-[11px] text-text-muted">
+                                最低 <span className="font-mono font-semibold text-green-600">{fmt(rec.max_drawdown)}%</span>
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-text-muted">最终收益</span>
+                            <span className={`font-mono font-bold text-sm ${finalRate >= 0 ? 'text-red-500' : 'text-green-600'}`}>
+                              {finalRate >= 0 ? '+' : ''}{fmt(finalRate)}%
+                            </span>
+                            <span className="text-[11px] text-text-muted">
+                              {fmt(rec.recommend_price)} → {fmt(rec.price_day3)}
+                            </span>
+                          </div>
                         </div>
                       )}
                     </div>
