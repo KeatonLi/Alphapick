@@ -29,7 +29,16 @@ async def chat(messages: list[dict[str, str]], max_tokens: int = 4096) -> str:
         )
         resp.raise_for_status()
         data = resp.json()
+
+        # 检查 API 错误（如配额用尽）
+        base_resp = data.get("base_resp", {})
+        if base_resp.get("status_code", 0) != 0:
+            raise Exception(f"AI API 错误: {base_resp.get('status_msg', '未知错误')}")
+
         # MiniMax returns content in choices[0].message.content
-        return data.get("choices", [{}])[0].get("message", {}).get("content", "")
+        choices = data.get("choices") or []
+        if not choices:
+            raise Exception("AI API 返回为空，请检查 API 配额")
+        return choices[0].get("message", {}).get("content", "")
 
     return await asyncio.to_thread(_sync_call)
