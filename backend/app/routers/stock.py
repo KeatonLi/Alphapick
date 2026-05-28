@@ -7,11 +7,12 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from app.database import get_db
+from app.dependencies import get_current_user
 from app.models import MarketReport
 from app.services.stock_service import analyze_stock
 from app.utils.akshare_utils import get_stock_info, get_stock_daily, get_market_index
 
-router = APIRouter(prefix="/api/stock", tags=["stock"])
+router = APIRouter(prefix="/api/stock", tags=["stock"], dependencies=[Depends(get_current_user)])
 limiter = Limiter(key_func=get_remote_address)
 
 

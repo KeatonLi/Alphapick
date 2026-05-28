@@ -9,6 +9,7 @@ from app.database import Base
 from app.models.generation_task import GenerationTask
 from app.models.schedule_config import ScheduleConfig
 from app.models.market_cache import MarketCache
+from app.models.user import User
 
 
 class Recommendation(Base):

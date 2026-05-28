@@ -9,6 +9,11 @@ class Settings:
     # 服务器配置
     QUANTFORGE_PORT: int = int(os.getenv("QUANTFORGE_PORT", "8084"))
 
+    # JWT 密钥
+    JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY", "quantforge-dev-secret-key-change-in-production")
+    JWT_ALGORITHM: str = "HS256"
+    JWT_EXPIRE_DAYS: int = 7
+
     # 数据库配置
     QUANTFORGE_DB_HOST: str = os.getenv("QUANTFORGE_DB_HOST", "localhost")
     QUANTFORGE_DB_PORT: int = int(os.getenv("QUANTFORGE_DB_PORT", "3306"))

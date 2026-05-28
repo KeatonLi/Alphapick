@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.dependencies import get_current_user
 from app.services.analysis_service import (
     get_weekday_stats,
     get_holding_period_stats,
@@ -16,7 +17,7 @@ from app.services.analysis_service import (
     get_success_trend,
 )
 
-router = APIRouter(prefix="/api/analysis", tags=["analysis"])
+router = APIRouter(prefix="/api/analysis", tags=["analysis"], dependencies=[Depends(get_current_user)])
 
 
 @router.get("/weekday-stats")
