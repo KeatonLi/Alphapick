@@ -28,70 +28,66 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-[calc(100vh-3.5rem)] flex items-center justify-center px-4 py-12">
-      {/* 背景装饰 */}
-      <div className="fixed top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-gradient-to-b from-blue-500/8 to-cyan-500/5 rounded-full blur-3xl pointer-events-none" />
+    <div className="min-h-[calc(100vh-3.5rem)] flex items-center justify-center px-4 py-12 fade-in">
+      <div className="glow-spot glow-spot-tr" />
 
-      <div className="relative w-full max-w-sm animate-[fadeInUp_0.5s_ease_forwards]">
-        {/* 品牌区 */}
+      <div className="relative w-full max-w-sm">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-700 shadow-lg shadow-blue-200 mb-4">
-            <span className="text-white font-bold text-xl">QF</span>
+          <div
+            className="inline-flex items-center justify-center w-14 h-14 mb-4"
+            style={{ borderRadius: 'var(--card-radius)', background: 'var(--accent)', boxShadow: '0 0 30px var(--accent-glow)' }}
+          >
+            <span className="font-bold text-xl" style={{ color: '#fff' }}>QF</span>
           </div>
-          <h1 className="text-2xl font-bold text-text-primary">登录 QuantForge</h1>
-          <p className="text-sm text-text-muted mt-1">AI 驱动的 A 股量化分析平台</p>
+          <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>登录 QuantForge</h1>
+          <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>AI 驱动的 A 股量化分析平台</p>
         </div>
 
-        {/* 登录卡片 */}
-        <div className="bg-white/80 backdrop-blur-xl rounded-2xl border border-border-default shadow-lg p-8">
+        <div className="card p-8">
           <form onSubmit={handleSubmit} className="space-y-5">
-            {/* 用户名 */}
             <div>
-              <label className="block text-sm font-medium text-text-secondary mb-1.5">用户名</label>
-              <div className="relative">
-                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-muted text-lg leading-none">👤</span>
-                <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="请输入用户名"
-                  autoFocus
-                  className="w-full h-11 pl-10 pr-4 rounded-xl border border-border-default bg-white/60 text-sm text-text-primary placeholder:text-text-muted/50 outline-none transition-all duration-200 focus:border-accent-blue focus:ring-2 focus:ring-accent-blue/10"
-                />
-              </div>
+              <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>用户名</label>
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="请输入用户名"
+                autoFocus
+                style={{ width: '100%', height: '44px', padding: '0 16px', borderRadius: '12px', border: '1px solid var(--border-default)', background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: '14px', outline: 'none', transition: 'all .2s' }}
+                onFocus={(e) => { e.target.style.borderColor = 'var(--accent)'; e.target.style.boxShadow = '0 0 0 3px var(--accent-glow)' }}
+                onBlur={(e) => { e.target.style.borderColor = 'var(--border-default)'; e.target.style.boxShadow = 'none' }}
+              />
             </div>
 
-            {/* 密码 */}
             <div>
-              <label className="block text-sm font-medium text-text-secondary mb-1.5">密码</label>
-              <div className="relative">
-                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-muted text-lg leading-none">🔑</span>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="请输入密码"
-                  className="w-full h-11 pl-10 pr-4 rounded-xl border border-border-default bg-white/60 text-sm text-text-primary placeholder:text-text-muted/50 outline-none transition-all duration-200 focus:border-accent-blue focus:ring-2 focus:ring-accent-blue/10"
-                />
-              </div>
+              <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>密码</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="请输入密码"
+                style={{ width: '100%', height: '44px', padding: '0 16px', borderRadius: '12px', border: '1px solid var(--border-default)', background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: '14px', outline: 'none', transition: 'all .2s' }}
+                onFocus={(e) => { e.target.style.borderColor = 'var(--accent)'; e.target.style.boxShadow = '0 0 0 3px var(--accent-glow)' }}
+                onBlur={(e) => { e.target.style.borderColor = 'var(--border-default)'; e.target.style.boxShadow = 'none' }}
+              />
             </div>
 
-            {/* 错误提示 */}
             {error && (
-              <div className="py-2.5 px-4 rounded-lg bg-red-50 border border-red-200 text-sm text-red-600 font-medium animate-[fadeInUp_0.2s_ease_forwards]">
+              <div className="py-2.5 px-4 rounded-lg text-sm font-medium" style={{ background: 'var(--up-bg)', border: '1px solid var(--up)', color: 'var(--up)' }}>
                 {error}
               </div>
             )}
 
-            {/* 登录按钮 */}
             <button
               type="submit"
               disabled={loading}
-              className="w-full h-11 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 text-white text-sm font-semibold shadow-md shadow-blue-200 transition-all duration-200 hover:shadow-lg hover:shadow-blue-300 hover:from-blue-700 hover:to-blue-600 active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed disabled:active:scale-100"
+              style={{ width: '100%', height: '44px', borderRadius: '12px', background: 'var(--accent)', color: '#fff', fontSize: '14px', fontWeight: 600, border: 'none', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1, transition: 'all .2s' }}
+              onMouseEnter={(e) => { if (!loading) { e.currentTarget.style.filter = 'brightness(1.15)'; e.currentTarget.style.transform = 'scale(1.01)' } }}
+              onMouseLeave={(e) => { e.currentTarget.style.filter = 'none'; e.currentTarget.style.transform = 'none' }}
             >
               {loading ? (
                 <span className="flex items-center justify-center gap-2">
-                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <span className="w-4 h-4 border-2 rounded-full animate-spin" style={{ borderColor: 'rgba(255,255,255,.3)', borderTopColor: '#fff' }} />
                   登录中...
                 </span>
               ) : (
@@ -100,17 +96,13 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* 注册入口 */}
-          <div className="mt-6 pt-5 border-t border-border-default text-center">
-            <span className="text-sm text-text-muted">还没有账号？</span>{' '}
-            <Link to="/register" className="text-sm text-accent-blue font-medium hover:text-blue-700 transition-colors">
-              立即注册
-            </Link>
+          <div className="mt-6 pt-5 text-center" style={{ borderTop: '1px solid var(--border-default)' }}>
+            <span className="text-sm" style={{ color: 'var(--text-muted)' }}>还没有账号？</span>{' '}
+            <Link to="/register" className="text-sm font-medium" style={{ color: 'var(--accent)' }}>立即注册</Link>
           </div>
         </div>
 
-        {/* 底部提示 */}
-        <p className="text-center text-xs text-text-muted/60 mt-6">
+        <p className="text-center text-xs mt-6" style={{ color: 'var(--text-dim)' }}>
           数据仅供参考，不构成投资建议
         </p>
       </div>

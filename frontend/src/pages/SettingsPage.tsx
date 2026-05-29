@@ -9,14 +9,45 @@ type MsgT = { type: 'success' | 'error' | 'warn'; text: string }
 
 function fmt(n: number, d = 2) { return n.toFixed(d) }
 
-// ──────────────── Tabs ────────────────
-
 const TABS = [
   { key: 'settings', label: '设置', icon: '⚙️' },
   { key: 'console', label: '控制台', icon: '⚡' },
 ] as const
 
-// ──────────────── 设置 Tab ────────────────
+const btnBase: React.CSSProperties = {
+  display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%',
+  padding: '12px 16px', borderRadius: 12, fontSize: 14, fontWeight: 600,
+  border: '1px solid var(--border-default)', background: 'var(--bg-card)',
+  color: 'var(--text-primary)', cursor: 'pointer', transition: 'all .2s',
+}
+
+function primaryBtn(disabled = false): React.CSSProperties {
+  return {
+    ...btnBase,
+    borderColor: 'var(--border-accent)',
+    background: 'var(--accent-bg)',
+    color: 'var(--accent-light)',
+    opacity: disabled ? 0.5 : 1,
+    cursor: disabled ? 'not-allowed' : 'pointer',
+  }
+}
+
+function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div onClick={() => onChange(!checked)}
+      style={{
+        width: 36, height: 20, borderRadius: 10,
+        background: checked ? 'var(--accent)' : 'var(--bg-badge)',
+        position: 'relative', cursor: 'pointer', transition: 'background .2s',
+      }}>
+      <div style={{
+        width: 16, height: 16, borderRadius: '50%', background: '#fff',
+        position: 'absolute', top: 2, left: checked ? 18 : 2,
+        transition: 'left .2s',
+      }} />
+    </div>
+  )
+}
 
 function SettingsTab() {
   const today = new Date().toISOString().split('T')[0]
@@ -114,132 +145,130 @@ function SettingsTab() {
 
   const btnDisabled = busy(r.status) || busy(c.status) || busy(a.status)
 
+  const inputStyle: React.CSSProperties = {
+    width: '100%', background: 'var(--bg-input)', border: '1px solid var(--border-default)',
+    color: 'var(--text-primary)', textAlign: 'center', padding: '8px 12px', borderRadius: 12,
+    fontFamily: "'JetBrains Mono', monospace", fontSize: 14, outline: 'none',
+  }
+
   return (
     <div className="space-y-5">
-      {/* 目标日期 */}
       <Section icon="📅" title="目标日期">
         <input type="date" value={date} max={today} onChange={e => setDate(e.target.value)} disabled={btnDisabled}
-          className="w-full bg-white border border-border-default text-text-primary text-center px-3 py-2 rounded-xl font-mono text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all disabled:opacity-50" />
+          style={{ ...inputStyle, opacity: btnDisabled ? 0.5 : 1 }} />
       </Section>
 
-      {/* 数据生成 */}
       <Section icon="⚡" title="数据生成">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div className="stock-card p-4 space-y-3 sm:col-span-2 border-l-4 border-l-indigo-400">
+          <div className="card p-4 space-y-3 sm:col-span-2" style={{ borderLeft: '4px solid var(--accent)' }}>
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-sm font-bold text-indigo-700">一键生成全部</div>
-                <div className="text-[11px] text-text-muted">市场报告 → 量化推荐 → 更新现价</div>
+                <div className="text-sm font-bold" style={{ color: 'var(--accent-light)' }}>一键生成全部</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>市场报告 → 量化推荐 → 更新现价</div>
               </div>
               <StatusBadge s={a.status} />
             </div>
             {busy(a.status) && <PBar pct={a.pct} label={a.label} cur={a.step} tot={a.total} />}
-            <button onClick={() => start('/generate/all', 'a')} disabled={busy(a.status)}
-              className="w-full py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl text-sm font-bold hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 transition-all shadow-md shadow-indigo-200 disabled:cursor-not-allowed">
+            <button onClick={() => start('/generate/all', 'a')} disabled={busy(a.status)} style={primaryBtn(busy(a.status))}>
               {busy(a.status) ? (a.label || '执行中...') : '🚀 一键全部'}
             </button>
             {a.msg && <Msg msg={a.msg} />}
           </div>
 
-          <div className="stock-card p-4 space-y-3 border-l-4 border-l-blue-400">
+          <div className="card p-4 space-y-3" style={{ borderLeft: '4px solid var(--blue)' }}>
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-sm font-bold text-blue-700">市场报告</div>
-                <div className="text-[11px] text-text-muted">指数行情 + 板块热点 + AI 分析</div>
+                <div className="text-sm font-bold" style={{ color: 'var(--blue)' }}>市场报告</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>指数行情 + 板块热点 + AI 分析</div>
               </div>
               <StatusBadge s={r.status} />
             </div>
             {busy(r.status) && <PBar pct={r.pct} label={r.label} cur={r.step} tot={r.total} />}
-            <button onClick={() => start('/generate/report', 'r')} disabled={busy(r.status)}
-              className="w-full py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl text-sm font-bold hover:from-blue-700 hover:to-blue-800 disabled:opacity-50 transition-all shadow-md shadow-blue-200 disabled:cursor-not-allowed">
+            <button onClick={() => start('/generate/report', 'r')} disabled={busy(r.status)} style={primaryBtn(busy(r.status))}>
               {busy(r.status) ? (r.label || '生成中...') : '📊 生成报告'}
             </button>
             {r.msg && <Msg msg={r.msg} />}
           </div>
 
-          <div className="stock-card p-4 space-y-3 border-l-4 border-l-amber-400">
+          <div className="card p-4 space-y-3" style={{ borderLeft: '4px solid var(--up)' }}>
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-sm font-bold text-amber-600">量化推荐</div>
-                <div className="text-[11px] text-text-muted">THS 热股 × 热度排名 × 消息面 → AI 精选</div>
+                <div className="text-sm font-bold" style={{ color: 'var(--up)' }}>量化推荐</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>THS 热股 × 热度排名 × 消息面 → AI 精选</div>
               </div>
               <StatusBadge s={c.status} />
             </div>
             {busy(c.status) && <PBar pct={c.pct} label={c.label} cur={c.step} tot={c.total} />}
-            <button onClick={() => start('/generate/recommend', 'c')} disabled={busy(c.status)}
-              className="w-full py-2 bg-gradient-to-r from-amber-500 to-orange-600 text-white rounded-xl text-sm font-bold hover:from-amber-600 hover:to-orange-700 disabled:opacity-50 transition-all shadow-md shadow-amber-200 disabled:cursor-not-allowed">
+            <button onClick={() => start('/generate/recommend', 'c')} disabled={busy(c.status)} style={primaryBtn(busy(c.status))}>
               {busy(c.status) ? (c.label || '生成中...') : '🎯 生成推荐'}
             </button>
             {c.msg && <Msg msg={c.msg} />}
           </div>
         </div>
 
-        {/* 生成海报 */}
-        <div className="stock-card p-4 space-y-3 mt-3 border-l-4 border-l-purple-400">
+        <div className="card p-4 space-y-3 mt-3" style={{ borderLeft: '4px solid var(--accent-light)' }}>
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-sm font-bold text-purple-600">生成海报</div>
-              <div className="text-[11px] text-text-muted">基于当日报告生成公众号推文海报，自动下载 PNG</div>
+              <div className="text-sm font-bold" style={{ color: 'var(--accent-light)' }}>生成海报</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>基于当日报告生成公众号推文海报，自动下载 PNG</div>
             </div>
           </div>
-          <button onClick={genPoster} disabled={posterLoading}
-            className="w-full py-2 bg-gradient-to-r from-purple-500 to-violet-600 text-white rounded-xl text-sm font-bold hover:from-purple-600 hover:to-violet-700 disabled:opacity-50 transition-all shadow-md shadow-purple-200 disabled:cursor-not-allowed">
+          <button onClick={genPoster} disabled={posterLoading} style={primaryBtn(posterLoading)}>
             {posterLoading ? '生成中...' : '🖼️ 生成海报'}
           </button>
           {posterMsg && <Msg msg={posterMsg} />}
         </div>
       </Section>
 
-      {/* 定时任务 */}
       <Section icon="⏰" title="定时任务">
         <div className="flex items-center justify-between mb-4">
-          <div className="text-sm text-text-secondary font-medium">每日自动生成</div>
-          <label className="relative inline-flex items-center cursor-pointer">
-            <input type="checkbox" checked={sEn} onChange={e => setSEn(e.target.checked)} className="sr-only peer" />
-            <div className="w-9 h-5 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600" />
-          </label>
+          <div className="text-sm" style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>每日自动生成</div>
+          <Toggle checked={sEn} onChange={setSEn} />
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
           <div>
-            <label className="text-xs text-text-muted block mb-1.5 font-medium">执行时间</label>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6, fontWeight: 500 }}>执行时间</div>
             <input type="time" value={sTime} onChange={e => setSTime(e.target.value)}
-              className="w-full bg-white border border-border-default text-text-primary text-center px-2 py-1.5 rounded-lg font-mono text-sm focus:outline-none focus:border-blue-400" />
+              style={{
+                width: '100%', background: 'var(--bg-input)', border: '1px solid var(--border-default)',
+                color: 'var(--text-primary)', textAlign: 'center', padding: '6px 8px', borderRadius: 8,
+                fontFamily: "'JetBrains Mono', monospace", fontSize: 14, outline: 'none',
+              }} />
           </div>
           <div className="flex items-end gap-4">
             <div>
-              <label className="text-xs text-text-muted block mb-1.5 font-medium">自动报告</label>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input type="checkbox" checked={sRpt} onChange={e => setSRpt(e.target.checked)} className="sr-only peer" />
-                <div className="w-9 h-5 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600" />
-              </label>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6, fontWeight: 500 }}>自动报告</div>
+              <Toggle checked={sRpt} onChange={setSRpt} />
             </div>
             <div>
-              <label className="text-xs text-text-muted block mb-1.5 font-medium">自动推荐</label>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input type="checkbox" checked={sRec} onChange={e => setSRec(e.target.checked)} className="sr-only peer" />
-                <div className="w-9 h-5 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600" />
-              </label>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6, fontWeight: 500 }}>自动推荐</div>
+              <Toggle checked={sRec} onChange={setSRec} />
             </div>
           </div>
           <div className="flex items-end justify-end">
             <button onClick={saveSched} disabled={sSaving}
-              className="py-2 px-5 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 transition-all">
+              style={{
+                padding: '8px 20px', background: 'var(--accent)', color: '#fff',
+                borderRadius: 8, fontSize: 14, fontWeight: 600, border: 'none',
+                cursor: sSaving ? 'not-allowed' : 'pointer', opacity: sSaving ? 0.5 : 1,
+                transition: 'all .2s',
+              }}>
               {sSaving ? '保存中...' : '保存配置'}
             </button>
-            {sMsg && <span className="text-xs ml-2 font-medium text-green-600">{sMsg}</span>}
+            {sMsg && <span style={{ fontSize: 12, marginLeft: 8, fontWeight: 500, color: 'var(--down)' }}>{sMsg}</span>}
           </div>
         </div>
 
         {sched && (
-          <div className="grid grid-cols-2 gap-3 p-3 bg-slate-50 rounded-xl text-xs">
+          <div className="grid grid-cols-2 gap-3 p-3 rounded-xl" style={{ background: 'var(--bg-tag)', fontSize: 12 }}>
             <div>
-              <div className="text-text-muted mb-0.5 font-medium">上次执行</div>
-              <div className="font-medium text-text-primary">{sched.last_run_at ? `${sched.last_run_at}（${sched.last_run_info || '未知'}）` : '从未执行'}</div>
-              {sched.last_run_result && <div className="text-text-muted mt-0.5 text-[11px]">{sched.last_run_result}</div>}
+              <div style={{ color: 'var(--text-muted)', marginBottom: 2, fontWeight: 500 }}>上次执行</div>
+              <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{sched.last_run_at ? `${sched.last_run_at}（${sched.last_run_info || '未知'}）` : '从未执行'}</div>
+              {sched.last_run_result && <div style={{ color: 'var(--text-muted)', marginTop: 2, fontSize: 11 }}>{sched.last_run_result}</div>}
             </div>
             <div>
-              <div className="text-text-muted mb-0.5 font-medium">下次执行</div>
-              <div className="font-medium text-text-primary">{sEn ? `每天 ${sTime}` : '已禁用'}</div>
+              <div style={{ color: 'var(--text-muted)', marginBottom: 2, fontWeight: 500 }}>下次执行</div>
+              <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{sEn ? `每天 ${sTime}` : '已禁用'}</div>
             </div>
           </div>
         )}
@@ -247,8 +276,6 @@ function SettingsTab() {
     </div>
   )
 }
-
-// ──────────────── 控制台 Tab ────────────────
 
 function ConsoleTab() {
   const [recs, setRecs] = useState<HistoryRec[]>([])
@@ -341,43 +368,54 @@ function ConsoleTab() {
 
   return (
     <div>
-      {toast && <div className={`fixed top-4 right-4 z-50 px-4 py-2.5 rounded-xl text-sm font-semibold shadow-lg ${toast.err ? 'bg-red-500 text-white' : 'bg-gray-800 text-white'}`}>{toast.msg}</div>}
+      {toast && (
+        <div className="fixed top-4 right-4 z-50 px-4 py-2.5 rounded-xl text-sm font-semibold"
+          style={{
+            background: toast.err ? 'var(--up)' : 'var(--bg-card)',
+            color: toast.err ? '#fff' : 'var(--text-primary)',
+            border: '1px solid var(--border-default)',
+            boxShadow: 'var(--card-shadow)',
+          }}>
+          {toast.msg}
+        </div>
+      )}
       <ConfirmModal open={confirm.open} title={confirm.title} message={confirm.message} variant={confirm.variant} onConfirm={confirm.onConfirm} onCancel={() => setConfirm(prev => ({ ...prev, open: false }))} />
 
-      {/* 更新现价 */}
       <Section icon="💰" title="价格更新">
         <div className="flex items-center gap-4">
-          <div className="text-xs text-text-secondary flex-1">批量回溯所有 tracking 状态的推荐股票 T+1/2/3 交易日收盘价</div>
+          <div className="text-xs flex-1" style={{ color: 'var(--text-secondary)' }}>批量回溯所有 tracking 状态的推荐股票 T+1/2/3 交易日收盘价</div>
           <button onClick={async () => {
             const res = await apiPost<any>('/recommend/update-prices')
             showToast(`更新完成: ${res.data?.updated || 0} 条`)
             fetchData()
-          }} className="px-5 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl text-sm font-bold hover:from-green-600 hover:to-emerald-700 transition-all shadow-md shadow-green-200 shrink-0">
+          }} style={{
+            padding: '8px 20px', background: 'var(--down)', color: '#fff',
+            borderRadius: 12, fontSize: 14, fontWeight: 600, border: 'none',
+            cursor: 'pointer', transition: 'all .2s', whiteSpace: 'nowrap',
+          }}>
             💰 更新现价
           </button>
         </div>
       </Section>
 
-      {/* 统计 */}
       {!loading && (
-        <div className="stock-card p-3 mb-5">
+        <div className="card p-3 mb-5">
           <div className="flex items-center justify-around text-center">
-            <StatBox label="总计" value={stats.total} color="text-blue-700" />
+            <StatBox label="总计" value={stats.total} color="var(--text-primary)" />
             <SDivider />
-            <StatBox label="跟踪中" value={stats.tracking} color="text-blue-600" />
+            <StatBox label="跟踪中" value={stats.tracking} color="var(--accent-light)" />
             <SDivider />
-            <StatBox label="已完结" value={stats.completed} color="text-green-600" />
+            <StatBox label="已完结" value={stats.completed} color="var(--down)" />
             <SDivider />
-            <StatBox label="盈利" value={stats.wins} color="text-red-500" />
+            <StatBox label="盈利" value={stats.wins} color="var(--up)" />
             <SDivider />
-            <StatBox label="平均收益" value={`${stats.avgReturn >= 0 ? '+' : ''}${fmt(stats.avgReturn)}%`} color={stats.avgReturn >= 0 ? 'text-red-500' : 'text-green-600'} />
+            <StatBox label="平均收益" value={`${stats.avgReturn >= 0 ? '+' : ''}${fmt(stats.avgReturn)}%`} color={stats.avgReturn >= 0 ? 'var(--up)' : 'var(--down)'} />
             <SDivider />
-            <StatBox label="胜率" value={`${fmt(stats.winRate)}%`} color="text-amber-500" />
+            <StatBox label="胜率" value={`${fmt(stats.winRate)}%`} color="var(--text-muted)" />
           </div>
         </div>
       )}
 
-      {/* 工具栏 */}
       <ConsoleToolbar
         search={search} onSearchChange={setSearch}
         statusFilter={statusFilter} onStatusFilterChange={setStatusFilter}
@@ -391,9 +429,11 @@ function ConsoleTab() {
         batchBusy={batchBusy} hasTrackingSelected={hasTrackingSelected}
       />
 
-      {/* 表格 */}
       {loading && <div className="space-y-3">{[0,1,2].map(i => <div key={i} className="skeleton h-24 rounded-2xl"/>)}</div>}
-      {error && !loading && <div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm">{error}</div>}
+      {error && !loading && (
+        <div className="mb-4 p-3 rounded-xl text-sm"
+          style={{ background: 'var(--up-bg)', border: '1px solid var(--up)', color: 'var(--up)' }}>{error}</div>
+      )}
 
       {!loading && filteredRecs.length > 0 && (
         <DetailedTable
@@ -410,42 +450,41 @@ function ConsoleTab() {
       )}
 
       {!loading && filteredRecs.length === 0 && (
-        <div className="stock-card py-10 text-center">
-          <div className="text-4xl mb-2 opacity-60">{recs.length === 0 ? '📈' : '🔍'}</div>
-          <div className="text-sm text-text-muted">{recs.length === 0 ? '暂无历史推荐数据' : '没有匹配的记录'}</div>
-          {recs.length > 0 && <button onClick={() => { setSearch(''); setStatusFilter('all') }} className="mt-2 text-xs text-blue-600 hover:underline">清除筛选</button>}
+        <div className="card py-10 text-center">
+          <div className="text-4xl mb-2" style={{ opacity: 0.6 }}>{recs.length === 0 ? '📈' : '🔍'}</div>
+          <div className="text-sm" style={{ color: 'var(--text-muted)' }}>{recs.length === 0 ? '暂无历史推荐数据' : '没有匹配的记录'}</div>
+          {recs.length > 0 && <button onClick={() => { setSearch(''); setStatusFilter('all') }} style={{ marginTop: 8, fontSize: 12, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>清除筛选</button>}
         </div>
       )}
     </div>
   )
 }
 
-// ──────────────── 页面主体 ────────────────
-
 export default function SettingsPage() {
   const [tab, setTab] = useState<'settings' | 'console'>('settings')
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 fade-in-up">
-      {/* Hero */}
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 fade-in">
       <div className="text-center mb-6">
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-blue-700 mb-1 tracking-tight">
+        <h1 className="text-2xl sm:text-3xl font-extrabold mb-1 tracking-tight" style={{ color: 'var(--accent)' }}>
           {tab === 'settings' ? '设置' : '控制台'}
         </h1>
-        <p className="text-xs sm:text-sm text-text-secondary">
+        <p className="text-xs sm:text-sm" style={{ color: 'var(--text-secondary)' }}>
           {tab === 'settings' ? '数据生成 · 定时任务 · 系统配置' : '收益跟踪数据管理 · 增删改查'}
         </p>
       </div>
 
-      {/* Tab bar */}
       <div className="flex items-center justify-center mb-6">
-        <div className="inline-flex bg-gray-100 rounded-xl p-1 gap-1">
+        <div className="inline-flex p-1 gap-1" style={{ background: 'var(--bg-tag)', borderRadius: 12 }}>
           {TABS.map(t => (
             <button key={t.key} onClick={() => setTab(t.key)}
-              className={`flex items-center gap-1.5 px-5 py-2 rounded-lg text-sm font-semibold transition-all ${
-                tab === t.key ? 'bg-white text-blue-700 shadow-sm' : 'text-text-muted hover:text-text-primary'
-              }`}
-            >
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6, padding: '8px 20px',
+                borderRadius: 8, fontSize: 14, fontWeight: 600, border: 'none',
+                background: tab === t.key ? 'var(--bg-card)' : 'transparent',
+                color: tab === t.key ? 'var(--accent)' : 'var(--text-muted)',
+                cursor: 'pointer', transition: 'all .2s',
+              }}>
               <span>{t.icon}</span>
               <span>{t.label}</span>
             </button>
@@ -453,20 +492,17 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* Content */}
       {tab === 'settings' ? <SettingsTab /> : <ConsoleTab />}
     </div>
   )
 }
 
-// ──────────────── 子组件 ────────────────
-
 function Section({ icon, title, children }: { icon: string; title: string; children: React.ReactNode }) {
   return (
-    <div className="stock-card p-4 sm:p-5 mb-5 space-y-4">
-      <div className="flex items-center gap-2 pb-2 border-b border-border-default">
+    <div className="card p-4 sm:p-5 mb-5 space-y-4">
+      <div className="flex items-center gap-2 pb-2" style={{ borderBottom: '1px solid var(--border-default)' }}>
         <span className="text-base">{icon}</span>
-        <h2 className="text-base font-bold text-slate-800">{title}</h2>
+        <h2 className="text-base font-bold" style={{ color: 'var(--text-primary)' }}>{title}</h2>
       </div>
       {children}
     </div>
@@ -474,36 +510,45 @@ function Section({ icon, title, children }: { icon: string; title: string; child
 }
 
 function Msg({ msg }: { msg: MsgT }) {
-  const map = { success: 'bg-green-50 border border-green-200 text-green-700', error: 'bg-red-50 border border-red-200 text-red-600', warn: 'bg-amber-50 border border-amber-200 text-amber-700' }
-  return <div className={`rounded-xl px-3 py-2 text-xs font-medium ${map[msg.type]}`}>{msg.text}</div>
+  const styles: Record<string, React.CSSProperties> = {
+    success: { background: 'var(--down-bg)', border: '1px solid var(--down)', color: 'var(--down)' },
+    error: { background: 'var(--up-bg)', border: '1px solid var(--up)', color: 'var(--up)' },
+    warn: { background: 'var(--accent-bg)', border: '1px solid var(--border-accent)', color: 'var(--accent-light)' },
+  }
+  return <div style={{ borderRadius: 12, padding: '8px 12px', fontSize: 12, fontWeight: 500, ...styles[msg.type] }}>{msg.text}</div>
 }
 
 function StatusBadge({ s }: { s: StatusT }) {
-  const map: Record<StatusT, { cls: string; label: string }> = {
-    idle: { cls: 'bg-gray-100 text-gray-500', label: '就绪' },
-    pending: { cls: 'bg-blue-100 text-blue-700 animate-pulse', label: '启动中' },
-    running: { cls: 'bg-blue-100 text-blue-700 animate-pulse', label: '执行中' },
-    completed: { cls: 'bg-green-100 text-green-700', label: '已完成' },
-    failed: { cls: 'bg-red-100 text-red-600', label: '失败' },
+  const map: Record<StatusT, { style: React.CSSProperties; label: string }> = {
+    idle: { style: { background: 'var(--bg-tag)', color: 'var(--text-muted)' }, label: '就绪' },
+    pending: { style: { background: 'var(--accent-bg)', color: 'var(--accent-light)' }, label: '启动中' },
+    running: { style: { background: 'var(--accent-bg)', color: 'var(--accent-light)' }, label: '执行中' },
+    completed: { style: { background: 'var(--down-bg)', color: 'var(--down)' }, label: '已完成' },
+    failed: { style: { background: 'var(--up-bg)', color: 'var(--up)' }, label: '失败' },
   }
-  const { cls, label } = map[s]
-  return <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${cls}`}>{label}</span>
+  const { style, label } = map[s]
+  return <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 999, fontWeight: 600, ...style }}>{label}</span>
 }
 
 function PBar({ pct, label, cur, tot }: { pct: number; label: string; cur: number; tot: number }) {
   return (
     <div className="space-y-1">
-      {label && <div className="text-xs text-blue-600 truncate font-medium">{label}</div>}
-      <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
-        <div className="h-full rounded-full bg-gradient-to-r from-blue-400 to-blue-600 transition-all duration-500 ease-out" style={{ width: `${Math.max(pct, 2)}%` }} />
+      {label && <div style={{ fontSize: 12, color: 'var(--accent-light)', fontWeight: 500 }} className="truncate">{label}</div>}
+      <div style={{ width: '100%', background: 'var(--bg-tag)', borderRadius: 999, height: 8, overflow: 'hidden' }}>
+        <div style={{ height: '100%', borderRadius: 999, background: 'var(--accent)', width: `${Math.max(pct, 2)}%`, transition: 'all .5s ease-out' }} />
       </div>
-      {tot > 0 && <div className="flex justify-between text-[11px] text-text-muted"><span>步骤 {cur}/{tot}</span><span>{pct}%</span></div>}
+      {tot > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)' }}><span>步骤 {cur}/{tot}</span><span>{pct}%</span></div>}
     </div>
   )
 }
 
 function StatBox({ label, value, color }: { label: string; value: string | number; color: string }) {
-  return <div className="text-center"><div className={`text-lg sm:text-xl font-extrabold ${color}`}>{value}</div><div className="text-[10px] text-text-muted">{label}</div></div>
+  return (
+    <div className="text-center">
+      <div className="text-lg sm:text-xl font-extrabold" style={{ color }}>{value}</div>
+      <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{label}</div>
+    </div>
+  )
 }
 
-function SDivider() { return <div className="w-px h-8 bg-border-default" /> }
+function SDivider() { return <div className="w-px h-8" style={{ background: 'var(--border-default)' }} /> }

@@ -85,66 +85,82 @@ export default function AnalysisPage() {
 
   if (loading) {
     return (
-      <div className="max-w-6xl mx-auto px-6 py-8">
-        <div className="text-center text-gray-500">加载中...</div>
+      <div className="fade-in" style={{ maxWidth: 1100, margin: '0 auto', padding: '32px 24px' }}>
+        <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 14 }}>加载中...</div>
       </div>
     )
   }
 
   if (error) {
     return (
-      <div className="max-w-6xl mx-auto px-6 py-8">
-        <div className="text-center text-red-500">{error}</div>
+      <div className="fade-in" style={{ maxWidth: 1100, margin: '0 auto', padding: '32px 24px' }}>
+        <div style={{ textAlign: 'center', color: 'var(--up)', fontSize: 14 }}>{error}</div>
       </div>
     )
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-6 py-8">
-      <div className="flex items-center justify-between mb-8">
-        <h1 className="text-2xl font-bold">数据分析</h1>
-        <div className="flex gap-3">
+    <div className="fade-in" style={{ maxWidth: 1100, margin: '0 auto', padding: '32px 24px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-.03em', margin: 0, color: 'var(--text-primary)' }}>
+          数据<span style={{ color: 'var(--accent)' }}>分析</span>
+        </h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <input
             type="date"
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
-            className="border rounded px-3 py-1.5 text-sm"
+            style={{
+              background: 'var(--bg-input)',
+              border: '1px solid var(--border-default)',
+              borderRadius: 10,
+              padding: '6px 12px',
+              fontSize: 13,
+              color: 'var(--text-primary)',
+              outline: 'none',
+              fontFamily: 'inherit'
+            }}
           />
-          <span className="text-gray-400 self-center">至</span>
+          <span style={{ color: 'var(--text-dim)', fontSize: 13 }}>至</span>
           <input
             type="date"
             value={endDate}
             onChange={(e) => setEndDate(e.target.value)}
-            className="border rounded px-3 py-1.5 text-sm"
+            style={{
+              background: 'var(--bg-input)',
+              border: '1px solid var(--border-default)',
+              borderRadius: 10,
+              padding: '6px 12px',
+              fontSize: 13,
+              color: 'var(--text-primary)',
+              outline: 'none',
+              fontFamily: 'inherit'
+            }}
           />
         </div>
       </div>
 
-      {/* Tab 切换 */}
-      <div className="flex border-b mb-6">
+      <div className="nav-pills" style={{ marginBottom: 24 }}>
         {tabs.map((tab) => (
-          <button
+          <a
             key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={`px-5 py-2.5 text-sm font-medium -mb-px transition-colors ${
-              activeTab === tab.key
-                ? 'border-b-2 border-blue-600 text-blue-600'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
+            href="#"
+            onClick={(e) => { e.preventDefault(); setActiveTab(tab.key) }}
+            className={activeTab === tab.key ? 'active' : ''}
           >
             {tab.label}
-          </button>
+          </a>
         ))}
       </div>
 
-      {/* 基础分析 Tab */}
       {activeTab === 'basic' && (
         <>
-          {/* 关键洞察 */}
           {insights && insights.insights.length > 0 && (
-            <div className="mb-8">
-              <h2 className="text-lg font-semibold mb-4">关键洞察</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div style={{ marginBottom: 28 }}>
+              <div className="section-header">
+                <h3>关键洞察</h3>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
                 {insights.insights.map((insight, i) => (
                   <InsightCard key={i} {...insight} />
                 ))}
@@ -152,42 +168,47 @@ export default function AnalysisPage() {
             </div>
           )}
 
-          {/* 图表区域 */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-            {weekdayStats && <WeekdayChart data={weekdayStats.data} />}
-            {holdingStats && (
-              <HoldingPeriodChart
-                data={holdingStats.data}
-                optimalDays={holdingStats.optimal_period.days}
-              />
-            )}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 28 }}>
+            <div className="card" style={{ padding: 20 }}>
+              {weekdayStats && <WeekdayChart data={weekdayStats.data} />}
+            </div>
+            <div className="card" style={{ padding: 20 }}>
+              {holdingStats && (
+                <HoldingPeriodChart
+                  data={holdingStats.data}
+                  optimalDays={holdingStats.optimal_period.days}
+                />
+              )}
+            </div>
           </div>
 
-          {/* 收益分布 */}
           {distribution && (
-            <div className="mb-8">
+            <div className="card" style={{ padding: 20, marginBottom: 28 }}>
               <ReturnDistribution data={distribution} />
             </div>
           )}
 
-          {/* 统计摘要 */}
           {weekdayStats && (
-            <div className="bg-gray-50 rounded-lg p-4 text-sm text-gray-600">
-              <p>共分析 <strong>{weekdayStats.summary.total_recommendations}</strong> 条历史推荐数据</p>
-              <p>最佳推荐日：<strong>{weekdayStats.summary.best_weekday}</strong> | 最差推荐日：<strong>{weekdayStats.summary.worst_weekday}</strong></p>
+            <div className="card" style={{ padding: 14, fontSize: 13, color: 'var(--text-secondary)' }}>
+              <p style={{ margin: 0 }}>共分析 <strong style={{ color: 'var(--text-primary)' }}>{weekdayStats.summary.total_recommendations}</strong> 条历史推荐数据</p>
+              <p style={{ margin: '4px 0 0' }}>
+                最佳推荐日：<strong style={{ color: 'var(--up)' }}>{weekdayStats.summary.best_weekday}</strong>
+                <span style={{ margin: '0 8px', color: 'var(--text-dim)' }}>|</span>
+                最差推荐日：<strong style={{ color: 'var(--down)' }}>{weekdayStats.summary.worst_weekday}</strong>
+              </p>
             </div>
           )}
         </>
       )}
 
-      {/* 扩展分析 Tab */}
       {activeTab === 'extended' && (
         <>
-          {/* 波动性洞察 */}
           {volatilityStats && volatilityStats.summary && (
-            <div className="mb-8">
-              <h2 className="text-lg font-semibold mb-4">波动性洞察</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div style={{ marginBottom: 28 }}>
+              <div className="section-header">
+                <h3>波动性洞察</h3>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
                 <InsightCard
                   icon="📊"
                   title="风险等级"
@@ -207,11 +228,12 @@ export default function AnalysisPage() {
             </div>
           )}
 
-          {/* 成功率趋势 */}
           {successTrend && (
-            <div className="mb-8">
-              <h2 className="text-lg font-semibold mb-4">成功率趋势</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+            <div style={{ marginBottom: 28 }}>
+              <div className="section-header">
+                <h3>成功率趋势</h3>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12, marginBottom: 16 }}>
                 <InsightCard
                   icon="📈"
                   title="整体趋势"
@@ -226,17 +248,24 @@ export default function AnalysisPage() {
             </div>
           )}
 
-          {/* 图表区域 */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-            {priceRangeStats && <PriceRangeChart data={priceRangeStats.data} />}
-            {stockTypeStats && <StockTypeChart data={stockTypeStats.data} />}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 28 }}>
+            <div className="card" style={{ padding: 20 }}>
+              {priceRangeStats && <PriceRangeChart data={priceRangeStats.data} />}
+            </div>
+            <div className="card" style={{ padding: 20 }}>
+              {stockTypeStats && <StockTypeChart data={stockTypeStats.data} />}
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-            {volatilityStats && <VolatilityChart data={volatilityStats.data} />}
-            {successTrend && (
-              <SuccessTrendChart data={successTrend.data} trend={successTrend.summary.trend_direction} />
-            )}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 28 }}>
+            <div className="card" style={{ padding: 20 }}>
+              {volatilityStats && <VolatilityChart data={volatilityStats.data} />}
+            </div>
+            <div className="card" style={{ padding: 20 }}>
+              {successTrend && (
+                <SuccessTrendChart data={successTrend.data} trend={successTrend.summary.trend_direction} />
+              )}
+            </div>
           </div>
         </>
       )}

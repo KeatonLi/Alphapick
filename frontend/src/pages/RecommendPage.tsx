@@ -6,14 +6,6 @@ interface Stats { total: number; completed: number; win_count: number; win_rate:
 
 function fmt(n: number, d = 2) { return n.toFixed(d) }
 
-const rankBadges = [
-  'bg-gradient-to-br from-amber-400 to-amber-600 text-white shadow-lg shadow-amber-200',
-  'bg-gradient-to-br from-slate-300 to-slate-500 text-white',
-  'bg-gradient-to-br from-orange-400 to-orange-600 text-white',
-  'bg-gradient-to-br from-blue-400 to-blue-600 text-white',
-  'bg-gradient-to-br from-purple-400 to-purple-600 text-white',
-]
-
 export default function RecommendPage() {
   const today = new Date().toISOString().split('T')[0]
   const [selectedDate, setSelectedDate] = useState(today)
@@ -51,106 +43,145 @@ export default function RecommendPage() {
   const canNext = dateIdx >= 0 && dateIdx < tradeDates.length - 1
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-      {/* Hero */}
-      <div className="text-center mb-6 fade-in-up">
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-blue-700 mb-1 tracking-tight">
-          量化<span className="text-amber-500">推荐</span>
-        </h1>
-        <p className="text-xs sm:text-sm text-text-secondary">热点筛选 × 消息面分析 → AI 精选</p>
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 fade-in">
+      <div className="section-header">
+        <div>
+          <h2 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>量化推荐</h2>
+          <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 2 }}>热点筛选 × 消息面分析 → AI 精选</p>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button onClick={() => setSelectedDate(tradeDates[dateIdx + 1])} disabled={!canNext}
+            style={{ padding: '6px 10px', borderRadius: 10, border: '1px solid var(--border-default)', background: 'var(--bg-card)', color: 'var(--text-secondary)', cursor: canNext ? 'pointer' : 'not-allowed', opacity: canNext ? 1 : 0.3, display: 'flex', alignItems: 'center' }}>
+            <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/></svg>
+          </button>
+          <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)}
+            max={today} min={tradeDates.length ? tradeDates[tradeDates.length - 1] : ''}
+            style={{ appearance: 'none', background: 'var(--bg-card)', border: '1px solid var(--border-default)', borderRadius: 10, padding: '6px 12px', color: 'var(--text-primary)', fontFamily: "'JetBrains Mono', monospace", fontSize: 13, textAlign: 'center', outline: 'none', width: 140 }}/>
+          <button onClick={() => setSelectedDate(tradeDates[dateIdx - 1])} disabled={!canPrev}
+            style={{ padding: '6px 10px', borderRadius: 10, border: '1px solid var(--border-default)', background: 'var(--bg-card)', color: 'var(--text-secondary)', cursor: canPrev ? 'pointer' : 'not-allowed', opacity: canPrev ? 1 : 0.3, display: 'flex', alignItems: 'center' }}>
+            <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/></svg>
+          </button>
+          <button onClick={loadData}
+            style={{ padding: '6px 10px', borderRadius: 10, border: '1px solid var(--accent-bg)', background: 'var(--accent-bg)', color: 'var(--accent)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+            <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+          </button>
+        </div>
       </div>
 
-      {/* Date selector */}
-      <div className="flex items-center justify-center gap-2 mb-5">
-        <button onClick={() => setSelectedDate(tradeDates[dateIdx + 1])} disabled={!canNext}
-          className="p-1.5 rounded-lg bg-white border border-border-default text-text-secondary hover:text-blue-600 disabled:opacity-25 transition-all shadow-sm">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/></svg>
-        </button>
-        <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)}
-          max={today} min={tradeDates.length ? tradeDates[tradeDates.length - 1] : ''}
-          className="appearance-none bg-white border border-border-default text-text-primary text-center px-3 py-1.5 rounded-xl font-mono text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all shadow-sm w-36"/>
-        <button onClick={() => setSelectedDate(tradeDates[dateIdx - 1])} disabled={!canPrev}
-          className="p-1.5 rounded-lg bg-white border border-border-default text-text-secondary hover:text-blue-600 disabled:opacity-25 transition-all shadow-sm">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/></svg>
-        </button>
-        <span className="text-xs text-text-muted bg-green-50 px-2.5 py-1 rounded-full border border-green-200 font-mono">{selectedDate}</span>
-        <button onClick={loadData}
-          className="p-1.5 rounded-lg bg-blue-50 border border-blue-200 text-blue-600 hover:bg-blue-100 transition-all shadow-sm">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-        </button>
-      </div>
-
-      {/* Stats */}
       {!loading && stats && (
-        <div className="space-y-2.5 mb-5">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-            {[
-              { label: '累计推荐', value: stats.total, color: 'from-blue-50 to-blue-100', border: 'border-blue-200', text: 'text-blue-600' },
-              { label: '已完结', value: stats.completed, color: 'from-slate-50 to-slate-100', border: 'border-slate-200', text: 'text-slate-600' },
-              { label: '胜率', value: `${stats.win_rate}%`, color: 'from-amber-50 to-amber-100', border: 'border-amber-200', text: 'text-amber-600' },
-              { label: '平均收益', value: `${stats.avg_return}%`, color: stats.avg_return >= 0 ? 'from-red-50 to-red-100' : 'from-green-50 to-green-100', border: stats.avg_return >= 0 ? 'border-red-200' : 'border-green-200', text: stats.avg_return >= 0 ? 'text-red-600' : 'text-green-600' },
-            ].map((s, i) => (
-              <div key={i} className={`stock-card p-3 text-center bg-gradient-to-br ${s.color} border ${s.border}`}>
-                <div className={`text-lg sm:text-xl font-extrabold ${s.text} mb-0.5`}>{s.value}</div>
-                <div className="text-[11px] text-text-muted">{s.label}</div>
+        <div className="card" style={{ padding: '16px 20px', marginBottom: 16 }}>
+          <div className="section-header" style={{ marginBottom: 12 }}>
+            <h3>收益统计</h3>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: 12 }}>
+            <div style={{ textAlign: 'center' }}>
+              <div className="mono" style={{ fontSize: 20, fontWeight: 700, color: 'var(--accent)' }}>{stats.total}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>累计推荐</div>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <div className="mono" style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary)' }}>{stats.completed}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>已完结</div>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <div className="mono" style={{ fontSize: 20, fontWeight: 700, color: 'var(--accent)' }}>{stats.win_rate}%</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>胜率</div>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <div className="mono" style={{ fontSize: 20, fontWeight: 700, color: stats.avg_return >= 0 ? 'var(--up)' : 'var(--down)' }}>{stats.avg_return >= 0 ? '+' : ''}{stats.avg_return}%</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>平均收益</div>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <div className="mono" style={{ fontSize: 20, fontWeight: 700, color: 'var(--up)' }}>+{stats.avg_max_gain}%</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>平均最高收益</div>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <div className="mono" style={{ fontSize: 20, fontWeight: 700, color: 'var(--down)' }}>{stats.avg_max_drawdown}%</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>平均最大回撤</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {loading && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
+          <div className="section-header"><h3>今日推荐</h3></div>
+          {[0,1,2,3,4].map(i => <div key={i} className="skeleton" style={{ height: 72 }}/>)}
+        </div>
+      )}
+
+      {error && !loading && (
+        <div className="card" style={{ padding: '12px 16px', marginBottom: 16, borderColor: 'var(--up-bg)' }}>
+          <div style={{ color: 'var(--up)', fontSize: 13 }}>{error}</div>
+        </div>
+      )}
+
+      {!loading && recs.length === 0 && !error && (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 20px' }}>
+          <div style={{ fontSize: 40, marginBottom: 12, opacity: 0.4 }}>📋</div>
+          <div style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 4 }}>该日期暂无量化推荐</div>
+          <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>
+            请先前往 <a href="/settings" style={{ color: 'var(--accent)', textDecoration: 'underline' }}>设置</a> 页面生成推荐
+          </div>
+        </div>
+      )}
+
+      {!loading && recs.length > 0 && (
+        <>
+          <div className="section-header">
+            <h3>今日推荐</h3>
+            <span className="badge badge-accent">共 {recs.length} 只</span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24 }}>
+            {recs.map((rec, idx) => (
+              <div key={idx} className="card" style={{ padding: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{
+                    width: 32, height: 32, borderRadius: 10,
+                    background: 'var(--accent-bg)', color: 'var(--accent)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontWeight: 700, fontSize: 13, fontFamily: "'JetBrains Mono', monospace", flexShrink: 0
+                  }}>
+                    {String(idx + 1).padStart(2, '0')}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontWeight: 600, fontSize: 15, color: 'var(--text-primary)' }}>{rec.stock_name}</span>
+                      <span className="badge" style={{ fontSize: 10 }}>{rec.stock_code}</span>
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4, lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                      {rec.reason || '量化模型筛选结果'}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <div className="mono" style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>{fmt(rec.recommend_price)}</div>
+                    <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 1 }}>推荐价格</div>
+                  </div>
+                </div>
               </div>
             ))}
           </div>
-          <div className="grid grid-cols-2 gap-2.5">
-            <div className="stock-card p-3 text-center bg-gradient-to-br from-red-50 to-red-100/50 border border-red-200">
-              <div className="text-lg font-extrabold text-red-500 mb-0.5">+{stats.avg_max_gain}%</div>
-              <div className="text-[11px] text-text-muted">平均最高收益</div>
-            </div>
-            <div className="stock-card p-3 text-center bg-gradient-to-br from-green-50 to-green-100/50 border border-green-200">
-              <div className="text-lg font-extrabold text-green-600 mb-0.5">{stats.avg_max_drawdown}%</div>
-              <div className="text-[11px] text-text-muted">平均最大回撤</div>
-            </div>
-          </div>
-        </div>
-      )}
 
-      {/* Loading */}
-      {loading && (
-        <div className="space-y-3">{[0,1,2,3,4].map(i => <div key={i} className="skeleton h-20 rounded-2xl"/>)}</div>
-      )}
-
-      {/* Error */}
-      {error && !loading && (
-        <div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm">{error}</div>
-      )}
-
-      {/* Empty */}
-      {!loading && recs.length === 0 && !error && (
-        <div className="text-center py-14 fade-in-up">
-          <div className="text-5xl mb-3 opacity-60">📋</div>
-          <div className="text-sm text-text-muted">该日期暂无量化推荐</div>
-          <div className="text-xs text-text-muted mt-1">请先前往「<a href="/settings" className="text-blue-500 hover:underline">设置</a>」页面生成推荐</div>
-        </div>
-      )}
-
-      {/* Recommendations */}
-      {!loading && recs.length > 0 && (
-        <div className="space-y-3">
-          {recs.map((rec, idx) => (
-            <div key={idx} className="stock-card p-4 sm:p-5 hover:shadow-lg hover:shadow-blue-100/50 transition-all duration-300 fade-in-up group"
-              style={{ animationDelay: `${idx * 80}ms` }}>
-              <div className="flex items-start gap-3 sm:gap-4">
-                <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold shrink-0 ${rankBadges[idx] || 'bg-gray-400 text-white'}`}>{idx + 1}</div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2.5 mb-1">
-                    <span className="text-base sm:text-lg font-bold text-blue-800 group-hover:text-blue-600 transition-colors">{rec.stock_name}</span>
-                    <span className="text-[11px] text-text-muted font-mono bg-blue-50 px-2 py-0.5 rounded">{rec.stock_code}</span>
-                  </div>
-                  <p className="text-xs sm:text-sm text-text-secondary leading-relaxed line-clamp-2">{rec.reason || '量化模型筛选结果'}</p>
-                </div>
-                <div className="text-right shrink-0">
-                  <div className="text-xl sm:text-2xl font-bold text-amber-500 font-mono tracking-tight">{fmt(rec.recommend_price)}</div>
-                  <div className="text-[11px] text-text-muted mt-0.5">推荐价格</div>
-                </div>
+          <div className="card" style={{ padding: '16px 20px' }}>
+            <div className="section-header"><h3>筛选流程</h3></div>
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+              <div style={{ flex: 1, minWidth: 140, padding: 12, borderRadius: 12, background: 'var(--accent-bg)' }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent)', marginBottom: 4 }}>STEP 1</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 }}>热点筛选</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>全市场 ~5000 只 → 热点板块 500 只</div>
+              </div>
+              <div style={{ flex: 1, minWidth: 140, padding: 12, borderRadius: 12, background: 'var(--accent-bg)' }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent)', marginBottom: 4 }}>STEP 2</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 }}>技术筛选</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>MA5 &gt; MA10 &gt; MA20 多头排列 → ~50 只</div>
+              </div>
+              <div style={{ flex: 1, minWidth: 140, padding: 12, borderRadius: 12, background: 'var(--accent-bg)' }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent)', marginBottom: 4 }}>STEP 3</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 }}>AI 精选</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>LLM 综合评估 → 最终 5 只推荐</div>
               </div>
             </div>
-          ))}
-        </div>
+          </div>
+        </>
       )}
     </div>
   )
