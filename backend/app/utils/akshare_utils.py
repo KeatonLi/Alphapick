@@ -398,3 +398,67 @@ def get_trade_dates_for_frontend(days: int = 365) -> dict:
         return {"success": True, "data": dates}
     except Exception as e:
         return {"success": False, "error": str(e)}
+
+
+# ─── 沪深港通资金流 ────────────────────────────────────────────────────
+
+async def get_hsgt_flow() -> dict:
+    """获取沪深港通（北向）资金流数据
+
+    返回沪股通和深股通的当日及近30日历史数据，用于市场报告。
+
+    Returns:
+        {"success": True, "data": {"today": {...}, "history": [...]}}
+    """
+    import akshare as ak
+
+    try:
+        loop = asyncio.get_event_loop()
+        sh_df = await loop.run_in_executor(
+            None, lambda: ak.stock_hsgt_hist_em(symbol="沪股通")
+        )
+        sz_df = await loop.run_in_executor(
+            None, lambda: ak.stock_hsgt_hist_em(symbol="深股通")
+        )
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+    if sh_df is None or sh_df.empty or sz_df is None or sz_df.empty:
+        return {"success": False, "error": "沪深港通数据为空"}
+
+    # 最新一天数据
+    sh_latest = sh_df.tail(1).iloc[0]
+    sz_latest = sz_df.tail(1).iloc[0]
+
+    today_flow = {
+        "date": str(sh_latest["日期"]),
+        "sh_net_buy": round(float(sh_latest["当日成交净买额"]), 2),
+        "sh_total_inflow": round(float(sh_latest["当日资金流入"]), 2),
+        "sh_cumulative": round(float(sh_latest["历史累计净买额"]), 2),
+        "sz_net_buy": round(float(sz_latest["当日成交净买额"]), 2),
+        "sz_total_inflow": round(float(sz_latest["当日资金流入"]), 2),
+        "sz_cumulative": round(float(sz_latest["历史累计净买额"]), 2),
+        "total_net_buy": round(float(sh_latest["当日成交净买额"]) + float(sz_latest["当日成交净买额"]), 2),
+    }
+
+    # 近30日历史趋势
+    sh_hist = sh_df.tail(30)
+    sz_hist = sz_df.tail(30)
+    history = []
+    for i in range(len(sh_hist)):
+        sh_row = sh_hist.iloc[i]
+        sz_row = sz_hist.iloc[i] if i < len(sz_hist) else None
+        entry = {
+            "date": str(sh_row["日期"]),
+            "sh_net_buy": round(float(sh_row["当日成交净买额"]), 2),
+            "sz_net_buy": round(float(sz_row["当日成交净买额"]), 2) if sz_row is not None else 0,
+        }
+        history.append(entry)
+
+    return {
+        "success": True,
+        "data": {
+            "today": today_flow,
+            "history": history,
+        }
+    }
