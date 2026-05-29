@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 import json
 from typing import Optional
 
@@ -62,6 +62,49 @@ async def trade_dates(days: int = Query(365)):
     """获取交易日列表（用于日期选择器）"""
     from app.utils.akshare_utils import get_trade_dates_for_frontend
     return get_trade_dates_for_frontend(days=days)
+
+
+@router.get("/hsgt-history")
+async def hsgt_history(days: int = Query(60, description="历史天数"), db: Session = Depends(get_db)):
+    """获取沪深港通历史趋势数据"""
+    from app.utils.akshare_utils import get_hsgt_flow
+
+    # 实时拉取
+    result = await get_hsgt_flow()
+    if result["success"]:
+        return {
+            "success": True,
+            "data": result["data"],
+        }
+
+    # fallback: 从 MarketReport 缓存读取
+    since = date.today() - timedelta(days=days)
+    reports = (
+        db.query(MarketReport.report_date, MarketReport.hsgt_flow)
+        .filter(MarketReport.report_date >= since, MarketReport.hsgt_flow.isnot(None))
+        .order_by(MarketReport.report_date.desc())
+        .all()
+    )
+
+    history = []
+    for r in reports:
+        try:
+            flow = json.loads(r.hsgt_flow)
+            if flow and "today" in flow:
+                history.append({
+                    "date": str(r.report_date),
+                    **flow["today"],
+                })
+        except (json.JSONDecodeError, TypeError):
+            continue
+
+    return {
+        "success": True,
+        "data": {
+            "today": history[0] if history else None,
+            "history": history,
+        },
+    }
 
 
 # ─── 调外部 API（AKShare / AI），限流 ─────────────────────────────────────
