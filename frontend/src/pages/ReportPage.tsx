@@ -3,8 +3,34 @@ import { apiGet } from '../services/api'
 
 interface IndexData { name: string; code: string; close: number; change_pct: number }
 interface SectorData { name: string; change_pct: number; leading_stock: string; driver?: string }
+
+interface HsgtFlow {
+  date: string
+  sh_net_buy: number
+  sh_total_inflow: number
+  sh_cumulative: number
+  sz_net_buy: number
+  sz_total_inflow: number
+  sz_cumulative: number
+  total_net_buy: number
+}
+
+interface SectorFull extends SectorData {
+  total_volume?: number
+  total_amount?: number
+  net_inflow?: number
+  up_count?: number
+  down_count?: number
+}
+
 interface ReportData {
-  date: string; market_summary: string; index_data: IndexData[]; hot_sectors: SectorData[]; ai_report: string
+  date: string
+  market_summary: string
+  index_data: IndexData[]
+  hot_sectors: SectorData[]
+  sectors_full: SectorFull[]
+  hsgt_flow: HsgtFlow | null
+  ai_report: string
 }
 
 function fmt(n: number, d = 2) { return n.toFixed(d) }
@@ -134,6 +160,44 @@ export default function ReportPage() {
             </div>
           )}
 
+          {/* 北向资金 */}
+          {report.hsgt_flow && (
+            <div className="stock-card p-4 sm:p-5">
+              <div className="text-xs font-semibold text-text-muted mb-3 flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
+                北向资金（沪深港通）
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="text-center p-3 bg-purple-50/50 rounded-xl">
+                  <div className="text-[11px] text-text-muted mb-1">今日净买入</div>
+                  <div className="text-lg font-extrabold text-purple-700 font-mono">
+                    {report.hsgt_flow.total_net_buy > 0 ? '+' : ''}{report.hsgt_flow.total_net_buy.toFixed(1)}亿
+                  </div>
+                </div>
+                <div className="text-center p-3 bg-blue-50/50 rounded-xl">
+                  <div className="text-[11px] text-text-muted mb-1">沪股通</div>
+                  <div className="text-base font-bold text-blue-700 font-mono">
+                    {report.hsgt_flow.sh_net_buy > 0 ? '+' : ''}{report.hsgt_flow.sh_net_buy.toFixed(1)}亿
+                  </div>
+                  <div className="text-[10px] text-text-muted mt-0.5">流入 {report.hsgt_flow.sh_total_inflow.toFixed(0)}亿</div>
+                </div>
+                <div className="text-center p-3 bg-pink-50/50 rounded-xl">
+                  <div className="text-[11px] text-text-muted mb-1">深股通</div>
+                  <div className="text-base font-bold text-pink-700 font-mono">
+                    {report.hsgt_flow.sz_net_buy > 0 ? '+' : ''}{report.hsgt_flow.sz_net_buy.toFixed(1)}亿
+                  </div>
+                  <div className="text-[10px] text-text-muted mt-0.5">流入 {report.hsgt_flow.sz_total_inflow.toFixed(0)}亿</div>
+                </div>
+                <div className="text-center p-3 bg-green-50/50 rounded-xl">
+                  <div className="text-[11px] text-text-muted mb-1">累计净买入</div>
+                  <div className="text-sm font-bold text-green-700 font-mono">
+                    {(report.hsgt_flow.sh_cumulative + report.hsgt_flow.sz_cumulative).toFixed(0)}亿
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Hot sectors */}
           {report.hot_sectors?.length > 0 && (
             <div className="stock-card p-4 sm:p-5">
@@ -155,6 +219,53 @@ export default function ReportPage() {
                     </div>
                   )
                 })}
+              </div>
+            </div>
+          )}
+
+          {/* 行业全景（全量板块） */}
+          {report.sectors_full?.length > 0 && (
+            <div className="stock-card p-4 sm:p-5">
+              <div className="text-xs font-semibold text-text-muted mb-3 flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                行业全景（{report.sectors_full.length} 个行业板块）
+              </div>
+              <div className="overflow-x-auto -mx-2">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-text-muted border-b border-border-default/60">
+                      <th className="text-left py-2 px-2 font-medium">排名</th>
+                      <th className="text-left py-2 px-2 font-medium">板块</th>
+                      <th className="text-right py-2 px-2 font-medium">涨跌幅</th>
+                      <th className="text-right py-2 px-2 font-medium hidden sm:table-cell">净流入(亿)</th>
+                      <th className="text-right py-2 px-2 font-medium hidden sm:table-cell">上涨/下跌</th>
+                      <th className="text-left py-2 px-2 font-medium hidden md:table-cell">领涨股</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {report.sectors_full.map((s, i) => {
+                      const up = s.change_pct >= 0
+                      return (
+                        <tr key={i} className="border-b border-border-default/30 hover:bg-blue-50/40 transition-colors">
+                          <td className="py-2 px-2 text-text-muted font-mono">{i + 1}</td>
+                          <td className="py-2 px-2 font-medium text-blue-800">{s.name}</td>
+                          <td className={`py-2 px-2 text-right font-mono font-bold ${up ? 'stock-up' : 'stock-down'}`}>
+                            {fmtRate(s.change_pct)}
+                          </td>
+                          <td className="py-2 px-2 text-right hidden sm:table-cell font-mono text-text-secondary">
+                            {s.net_inflow != null ? s.net_inflow.toFixed(1) : '-'}
+                          </td>
+                          <td className="py-2 px-2 text-right hidden sm:table-cell text-text-secondary">
+                            {s.up_count != null ? `${s.up_count}/${s.down_count}` : '-'}
+                          </td>
+                          <td className="py-2 px-2 hidden md:table-cell text-text-secondary truncate max-w-28">
+                            {s.leading_stock || '-'}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
