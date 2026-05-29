@@ -8,7 +8,7 @@ import numpy as np
 import requests
 from sqlalchemy.orm import Session
 
-from app.utils.akshare_utils import get_market_index, get_hot_sectors, _to_tencent_code
+from app.utils.akshare_utils import get_market_index, get_hot_sectors, _to_tencent_code, get_hsgt_flow
 from app.utils.ai_client import chat
 from app.models import MarketReport
 from app.prompts import REPORT_SYSTEM_PROMPT, REPORT_OUTPUT_FORMAT
@@ -36,6 +36,24 @@ async def generate_daily_report(db: Session, report_date: Optional[date] = None)
 
     index_data = index_result["data"]
     sectors_data = sectors_result["data"]
+
+    # ── 全量板块数据 ─────────────────────────────────────────────
+    sectors_full_data = []
+    try:
+        full_sectors_result = await get_hot_sectors(top_n=200)
+        if full_sectors_result["success"]:
+            sectors_full_data = full_sectors_result["data"]
+    except Exception:
+        pass
+
+    # ── 沪深港通资金流 ──────────────────────────────────────────
+    hsgt_data = None
+    try:
+        hsgt_result = await get_hsgt_flow()
+        if hsgt_result["success"]:
+            hsgt_data = hsgt_result["data"]
+    except Exception:
+        pass
 
     # ── 涨停板池（替代原来的全市场分页） ──────────────────────────────────
     today_limit_up_codes = "[]"
@@ -129,6 +147,8 @@ async def generate_daily_report(db: Session, report_date: Optional[date] = None)
         existing.ai_report = ai_report_text
         existing.yesterday_limit_ups = today_limit_up_codes
         existing.yesterday_limit_ups_performance = yesterday_limit_ups_perf
+        existing.sectors_full = json.dumps(sectors_full_data, ensure_ascii=False) if sectors_full_data else None
+        existing.hsgt_flow = json.dumps(hsgt_data, ensure_ascii=False) if hsgt_data else None
         target_report = existing
     else:
         target_report = MarketReport(
@@ -139,6 +159,8 @@ async def generate_daily_report(db: Session, report_date: Optional[date] = None)
             ai_report=ai_report_text,
             yesterday_limit_ups=today_limit_up_codes,
             yesterday_limit_ups_performance=yesterday_limit_ups_perf,
+            sectors_full=json.dumps(sectors_full_data, ensure_ascii=False) if sectors_full_data else None,
+            hsgt_flow=json.dumps(hsgt_data, ensure_ascii=False) if hsgt_data else None,
         )
         db.add(target_report)
     db.commit()
@@ -162,6 +184,8 @@ def get_report_by_date(db: Session, report_date: date) -> dict:
             "hot_sectors": json.loads(report.hot_sectors) if report.hot_sectors else [],
             "ai_report": report.ai_report,
             "html_report_path": report.html_report_path,
+            "hsgt_flow": json.loads(report.hsgt_flow) if report.hsgt_flow else None,
+            "sectors_full": json.loads(report.sectors_full) if report.sectors_full else [],
         },
     }
 
@@ -184,6 +208,8 @@ def get_report_history(db: Session, limit: int = 7) -> dict:
                 "hot_sectors": json.loads(r.hot_sectors) if r.hot_sectors else [],
                 "ai_report": r.ai_report,
                 "html_report_path": r.html_report_path,
+                "hsgt_flow": json.loads(r.hsgt_flow) if r.hsgt_flow else None,
+                "sectors_full": json.loads(r.sectors_full) if r.sectors_full else [],
             }
             for r in reversed(reports)
         ],
