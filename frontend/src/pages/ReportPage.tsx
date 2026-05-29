@@ -36,16 +36,12 @@ interface ReportData {
 function fmt(n: number, d = 2) { return n.toFixed(d) }
 function fmtRate(n: number) { return (n >= 0 ? '+' : '') + fmt(n) + '%' }
 
-function Skeleton({ className }: { className?: string }) {
-  return <div className={`skeleton rounded-2xl ${className || 'h-36'}`} />
-}
-
-function EmptyState({ icon, text, action }: { icon: string; text: string; action?: string }) {
+function SparkBar({ value }: { value: number }) {
+  const w = Math.min(Math.abs(value) * 3, 100)
+  const up = value >= 0
   return (
-    <div className="text-center py-16 fade-in-up">
-      <div className="text-5xl mb-4 opacity-60">{icon}</div>
-      <div className="text-sm text-text-muted">{text}</div>
-      {action && <div className="text-xs text-text-muted mt-1.5">{action}</div>}
+    <div style={{ width: '100%', height: 4, background: 'var(--bg-tag)', borderRadius: 2, overflow: 'hidden', marginTop: 10 }}>
+      <div style={{ width: `${w}%`, height: '100%', borderRadius: 2, background: up ? 'var(--up)' : 'var(--down)', marginLeft: up ? 0 : `${100 - w}%` }} />
     </div>
   )
 }
@@ -77,188 +73,196 @@ export default function ReportPage() {
   const dateIdx = tradeDates.indexOf(selectedDate)
   const canPrev = dateIdx > 0
   const canNext = dateIdx >= 0 && dateIdx < tradeDates.length - 1
+  const pillDates = tradeDates.slice(0, 5)
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-      {/* Hero */}
-      <div className="text-center mb-6 fade-in-up">
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-blue-700 mb-1 tracking-tight">
-          每日<span className="text-amber-500">市场报告</span>
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 fade-in">
+      <div className="text-center mb-6">
+        <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 4, letterSpacing: '-.03em', color: 'var(--text-primary)' }}>
+          每日市场报告
         </h1>
-        <p className="text-xs sm:text-sm text-text-secondary">三大指数 · 热门板块 · AI 市场分析</p>
+        <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>三大指数 · 热门板块 · AI 市场分析</p>
       </div>
 
-      {/* Date selector */}
-      <div className="flex items-center justify-center gap-2 mb-6">
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
         <button onClick={() => setSelectedDate(tradeDates[dateIdx + 1])} disabled={!canNext}
-          className="p-1.5 rounded-lg bg-white border border-border-default text-text-secondary hover:text-blue-600 disabled:opacity-25 transition-all shadow-sm">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/></svg>
+          style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border-default)', background: 'var(--bg-card)', color: canNext ? 'var(--text-secondary)' : 'var(--text-dim)', cursor: canNext ? 'pointer' : 'default', display: 'flex', alignItems: 'center', transition: 'all .2s' }}>
+          <svg width={16} height={16} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/></svg>
         </button>
-        <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)}
-          max={today} min={tradeDates.length ? tradeDates[tradeDates.length - 1] : ''}
-          className="appearance-none bg-white border border-border-default text-text-primary text-center px-3 py-1.5 rounded-xl font-mono text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all shadow-sm w-36"/>
+        <div className="nav-pills">
+          {pillDates.map(d => (
+            <a key={d} href="#" onClick={e => { e.preventDefault(); setSelectedDate(d) }}
+              className={d === selectedDate ? 'active' : ''}>{d.slice(5)}</a>
+          ))}
+        </div>
         <button onClick={() => setSelectedDate(tradeDates[dateIdx - 1])} disabled={!canPrev}
-          className="p-1.5 rounded-lg bg-white border border-border-default text-text-secondary hover:text-blue-600 disabled:opacity-25 transition-all shadow-sm">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/></svg>
+          style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border-default)', background: 'var(--bg-card)', color: canPrev ? 'var(--text-secondary)' : 'var(--text-dim)', cursor: canPrev ? 'pointer' : 'default', display: 'flex', alignItems: 'center', transition: 'all .2s' }}>
+          <svg width={16} height={16} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/></svg>
         </button>
-        <span className="text-xs text-text-muted bg-green-50 px-2.5 py-1 rounded-full border border-green-200 font-mono">{selectedDate}</span>
-        <button onClick={() => loadReport(selectedDate)}
-          className="p-1.5 rounded-lg bg-blue-50 border border-blue-200 text-blue-600 hover:bg-blue-100 transition-all shadow-sm">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-        </button>
+        <div style={{ display: 'flex', gap: 4 }}>
+          <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)}
+            max={today}
+            style={{ background: 'var(--bg-input)', border: '1px solid var(--border-default)', color: 'var(--text-primary)', borderRadius: 8, padding: '5px 10px', fontFamily: "'JetBrains Mono', monospace", fontSize: 12, outline: 'none', width: 130 }} />
+          <button onClick={() => loadReport(selectedDate)}
+            style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid var(--accent)', background: 'var(--accent-bg)', color: 'var(--accent)', cursor: 'pointer', display: 'flex', alignItems: 'center', transition: 'all .2s' }}>
+            <svg width={16} height={16} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+          </button>
+        </div>
       </div>
 
-      {/* Loading */}
       {loading && (
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {[0,1,2].map(i => <Skeleton key={i} className="h-28" />)}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+            {[0,1,2].map(i => <div key={i} className="skeleton" style={{ height: 130 }} />)}
           </div>
-          <Skeleton className="h-48" />
+          <div className="skeleton" style={{ height: 200 }} />
+          <div className="skeleton" style={{ height: 180 }} />
         </div>
       )}
 
-      {/* Empty */}
       {!loading && !report && (
-        <EmptyState icon="📋" text="暂无市场报告" action="请前往「一键生成」页面生成报告" />
+        <div style={{ textAlign: 'center', paddingTop: 80, paddingBottom: 80 }}>
+          <div style={{ fontSize: 48, opacity: 0.6, marginBottom: 16, lineHeight: 1 }}>📋</div>
+          <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>暂无市场报告</div>
+          <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 6 }}>请前往「一键生成」页面生成报告</div>
+        </div>
       )}
 
-      {/* Content */}
       {!loading && report && (
-        <div className="space-y-4 fade-in-up">
-          {/* Index cards */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {report.index_data?.length > 0 && (
-            <div className="stock-card p-4 sm:p-5">
-              <div className="text-xs font-semibold text-text-muted mb-3 flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                主要指数
+            <div className="card" style={{ padding: 24 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>主要指数</span>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
                 {report.index_data.map(idx => {
                   const up = idx.change_pct >= 0
                   return (
-                    <div key={idx.code} className="text-center p-4 bg-blue-50/50 rounded-xl hover:shadow-md transition-all">
-                      <div className="text-xs text-text-muted mb-1.5">{idx.name}</div>
-                      <div className="text-xl sm:text-2xl font-extrabold text-blue-800 font-mono mb-1.5">
+                    <div key={idx.code} className="card" style={{ padding: 16, textAlign: 'center' }}>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 500 }}>{idx.name}</div>
+                      <div className="mono" style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>
                         {typeof idx.close === 'number' ? fmt(idx.close) : idx.close}
                       </div>
-                      <div className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold ${up ? 'stock-up-bg stock-up' : 'stock-down-bg stock-down'}`}>
-                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d={up ? 'M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z' : 'M14.707 10.293a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L9 12.586V5a1 1 0 012 0v7.586l2.293-2.293a1 1 0 011.414 0z'} clipRule="evenodd" />
-                        </svg>
+                      <span className={`badge ${up ? 'badge-up' : 'badge-down'}`} style={{ fontSize: 12 }}>
                         {fmtRate(idx.change_pct)}
-                      </div>
+                      </span>
+                      <SparkBar value={idx.change_pct} />
                     </div>
                   )
                 })}
               </div>
               {report.market_summary && (
-                <div className="text-center mt-3">
-                  <span className="text-xs text-text-secondary bg-blue-50/80 px-3 py-1.5 rounded-full border border-blue-100">{report.market_summary}</span>
+                <div style={{ textAlign: 'center', marginTop: 16 }}>
+                  <span className="badge" style={{ background: 'var(--accent-bg)', color: 'var(--accent)' }}>{report.market_summary}</span>
                 </div>
               )}
             </div>
           )}
 
-          {/* 北向资金 */}
           {report.hsgt_flow && (
-            <div className="stock-card p-4 sm:p-5">
-              <div className="text-xs font-semibold text-text-muted mb-3 flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
-                北向资金（沪深港通）
+            <div className="card" style={{ padding: 24 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>北向资金（沪深港通）</span>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="text-center p-3 bg-purple-50/50 rounded-xl">
-                  <div className="text-[11px] text-text-muted mb-1">今日净买入</div>
-                  <div className="text-lg font-extrabold text-purple-700 font-mono">
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, marginBottom: 16 }}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>今日净买入</div>
+                  <div className="mono" style={{ fontSize: 20, fontWeight: 700, color: report.hsgt_flow.total_net_buy >= 0 ? 'var(--up)' : 'var(--down)' }}>
                     {report.hsgt_flow.total_net_buy > 0 ? '+' : ''}{report.hsgt_flow.total_net_buy.toFixed(1)}亿
                   </div>
                 </div>
-                <div className="text-center p-3 bg-blue-50/50 rounded-xl">
-                  <div className="text-[11px] text-text-muted mb-1">沪股通</div>
-                  <div className="text-base font-bold text-blue-700 font-mono">
-                    {report.hsgt_flow.sh_net_buy > 0 ? '+' : ''}{report.hsgt_flow.sh_net_buy.toFixed(1)}亿
-                  </div>
-                  <div className="text-[10px] text-text-muted mt-0.5">流入 {report.hsgt_flow.sh_total_inflow.toFixed(0)}亿</div>
-                </div>
-                <div className="text-center p-3 bg-pink-50/50 rounded-xl">
-                  <div className="text-[11px] text-text-muted mb-1">深股通</div>
-                  <div className="text-base font-bold text-pink-700 font-mono">
-                    {report.hsgt_flow.sz_net_buy > 0 ? '+' : ''}{report.hsgt_flow.sz_net_buy.toFixed(1)}亿
-                  </div>
-                  <div className="text-[10px] text-text-muted mt-0.5">流入 {report.hsgt_flow.sz_total_inflow.toFixed(0)}亿</div>
-                </div>
-                <div className="text-center p-3 bg-green-50/50 rounded-xl">
-                  <div className="text-[11px] text-text-muted mb-1">累计净买入</div>
-                  <div className="text-sm font-bold text-green-700 font-mono">
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>累计净买入</div>
+                  <div className="mono" style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary)' }}>
                     {(report.hsgt_flow.sh_cumulative + report.hsgt_flow.sz_cumulative).toFixed(0)}亿
                   </div>
                 </div>
               </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>沪股通</span>
+                    <span className="mono" style={{ fontSize: 11, color: report.hsgt_flow.sh_net_buy >= 0 ? 'var(--up)' : 'var(--down)', fontWeight: 600 }}>
+                      {report.hsgt_flow.sh_net_buy > 0 ? '+' : ''}{report.hsgt_flow.sh_net_buy.toFixed(1)}亿
+                    </span>
+                  </div>
+                  <div style={{ width: '100%', height: 6, background: 'var(--bg-tag)', borderRadius: 3, overflow: 'hidden' }}>
+                    <div style={{ width: `${Math.min(Math.abs(report.hsgt_flow.sh_net_buy) / Math.max(report.hsgt_flow.sh_total_inflow, 1) * 100, 100)}%`, height: '100%', borderRadius: 3, background: report.hsgt_flow.sh_net_buy >= 0 ? 'var(--up)' : 'var(--down)' }} />
+                  </div>
+                  <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 2 }}>总流入 {report.hsgt_flow.sh_total_inflow.toFixed(0)}亿</div>
+                </div>
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>深股通</span>
+                    <span className="mono" style={{ fontSize: 11, color: report.hsgt_flow.sz_net_buy >= 0 ? 'var(--up)' : 'var(--down)', fontWeight: 600 }}>
+                      {report.hsgt_flow.sz_net_buy > 0 ? '+' : ''}{report.hsgt_flow.sz_net_buy.toFixed(1)}亿
+                    </span>
+                  </div>
+                  <div style={{ width: '100%', height: 6, background: 'var(--bg-tag)', borderRadius: 3, overflow: 'hidden' }}>
+                    <div style={{ width: `${Math.min(Math.abs(report.hsgt_flow.sz_net_buy) / Math.max(report.hsgt_flow.sz_total_inflow, 1) * 100, 100)}%`, height: '100%', borderRadius: 3, background: report.hsgt_flow.sz_net_buy >= 0 ? 'var(--up)' : 'var(--down)' }} />
+                  </div>
+                  <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 2 }}>总流入 {report.hsgt_flow.sz_total_inflow.toFixed(0)}亿</div>
+                </div>
+              </div>
             </div>
           )}
 
-          {/* Hot sectors */}
           {report.hot_sectors?.length > 0 && (
-            <div className="stock-card p-4 sm:p-5">
-              <div className="text-xs font-semibold text-text-muted mb-3 flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                热门板块
+            <div className="card" style={{ padding: 24 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>热门板块</span>
               </div>
-              <div className="divide-y divide-border-default/60">
-                {report.hot_sectors.map((s, i) => {
-                  const up = s.change_pct >= 0
-                  return (
-                    <div key={i} className="flex items-center justify-between py-2.5 first:pt-0 last:pb-0 group hover:bg-blue-50/50 -mx-2 px-2 rounded-lg transition-colors">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <span className="text-xs text-text-muted font-mono w-4 shrink-0">{i + 1}</span>
-                        <span className="font-medium text-blue-800 group-hover:text-blue-600 transition-colors text-sm truncate">{s.name}</span>
-                        {s.leading_stock && <span className="text-[11px] text-text-muted hidden sm:inline truncate">领涨 {s.leading_stock}</span>}
-                      </div>
-                      <span className={`font-mono font-bold text-sm shrink-0 ${up ? 'stock-up' : 'stock-down'}`}>{fmtRate(s.change_pct)}</span>
+              {report.hot_sectors.map((s, i) => {
+                const up = s.change_pct >= 0
+                return (
+                  <div key={i} className="row-item">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                      <span className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', width: 20, flexShrink: 0 }}>{i + 1}</span>
+                      <span className="rn" style={{ fontSize: 13 }}>{s.name}</span>
+                      {s.leading_stock && <span className="hidden sm:inline truncate" style={{ fontSize: 11, color: 'var(--text-dim)', maxWidth: 120 }}>领涨 {s.leading_stock}</span>}
                     </div>
-                  )
-                })}
-              </div>
+                    <span className="mono rv" style={{ color: up ? 'var(--up)' : 'var(--down)' }}>{fmtRate(s.change_pct)}</span>
+                  </div>
+                )
+              })}
             </div>
           )}
 
-          {/* 行业全景（全量板块） */}
           {report.sectors_full?.length > 0 && (
-            <div className="stock-card p-4 sm:p-5">
-              <div className="text-xs font-semibold text-text-muted mb-3 flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                行业全景（{report.sectors_full.length} 个行业板块）
+            <div className="card" style={{ padding: 24 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>行业全景（{report.sectors_full.length} 个行业板块）</span>
               </div>
-              <div className="overflow-x-auto -mx-2">
-                <table className="w-full text-xs">
+              <div style={{ overflowX: 'auto', marginLeft: -8, marginRight: -8 }}>
+                <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
                   <thead>
-                    <tr className="text-text-muted border-b border-border-default/60">
-                      <th className="text-left py-2 px-2 font-medium">排名</th>
-                      <th className="text-left py-2 px-2 font-medium">板块</th>
-                      <th className="text-right py-2 px-2 font-medium">涨跌幅</th>
-                      <th className="text-right py-2 px-2 font-medium hidden sm:table-cell">净流入(亿)</th>
-                      <th className="text-right py-2 px-2 font-medium hidden sm:table-cell">上涨/下跌</th>
-                      <th className="text-left py-2 px-2 font-medium hidden md:table-cell">领涨股</th>
+                    <tr style={{ color: 'var(--text-muted)', borderBottom: '1px solid var(--border-default)' }}>
+                      <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 500 }}>排名</th>
+                      <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 500 }}>板块</th>
+                      <th style={{ textAlign: 'right', padding: '8px 12px', fontWeight: 500 }}>涨跌幅</th>
+                      <th style={{ textAlign: 'right', padding: '8px 12px', fontWeight: 500 }} className="hidden sm:table-cell">净流入(亿)</th>
+                      <th style={{ textAlign: 'right', padding: '8px 12px', fontWeight: 500 }} className="hidden sm:table-cell">上涨/下跌</th>
+                      <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 500 }} className="hidden md:table-cell">领涨股</th>
                     </tr>
                   </thead>
                   <tbody>
                     {report.sectors_full.map((s, i) => {
                       const up = s.change_pct >= 0
                       return (
-                        <tr key={i} className="border-b border-border-default/30 hover:bg-blue-50/40 transition-colors">
-                          <td className="py-2 px-2 text-text-muted font-mono">{i + 1}</td>
-                          <td className="py-2 px-2 font-medium text-blue-800">{s.name}</td>
-                          <td className={`py-2 px-2 text-right font-mono font-bold ${up ? 'stock-up' : 'stock-down'}`}>
+                        <tr key={i} style={{ borderBottom: '1px solid var(--border-default)' }}>
+                          <td className="mono" style={{ padding: '8px 12px', color: 'var(--text-muted)' }}>{i + 1}</td>
+                          <td style={{ padding: '8px 12px', fontWeight: 500, color: 'var(--text-primary)' }}>{s.name}</td>
+                          <td className="mono" style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: up ? 'var(--up)' : 'var(--down)' }}>
                             {fmtRate(s.change_pct)}
                           </td>
-                          <td className="py-2 px-2 text-right hidden sm:table-cell font-mono text-text-secondary">
+                          <td className="mono hidden sm:table-cell" style={{ padding: '8px 12px', textAlign: 'right', color: 'var(--text-secondary)' }}>
                             {s.net_inflow != null ? s.net_inflow.toFixed(1) : '-'}
                           </td>
-                          <td className="py-2 px-2 text-right hidden sm:table-cell text-text-secondary">
+                          <td className="hidden sm:table-cell" style={{ padding: '8px 12px', textAlign: 'right', color: 'var(--text-secondary)' }}>
                             {s.up_count != null ? `${s.up_count}/${s.down_count}` : '-'}
                           </td>
-                          <td className="py-2 px-2 hidden md:table-cell text-text-secondary truncate max-w-28">
+                          <td className="hidden md:table-cell" style={{ padding: '8px 12px', color: 'var(--text-secondary)', maxWidth: 112, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {s.leading_stock || '-'}
                           </td>
                         </tr>
@@ -270,18 +274,12 @@ export default function ReportPage() {
             </div>
           )}
 
-          {/* AI analysis */}
           {report.ai_report && (
-            <div className="stock-card p-4 sm:p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-sm shadow-cyan-200">
-                  <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                </div>
-                <span className="text-sm font-semibold text-text-muted">AI 市场分析</span>
+            <div className="card" style={{ padding: 24 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>AI 市场分析</span>
               </div>
-              <div className="text-text-secondary leading-relaxed whitespace-pre-wrap text-sm">{report.ai_report}</div>
+              <div style={{ color: 'var(--text-secondary)', lineHeight: 1.7, whiteSpace: 'pre-wrap', fontSize: 13 }}>{report.ai_report}</div>
             </div>
           )}
         </div>
