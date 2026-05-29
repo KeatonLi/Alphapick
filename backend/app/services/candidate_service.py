@@ -1,11 +1,11 @@
 # backend/app/services/candidate_service.py
 """
 量化推荐候选池服务
-数据来源：同花顺服务端选股池 + 东方财富热度排名
+数据来源：同花顺服务端选股池 + 腾讯批量行情
 流程：
   1. THS 选股池（lxsz + cxg，~500只）
-  2. 东方财富热度排名前 50
-  3. 取交集 + 过滤主板
+  2. 腾讯批量行情获取实时价格
+  3. 过滤主板 + 排序取 TOP N
   4. 并发获取每只的消息面（新闻标题）
   5. 送 AI 精选
 """
@@ -122,52 +122,47 @@ def get_ths_candidates() -> dict:
     }
 
 
-# ─── 东方财富热度排名 ──────────────────────────────────────────────────
-
-_HOT_RANK_CACHE = {"data": None, "timestamp": 0}
-_HOT_CACHE_TTL = 300
 
 
-def _fetch_hot_rank() -> dict:
-    """获取东方财富热度排名前 50，带 5 分钟缓存"""
-    import time
-    now = time.time()
-    if (_HOT_RANK_CACHE["data"] is not None
-            and now - _HOT_RANK_CACHE["timestamp"] < _HOT_CACHE_TTL):
-        return _HOT_RANK_CACHE["data"]
+# ─── 腾讯批量行情 ──────────────────────────────────────────────────────
 
-    try:
-        url = "https://push2.eastmoney.com/api/qt/clist/get"
-        params = {
-            'pn': 1, 'pz': 100, 'po': 1, 'np': 1,
-            'fields': 'f12,f14,f2,f3,f62',
-            'fid': 'f62',
-            'fs': 'm:0+t:6+f:!2,m:0+t:80+f:!2,m:1+t:2+f:!2,m:1+t:23+f:!2',
-        }
-        headers = {'User-Agent': 'Mozilla/5.0', 'Referer': 'https://quote.eastmoney.com/'}
-        r = requests.get(url, params=params, headers=headers, timeout=15)
-        items = r.json().get('data', {}).get('diff', [])
+def _fetch_tencent_prices(codes: list) -> dict:
+    """用腾讯 qt.gtimg.cn 批量获取行情，返回 {code: {price, change_pct, volume, turnover}}"""
+    import requests
+    from app.utils.akshare_utils import _to_tencent_code, _from_tencent_code
 
-        result = []
-        for i, item in enumerate(items):
-            code = str(item.get('f12', ''))
-            if not code:
-                continue
-            result.append({
-                'code': code,
-                'name': item.get('f14', ''),
-                'hot_score': item.get('f62', 0),
-                'hot_rank': i + 1,
-                'price': item.get('f2', 0) / 100 if item.get('f2') else 0,
-                'change_pct': item.get('f3', 0) / 100 if item.get('f3') else 0,
-            })
-
-        output = {'success': True, 'data': result}
-        _HOT_RANK_CACHE["data"] = output
-        _HOT_RANK_CACHE["timestamp"] = now
-        return output
-    except Exception as e:
-        return {'success': False, 'error': str(e)}
+    result = {}
+    batch_size = 80
+    for i in range(0, len(codes), batch_size):
+        batch = codes[i:i + batch_size]
+        tencent_codes = [_to_tencent_code(c) for c in batch]
+        try:
+            r = requests.get(
+                f"https://qt.gtimg.cn/q={','.join(tencent_codes)}",
+                headers={"Referer": "https://finance.qq.com", "User-Agent": "Mozilla/5.0"},
+                timeout=10,
+            )
+            for line in r.text.strip().split("\n"):
+                if "~\"" not in line:
+                    continue
+                parts = line.split("~")
+                if len(parts) < 35:
+                    continue
+                raw_code = parts[2] if len(parts) > 2 else ""
+                clean_code = _from_tencent_code(raw_code)
+                if clean_code not in codes:
+                    continue
+                price = float(parts[3]) if parts[3] not in ("", "0") else 0
+                change_pct = float(parts[32]) if parts[32] not in ("",) else 0
+                volume = float(parts[6]) if parts[6] not in ("",) else 0
+                turnover = float(parts[36]) if len(parts) > 36 and parts[36] not in ("", "None") else 0
+                result[clean_code] = {
+                    "price": price, "change_pct": change_pct,
+                    "volume": volume, "turnover": turnover,
+                }
+        except Exception:
+            continue
+    return result
 
 
 # ─── 个股新闻 ────────────────────────────────────────────────────────────
@@ -233,64 +228,80 @@ async def _batch_fetch_news(codes: list, limit: int = 3) -> dict:
 # ─── 主流程 ──────────────────────────────────────────────────────────────
 
 async def get_ma_filtered_candidates(top_n: int = 50) -> dict:
-    """
-    获取候选池：THS 选股池 ∩ 东方财富热度前 N → 过滤主板 → 补充消息面
+    """获取候选池：THS 选股池 → 腾讯行情 → 主板过滤 → 新闻
+    不再依赖东方财富热度排名（push2 已封）。
 
-    返回候选数据（含 hot_rank、news 等字段）。
-    top_n 控制取热度排名前多少名做交集（默认 50）。
+    返回候选数据（含 news 等字段）。
+    top_n 控制最终返回多少只（默认 50）。
     """
     # Step 1: THS 池
     ths_result = get_ths_candidates()
     if not ths_result['success']:
         return ths_result
-    # THS code 带 sh/sz 前缀，用裸 code（去掉前缀）做匹配 key
-    ths_pool = {}
-    for s in ths_result['data']:
-        raw = s['code']
-        for prefix in ('sh', 'sz', 'bj'):
-            if raw.startswith(prefix):
-                raw = raw[len(prefix):]
-                break
-        ths_pool[raw] = s
 
-    if not ths_pool:
+    candidates = ths_result['data']
+    if not candidates:
         return {'success': False, 'error': 'THS 选股池返回为空'}
 
-    # Step 2: 热度排名
-    hot_result = _fetch_hot_rank()
-    if not hot_result['success']:
-        return {'success': False, 'error': f"热度排名获取失败: {hot_result['error']}"}
+    # Step 2: 腾讯批量获取实时行情
+    bare_codes = []
+    for s in candidates:
+        c = s['code']
+        for prefix in ('sh', 'sz', 'bj'):
+            if c.startswith(prefix):
+                c = c[len(prefix):]
+                break
+        bare_codes.append(c)
 
-    hot_top = hot_result['data'][:top_n]
+    price_map = _fetch_tencent_prices(bare_codes)
 
-    # Step 3: 取交集 + 过滤主板
-    candidates = []
-    for item in hot_top:
-        code = item['code']
-        ths_info = ths_pool.get(code)
-        if ths_info is None:
-            continue  # 不在 THS 池，跳过
-        if not _is_zhuban(code):
-            continue  # 非主板，跳过
+    # Step 3: 合并行情数据 + 过滤主板 + 排序
+    merged = []
+    for s in candidates:
+        c = s['code']
+        for prefix in ('sh', 'sz', 'bj'):
+            if c.startswith(prefix):
+                c = c[len(prefix):]
+                break
 
-        candidates.append({
-            **ths_info,
-            'hot_rank': item['hot_rank'],
-            'hot_score': item['hot_score'],
+        if c not in price_map:
+            continue
+        if not _is_zhuban(c):
+            continue
+
+        qt = price_map[c]
+        merged.append({
+            **s,
+            'price': qt['price'],
+            'change_pct': s.get('change_pct', qt['change_pct']),
+            'volume': qt['volume'],
+            'turnover': qt.get('turnover', s.get('turnover', 0)),
         })
 
-    # Step 4: 并发获取消息面
-    news_map = await _batch_fetch_news([s['code'] for s in candidates], limit=3)
+    # 按连续上涨天数 + 换手率排序（lxsz 优先于 cxg）
+    merged.sort(key=lambda x: (
+        0 if x.get('source') == 'lxsz' else 1,
+        -x.get('continuous_days', 0),
+        -x.get('turnover', 0),
+    ))
 
-    for s in candidates:
+    # 取 TOP N
+    merged = merged[:top_n]
+
+    # Step 4: 并发获取消息面
+    news_map = await _batch_fetch_news(
+        [s['code'] for s in merged], limit=3
+    )
+    for idx, s in enumerate(merged):
         s['news'] = news_map.get(s['code'], [])
+        s['hot_rank'] = idx + 1
+        s['hot_score'] = 0
 
     return {
         'success': True,
-        'data': candidates,
+        'data': merged,
         'total_ths': ths_result['total'],
-        'hot_top_n': len(hot_top),
-        'after_filter': len(candidates),
+        'after_filter': len(merged),
     }
 
 
