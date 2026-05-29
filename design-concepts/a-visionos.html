@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VisionOS 风格 · QuantForge</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Inter', -apple-system, sans-serif; background: #0a0a0f; color: #fff; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 40px; }
+.container { width: 800px; }
+h1 { font-size: 48px; font-weight: 700; letter-spacing: -0.03em; background: linear-gradient(135deg, #fff 0%, #888 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 8px; }
+.sub { color: rgba(255,255,255,0.4); font-size: 16px; font-weight: 400; margin-bottom: 48px; }
+/* Glass card */
+.glass { background: rgba(255,255,255,0.06); backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px); border: 1px solid rgba(255,255,255,0.08); border-radius: 24px; padding: 32px; margin-bottom: 20px; transition: all 0.3s; }
+.glass:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.15); }
+.glass .label { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; color: rgba(255,255,255,0.35); text-transform: uppercase; margin-bottom: 12px; }
+.glass .value { font-size: 32px; font-weight: 600; letter-spacing: -0.02em; }
+.glass .change { font-size: 14px; font-weight: 500; }
+.up { color: #ff6b6b; }
+.down { color: #69db7c; }
+.row { display: flex; gap: 20px; }
+.row > * { flex: 1; }
+.badge { display: inline-block; padding: 4px 12px; border-radius: 100px; font-size: 12px; font-weight: 500; background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.7); }
+.nav { display: flex; gap: 4px; margin-bottom: 40px; }
+.nav a { padding: 8px 20px; border-radius: 100px; font-size: 14px; font-weight: 500; color: rgba(255,255,255,0.5); text-decoration: none; transition: all 0.2s; }
+.nav a.active { background: rgba(255,255,255,0.1); color: #fff; }
+.nav a:hover { color: #fff; }
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 6px 16px; border-radius: 100px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08); font-size: 13px; color: rgba(255,255,255,0.6); }
+.glow { box-shadow: 0 0 60px rgba(100,100,255,0.08), 0 0 120px rgba(100,100,255,0.04); }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="nav">
+    <a href="#" class="active">概览</a>
+    <a href="#">市场报告</a>
+    <a href="#">智能推荐</a>
+    <a href="#">收益跟踪</a>
+    <a href="#">设置</a>
+  </div>
+  
+  <h1>QuantForge</h1>
+  <p class="sub">AI 驱动的 A 股量化分析</p>
+
+  <div class="row">
+    <div class="glass glow">
+      <div class="label">上证指数</div>
+      <div class="value">3,286.42</div>
+      <div class="change up">+0.87%</div>
+    </div>
+    <div class="glass glow">
+      <div class="label">深证成指</div>
+      <div class="value">10,892.18</div>
+      <div class="change down">-0.32%</div>
+    </div>
+    <div class="glass glow">
+      <div class="label">创业板指</div>
+      <div class="value">2,198.75</div>
+      <div class="change up">+1.24%</div>
+    </div>
+  </div>
+
+  <div class="glass" style="margin-top:20px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+      <span class="label">热门板块</span>
+      <span class="pill">今日 · 实时</span>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.04)">
+        <span style="font-size:14px;font-weight:500">半导体</span>
+        <span class="up" style="font-size:14px;font-weight:600">+3.21%</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.04)">
+        <span style="font-size:14px;font-weight:500">新能源</span>
+        <span class="up" style="font-size:14px;font-weight:600">+2.15%</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0">
+        <span style="font-size:14px;font-weight:500">AI 算力</span>
+        <span class="down" style="font-size:14px;font-weight:600">-1.08%</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top:24px;text-align:center">
+    <div style="display:inline-flex;gap:12px;padding:12px 24px;border-radius:100px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06)">
+      <span class="badge">✦ 毛玻璃层次</span>
+      <span class="badge">✦ 发光悬浮</span>
+      <span class="badge">✦ 深色深邃</span>
+    </div>
+  </div>
+</div>
+</body>
+</html>

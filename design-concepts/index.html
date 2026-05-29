@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QuantForge · 设计概念</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;-webkit-font-smoothing:antialiased}
+
+/* Views */
+.view{display:none}
+.view.active{display:block;animation:fadeIn .35s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+
+/* ───── Overview ───── */
+.overview{min-height:100vh;background:#f5f5f7;display:flex;align-items:center;justify-content:center;padding:40px}
+.overview-inner{max-width:960px;width:100%}
+.overview h1{font-size:48px;font-weight:700;letter-spacing:-0.03em;color:#1d1d1f;margin-bottom:4px}
+.overview .sub{font-size:18px;color:#86868b;margin-bottom:48px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.card-btn{cursor:pointer;border:none;border-radius:20px;padding:32px;text-align:left;transition:all .3s cubic-bezier(.4,0,.2,1);position:relative;overflow:hidden}
+.card-btn:hover{transform:translateY(-4px)}
+.card-btn:active{transform:translateY(-1px)}
+.card-btn .letter{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:10px;font-size:16px;font-weight:700;margin-bottom:16px}
+.card-btn h3{font-size:18px;font-weight:600;margin-bottom:6px;color:#1d1d1f}
+.card-btn p{font-size:13px;color:#6b7280;line-height:1.5;margin-bottom:12px}
+.card-btn .tags{display:flex;gap:6px;flex-wrap:wrap}
+.card-btn .tags span{padding:3px 10px;border-radius:100px;font-size:11px;font-weight:500}
+.card-btn .arrow{position:absolute;bottom:20px;right:24px;font-size:20px;opacity:0;transform:translateX(-8px);transition:all .3s}
+.card-btn:hover .arrow{opacity:1;transform:translateX(0)}
+
+/* Card A - VisionOS */
+.card-a{background:linear-gradient(145deg,#1a1a2e 0%,#16213e 100%);border:1px solid rgba(255,255,255,.08)}
+.card-a .letter{background:rgba(255,255,255,.1);color:#c4b5fd}
+.card-a h3,.card-a p{color:rgba(255,255,255,.9)}
+.card-a .tags span{background:rgba(255,255,255,.08);color:rgba(255,255,255,.6)}
+
+/* Card B - iOS */
+.card-b{background:#fff;border:1px solid #e5e5ea;box-shadow:0 2px 12px rgba(0,0,0,.04)}
+.card-b .letter{background:#007aff;color:#fff}
+.card-b .tags span{background:#f2f2f7;color:#8e8e93}
+
+/* Card C - Minimal */
+.card-c{background:#fff;border:1px solid #d2d2d7}
+.card-c .letter{background:#1d1d1f;color:#fff}
+.card-c .tags span{background:#f5f5f7;color:#86868b}
+
+/* Card D - Dark Finance */
+.card-d{background:linear-gradient(145deg,#0d0e12 0%,#15171c 100%);border:1px solid #1f2128}
+.card-d .letter{background:#2563eb;color:#fff}
+.card-d h3,.card-d p{color:rgba(255,255,255,.9)}
+.card-d .tags span{background:#1f2128;color:#6b7280}
+
+/* ───── Top bar ───── */
+.topbar{position:sticky;top:0;z-index:100;display:flex;align-items:center;gap:12px;padding:12px 24px;background:rgba(255,255,255,.8);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid rgba(0,0,0,.06)}
+.topbar.dark{background:rgba(13,14,18,.85);border-color:rgba(255,255,255,.06)}
+.topbar .back-btn{display:inline-flex;align-items:center;gap:6px;padding:6px 16px;border-radius:100px;border:none;font-size:13px;font-weight:500;cursor:pointer;transition:all .2s}
+.topbar .back-btn:hover{transform:scale(1.02)}
+.topbar .back-btn.light{background:#f5f5f7;color:#1d1d1f}
+.topbar .back-btn.light:hover{background:#e5e5ea}
+.topbar .back-btn.dark{background:rgba(255,255,255,.08);color:rgba(255,255,255,.8)}
+.topbar .back-btn.dark:hover{background:rgba(255,255,255,.12)}
+.topbar .title{font-size:14px;font-weight:500;color:#86868b}
+
+/* ───── Design views ───── */
+.design-view{min-height:100vh}
+.design-view.a-vision{background:#0a0a0f;color:#fff;padding:40px}
+.design-view.b-ios{background:#f2f2f7;color:#1c1c1e;padding:40px}
+.design-view.c-minimal{background:#fff;color:#1d1d1f;padding:60px}
+.design-view.d-finance{background:#0d0e12;color:#e8e9ed;padding:40px}
+
+.dv-container{max-width:800px;margin:0 auto}
+.dv-container.wide{max-width:840px}
+.dv-h1{font-weight:700;letter-spacing:-.03em;margin-bottom:4px}
+.dv-sub{font-weight:400;margin-bottom:40px}
+.glass{background:rgba(255,255,255,.06);backdrop-filter:blur(40px);-webkit-backdrop-filter:blur(40px);border:1px solid rgba(255,255,255,.08);border-radius:24px;padding:32px;margin-bottom:20px;transition:all .3s}
+.glass:hover{border-color:rgba(255,255,255,.15)}
+.glass .lbl{font-size:11px;font-weight:600;letter-spacing:.06em;color:rgba(255,255,255,.35);text-transform:uppercase;margin-bottom:12px}
+.glass .val{font-size:32px;font-weight:600;letter-spacing:-.02em}
+.glass .chg{font-size:14px;font-weight:500;margin-top:4px}
+.ios-card{background:#fff;border-radius:16px;padding:24px;margin-bottom:16px;box-shadow:0 2px 12px rgba(0,0,0,.04)}
+.ios-card .lbl{font-size:12px;font-weight:600;letter-spacing:.03em;color:#8e8e93;text-transform:uppercase;margin-bottom:8px}
+.ios-card .val{font-size:34px;font-weight:700;letter-spacing:-.02em;color:#1c1c1e}
+.ios-card .chg{font-size:15px;font-weight:500;margin-top:4px}
+.min-card{border-bottom:1px solid #d2d2d7;padding:28px 0;display:flex;justify-content:space-between;align-items:center}
+.min-card:last-child{border-bottom:none}
+.min-card .name{font-size:15px;font-weight:500;color:#1d1d1f}
+.min-card .meta{font-size:12px;color:#86868b;margin-top:2px}
+.min-card .price{font-size:22px;font-weight:600;letter-spacing:-.02em}
+.min-card .chg{font-size:13px;font-weight:500;margin-top:2px;text-align:right}
+.fin-card{background:#15171c;border:1px solid #1f2128;border-radius:16px;padding:24px}
+.fin-card .lbl{font-size:11px;font-weight:500;letter-spacing:.05em;color:#6b7280;text-transform:uppercase;margin-bottom:8px}
+.fin-card .val{font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:600;letter-spacing:-.02em;color:#fff}
+.fin-card .chg{font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:500;margin-top:4px}
+.up{color:#ff3b30}
+.down{color:#34c759}
+.flex{display:flex;gap:20px;margin-bottom:20px}
+.flex>*{flex:1}
+.nav-pills{display:flex;gap:4px;margin-bottom:40px}
+.nav-pills a{padding:8px 20px;border-radius:100px;font-size:14px;font-weight:500;text-decoration:none;transition:all .2s}
+.nav-pills.a-vision a{color:rgba(255,255,255,.5)}
+.nav-pills.a-vision a.active{background:rgba(255,255,255,.1);color:#fff}
+.nav-pills.b-ios a{color:#8e8e93}
+.nav-pills.b-ios a.active{background:#007aff;color:#fff}
+.nav-pills.c-minimal a{color:#86868b;font-size:13px}
+.nav-pills.c-minimal a.active{color:#1d1d1f}
+.nav-pills.c-minimal a.active::after{content:'';position:absolute;bottom:-4px;left:0;right:0;height:2px;background:#1d1d1f;border-radius:1px}
+.nav-pills.c-minimal a{position:relative}
+.nav-pills.d-finance a{color:#6b7280}
+.nav-pills.d-finance a.active{background:#2563eb;color:#fff}
+.kpi-row{display:flex;gap:60px;margin-bottom:48px}
+.kpi .num{font-size:36px;font-weight:700;letter-spacing:-.03em;line-height:1}
+.kpi .lbl{font-size:13px;color:#6b7280;margin-top:6px}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:6px 16px;border-radius:100px;font-size:13px}
+.accent-line{height:3px;width:40px;background:#2563eb;border-radius:2px;margin-bottom:20px}
+.data-row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid #1f2128}
+.data-row:last-child{border-bottom:none}
+.data-row .sn{font-size:14px;font-weight:500}
+.data-row .sc{font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:600}
+.btn-pill{display:inline-flex;align-items:center;gap:4px;padding:6px 14px;border-radius:100px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);font-size:12px;color:rgba(255,255,255,.5);cursor:pointer;transition:all .2s}
+.btn-pill:hover{background:rgba(255,255,255,.1);color:#fff}
+.btn-pill.ios{background:#f2f2f7;border:none;color:#8e8e93}
+.btn-pill.ios:hover{background:#e5e5ea;color:#1d1d1f}
+.btn-pill.min{background:#f5f5f7;border:none;color:#86868b}
+.btn-pill.min:hover{background:#e5e5ea;color:#1d1d1f}
+.btn-pill.fin{background:#1f2128;border:none;color:#6b7280}
+.btn-pill.fin:hover{background:#2f3140;color:#e8e9ed}
+</style>
+</head>
+<body>
+
+<!-- ════ OVERVIEW ════ -->
+<div id="view-overview" class="view active">
+  <div class="overview">
+    <div class="overview-inner">
+      <h1>QuantForge</h1>
+      <p class="sub">选择一种设计方向</p>
+      <div class="grid">
+        <button class="card-btn card-a" onclick="window.open('a-deepdive.html','_blank')">
+          <div class="letter">A</div>
+          <h3>visionOS <span style="font-size:11px;font-weight:400;color:rgba(255,255,255,.4)">· 深层设计 →</span></h3>
+          <p>毛玻璃 · 大圆角 · 发光悬浮 · 深色深邃 · 科幻感界面语言</p>
+          <div class="tags">
+            <span>毛玻璃</span>
+            <span>发光</span>
+            <span>深色</span>
+          </div>
+          <div class="arrow">→</div>
+        </button>
+        <button class="card-btn card-b" onclick="showView('b')">
+          <div class="letter">B</div>
+          <h3>iOS 17/18</h3>
+          <p>柔和亮色 · 弥散阴影 · 白色卡片 · 干净亲切</p>
+          <div class="tags">
+            <span>白色卡片</span>
+            <span>柔和阴影</span>
+            <span>亮色</span>
+          </div>
+          <div class="arrow">→</div>
+        </button>
+        <button class="card-btn card-c" onclick="showView('c')">
+          <div class="letter">C</div>
+          <h3>极简奢华</h3>
+          <p>极致留白 · 无边框 · 细字体 · Apple 产品页语言</p>
+          <div class="tags">
+            <span>留白</span>
+            <span>无边框</span>
+            <span>呼吸感</span>
+          </div>
+          <div class="arrow">→</div>
+        </button>
+        <button class="card-btn card-d" onclick="window.open('d-deepdive.html','_blank')">
+          <div class="letter">D</div>
+          <h3>深色金融 <span style="font-size:11px;font-weight:400;color:rgba(255,255,255,.4)">· 完整界面 →</span></h3>
+          <p>暗夜模式 · 等宽数字 · 蓝点缀 · Bloomberg 终端氛围</p>
+          <div class="tags">
+            <span>深色</span>
+            <span>等宽字体</span>
+            <span>金融感</span>
+          </div>
+          <div class="arrow">→</div>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ A - VISIONOS ════ -->
+<div id="view-a" class="view">
+  <div class="topbar">
+    <button class="back-btn dark" onclick="showView('overview')">← 返回</button>
+    <span class="title">visionOS 风格</span>
+  </div>
+  <div class="design-view a-vision">
+    <div class="dv-container">
+      <div class="nav-pills a-vision">
+        <a href="#" class="active">概览</a><a href="#">市场报告</a><a href="#">智能推荐</a><a href="#">收益跟踪</a><a href="#">设置</a>
+      </div>
+      <div class="dv-h1" style="font-size:48px;background:linear-gradient(135deg,#fff,#888);-webkit-background-clip:text;-webkit-text-fill-color:transparent">QuantForge</div>
+      <div class="dv-sub" style="color:rgba(255,255,255,.4);font-size:16px">AI 驱动的 A 股量化分析</div>
+      <div class="flex">
+        <div class="glass" style="box-shadow:0 0 60px rgba(100,100,255,.08),0 0 120px rgba(100,100,255,.04)">
+          <div class="lbl">上证指数</div><div class="val">3,286.42</div><div class="chg up">+0.87%</div>
+        </div>
+        <div class="glass">
+          <div class="lbl">深证成指</div><div class="val">10,892.18</div><div class="chg down">-0.32%</div>
+        </div>
+        <div class="glass">
+          <div class="lbl">创业板指</div><div class="val">2,198.75</div><div class="chg up">+1.24%</div>
+        </div>
+      </div>
+      <div class="glass" style="margin-top:0">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+          <span class="lbl" style="margin-bottom:0">热门板块</span>
+          <span class="pill" style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);color:rgba(255,255,255,.6)">今日 · 实时</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:0">
+          <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.04)"><span style="font-size:14px;font-weight:500">半导体</span><span class="up" style="font-size:14px;font-weight:600">+3.21%</span></div>
+          <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.04)"><span style="font-size:14px;font-weight:500">新能源</span><span class="up" style="font-size:14px;font-weight:600">+2.15%</span></div>
+          <div style="display:flex;justify-content:space-between;padding:10px 0"><span style="font-size:14px;font-weight:500">AI 算力</span><span class="down" style="font-size:14px;font-weight:600">-1.08%</span></div>
+        </div>
+      </div>
+      <div style="margin-top:24px;display:flex;gap:8px">
+        <span class="btn-pill">✦ 毛玻璃层次</span>
+        <span class="btn-pill">✦ 发光悬浮</span>
+        <span class="btn-pill">✦ 深色深邃</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ B - iOS ════ -->
+<div id="view-b" class="view">
+  <div class="topbar">
+    <button class="back-btn light" onclick="showView('overview')">← 返回</button>
+    <span class="title">iOS 17/18 风格</span>
+  </div>
+  <div class="design-view b-ios">
+    <div class="dv-container">
+      <div class="nav-pills b-ios" style="background:#fff;padding:4px;border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,.04)">
+        <a href="#" class="active">概览</a><a href="#">市场报告</a><a href="#">智能推荐</a><a href="#">收益跟踪</a><a href="#">设置</a>
+      </div>
+      <div class="dv-h1" style="font-size:42px">QuantForge</div>
+      <div class="dv-sub" style="color:#8e8e93;font-size:16px">AI 驱动的 A 股量化分析</div>
+      <div class="flex">
+        <div class="ios-card"><div class="lbl">上证指数</div><div class="val">3,286.42</div><div class="chg up">+0.87%</div></div>
+        <div class="ios-card"><div class="lbl">深证成指</div><div class="val">10,892.18</div><div class="chg down">-0.32%</div></div>
+        <div class="ios-card"><div class="lbl">创业板指</div><div class="val">2,198.75</div><div class="chg up">+1.24%</div></div>
+      </div>
+      <div class="ios-card" style="margin-top:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <span style="font-size:12px;font-weight:600;letter-spacing:.03em;color:#8e8e93;text-transform:uppercase">热门板块</span>
+          <span style="padding:4px 12px;border-radius:100px;background:#f2f2f7;font-size:12px;color:#8e8e93">今日</span>
+        </div>
+        <div style="display:flex;flex-direction:column">
+          <div style="display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid #e5e5ea"><span style="font-size:15px;font-weight:500">半导体</span><span style="font-size:15px;font-weight:600;color:#ff3b30">+3.21%</span></div>
+          <div style="display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid #e5e5ea"><span style="font-size:15px;font-weight:500">新能源</span><span style="font-size:15px;font-weight:600;color:#ff3b30">+2.15%</span></div>
+          <div style="display:flex;justify-content:space-between;padding:12px 0"><span style="font-size:15px;font-weight:500">AI 算力</span><span style="font-size:15px;font-weight:600;color:#34c759">-1.08%</span></div>
+        </div>
+      </div>
+      <div style="margin-top:24px;display:flex;gap:8px">
+        <span class="btn-pill ios">✦ 白色卡片</span>
+        <span class="btn-pill ios">✦ 弥散阴影</span>
+        <span class="btn-pill ios">✦ SF 式字体</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ C - MINIMAL ════ -->
+<div id="view-c" class="view">
+  <div class="topbar">
+    <button class="back-btn light" onclick="showView('overview')">← 返回</button>
+    <span class="title">极简奢华风</span>
+  </div>
+  <div class="design-view c-minimal">
+    <div class="dv-container" style="max-width:720px">
+      <div class="nav-pills c-minimal" style="margin-bottom:60px">
+        <a href="#" class="active">概览</a><a href="#">市场报告</a><a href="#">智能推荐</a><a href="#">收益跟踪</a><a href="#">设置</a>
+      </div>
+      <div class="dv-h1" style="font-size:52px">QuantForge</div>
+      <div class="dv-sub" style="color:#86868b;font-size:18px;max-width:480px;line-height:1.5">AI 驱动的 A 股量化分析平台</div>
+      <div class="kpi-row">
+        <div class="kpi"><div class="num">90</div><div class="lbl">近 90 天报告</div></div>
+        <div class="kpi"><div class="num">156</div><div class="lbl">累计推荐</div></div>
+        <div class="kpi"><div class="num">62%</div><div class="lbl">胜率</div></div>
+      </div>
+      <hr style="border:none;border-top:1px solid #d2d2d7;margin-bottom:24px">
+      <div style="font-size:11px;font-weight:600;letter-spacing:.06em;color:#86868b;text-transform:uppercase;margin-bottom:4px">指数行情</div>
+      <div class="min-card"><div><div class="name">上证指数</div><div class="meta">SHA</div></div><div style="text-align:right"><div class="price">3,286.42</div><div class="chg up">+0.87%</div></div></div>
+      <div class="min-card"><div><div class="name">深证成指</div><div class="meta">SZA</div></div><div style="text-align:right"><div class="price">10,892.18</div><div class="chg down">-0.32%</div></div></div>
+      <div class="min-card"><div><div class="name">创业板指</div><div class="meta">ChiNext</div></div><div style="text-align:right"><div class="price">2,198.75</div><div class="chg up">+1.24%</div></div></div>
+      <div style="font-size:11px;font-weight:600;letter-spacing:.06em;color:#86868b;text-transform:uppercase;margin-top:32px;margin-bottom:4px">热门板块</div>
+      <div class="min-card"><div class="name">半导体</div><div class="chg up">+3.21%</div></div>
+      <div class="min-card"><div class="name">新能源</div><div class="chg up">+2.15%</div></div>
+      <div class="min-card"><div class="name">AI 算力</div><div class="chg down">-1.08%</div></div>
+      <div style="margin-top:40px;display:flex;gap:8px">
+        <span class="btn-pill min">✦ 极致留白</span>
+        <span class="btn-pill min">✦ 无边框</span>
+        <span class="btn-pill min">✦ Apple 官网语言</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ D - DARK FINANCE ════ -->
+<div id="view-d" class="view">
+  <div class="topbar dark">
+    <button class="back-btn dark" onclick="showView('overview')">← 返回</button>
+    <span class="title" style="color:rgba(255,255,255,.5)">深色金融风</span>
+  </div>
+  <div class="design-view d-finance">
+    <div class="dv-container wide" style="background-image:radial-gradient(rgba(37,99,235,.04) 1px,transparent 1px);background-size:24px 24px">
+      <div class="nav-pills d-finance" style="display:flex;gap:2px;background:#15171c;padding:4px;border-radius:12px;border:1px solid #1f2128;margin-bottom:40px">
+        <a href="#" class="active" style="flex:1;text-align:center;padding:10px 16px;border-radius:10px;font-size:13px;font-weight:500;text-decoration:none">概览</a>
+        <a href="#" style="flex:1;text-align:center;padding:10px 16px;border-radius:10px;font-size:13px;font-weight:500;color:#6b7280;text-decoration:none">市场报告</a>
+        <a href="#" style="flex:1;text-align:center;padding:10px 16px;border-radius:10px;font-size:13px;font-weight:500;color:#6b7280;text-decoration:none">智能推荐</a>
+        <a href="#" style="flex:1;text-align:center;padding:10px 16px;border-radius:10px;font-size:13px;font-weight:500;color:#6b7280;text-decoration:none">收益跟踪</a>
+        <a href="#" style="flex:1;text-align:center;padding:10px 16px;border-radius:10px;font-size:13px;font-weight:500;color:#6b7280;text-decoration:none">设置</a>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:32px">
+        <div><div class="dv-h1" style="font-size:36px">QuantForge</div><div class="dv-sub" style="color:#6b7280;font-size:14px;margin-bottom:0">AI 驱动的 A 股量化分析平台</div></div>
+        <div style="padding:4px 12px;border-radius:6px;background:#1f2128;font-size:12px;color:#6b7280">⚡ 系统运行中</div>
+      </div>
+      <div class="accent-line"></div>
+      <div class="flex">
+        <div class="fin-card"><div class="lbl">上证指数</div><div class="val">3,286.42</div><div class="chg up">+0.87%</div></div>
+        <div class="fin-card"><div class="lbl">深证成指</div><div class="val">10,892.18</div><div class="chg down">-0.32%</div></div>
+        <div class="fin-card"><div class="lbl">创业板指</div><div class="val">2,198.75</div><div class="chg up">+1.24%</div></div>
+      </div>
+      <div class="fin-card" style="margin-top:16px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span style="font-size:11px;font-weight:500;letter-spacing:.05em;color:#6b7280;text-transform:uppercase">热门板块</span>
+          <span style="padding:2px 10px;border-radius:6px;font-size:11px;font-weight:500;background:#1f2128;color:#6b7280">今日排行</span>
+        </div>
+        <div class="data-row"><span class="sn" style="color:#e8e9ed">半导体</span><span class="sc up">+3.21%</span></div>
+        <div class="data-row"><span class="sn" style="color:#e8e9ed">新能源</span><span class="sc up">+2.15%</span></div>
+        <div class="data-row"><span class="sn" style="color:#e8e9ed">AI 算力</span><span class="sc down">-1.08%</span></div>
+      </div>
+      <div style="margin-top:24px;display:flex;gap:8px">
+        <span class="btn-pill fin">✦ 深色主题</span>
+        <span class="btn-pill fin">✦ 等宽数字</span>
+        <span class="btn-pill fin">✦ 金融终端氛围</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function showView(id) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-' + id).classList.add('active');
+  window.scrollTo(0,0);
+}
+</script>
+</body>
+</html>

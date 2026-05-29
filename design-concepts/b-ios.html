@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>iOS 风格 · QuantForge</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Inter', -apple-system, sans-serif; background: #f2f2f7; color: #1c1c1e; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 40px; }
+.container { width: 800px; }
+h1 { font-size: 42px; font-weight: 700; letter-spacing: -0.03em; color: #1c1c1e; margin-bottom: 4px; }
+.sub { color: #8e8e93; font-size: 16px; margin-bottom: 40px; }
+/* iOS card */
+.card { background: #fff; border-radius: 16px; padding: 24px; margin-bottom: 16px; box-shadow: 0 2px 12px rgba(0,0,0,0.04); transition: all 0.2s; }
+.card:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.08); transform: translateY(-1px); }
+.card .label { font-size: 12px; font-weight: 600; letter-spacing: 0.03em; color: #8e8e93; text-transform: uppercase; margin-bottom: 8px; }
+.card .value { font-size: 34px; font-weight: 700; letter-spacing: -0.02em; color: #1c1c1e; }
+.card .change { font-size: 15px; font-weight: 500; margin-top: 4px; }
+.up { color: #ff3b30; }
+.down { color: #34c759; }
+.row { display: flex; gap: 16px; }
+.row > * { flex: 1; }
+.nav { display: flex; gap: 2px; background: #fff; padding: 4px; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.04); margin-bottom: 40px; }
+.nav a { flex: 1; text-align: center; padding: 10px 16px; border-radius: 10px; font-size: 14px; font-weight: 500; color: #8e8e93; text-decoration: none; transition: all 0.2s; }
+.nav a.active { background: #007aff; color: #fff; }
+.badge { display: inline-block; padding: 2px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; background: #f2f2f7; color: #8e8e93; }
+.pill { display: inline-flex; align-items: center; gap: 4px; padding: 6px 14px; border-radius: 100px; background: #f2f2f7; font-size: 13px; font-weight: 500; color: #8e8e93; }
+.divider { height: 1px; background: #e5e5ea; margin: 8px 0; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="nav">
+    <a href="#" class="active">概览</a>
+    <a href="#">市场报告</a>
+    <a href="#">智能推荐</a>
+    <a href="#">收益跟踪</a>
+    <a href="#">设置</a>
+  </div>
+
+  <h1>QuantForge</h1>
+  <p class="sub">AI 驱动的 A 股量化分析</p>
+
+  <div class="row">
+    <div class="card">
+      <div class="label">上证指数</div>
+      <div class="value">3,286.42</div>
+      <div class="change up">+0.87%</div>
+    </div>
+    <div class="card">
+      <div class="label">深证成指</div>
+      <div class="value">10,892.18</div>
+      <div class="change down">-0.32%</div>
+    </div>
+    <div class="card">
+      <div class="label">创业板指</div>
+      <div class="value">2,198.75</div>
+      <div class="change up">+1.24%</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top: 8px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <span class="label" style="margin-bottom:0;font-size:13px">热门板块</span>
+      <span class="pill">今日</span>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:0">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0">
+        <span style="font-size:15px;font-weight:500">半导体</span>
+        <span style="font-size:15px;font-weight:600;color:#ff3b30">+3.21%</span>
+      </div>
+      <div class="divider" />
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0">
+        <span style="font-size:15px;font-weight:500">新能源</span>
+        <span style="font-size:15px;font-weight:600;color:#ff3b30">+2.15%</span>
+      </div>
+      <div class="divider" />
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0">
+        <span style="font-size:15px;font-weight:500">AI 算力</span>
+        <span style="font-size:15px;font-weight:600;color:#34c759">-1.08%</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top:24px;text-align:center">
+    <div style="display:inline-flex;gap:8px;padding:8px 16px;border-radius:100px;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,0.04)">
+      <span class="badge">✦ 白色卡片</span>
+      <span class="badge">✦ 弥散阴影</span>
+      <span class="badge">✦ SF 式字体</span>
+    </div>
+  </div>
+</div>
+</body>
+</html>
