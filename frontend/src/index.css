@@ -1,129 +1,256 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
-@theme {
-  /* 股票风格亮色主题 - 白蓝清新配色 */
-  --color-bg-primary: #eef4f8;
-  --color-bg-secondary: #ffffff;
-  --color-bg-card: #ffffff;
-  --color-bg-hover: #e3eef6;
-  --color-border-default: #b8d4e8;
-  --color-border-accent: #1e88e5;
-  --color-text-primary: #1a2a3a;
-  --color-text-secondary: #3d5166;
-  --color-text-muted: #5a7080;
-  --color-accent-gold: #f5a623;
-  --color-accent-blue: #1e88e5;
-  --color-accent-cyan: #03a9f4;
-  --color-accent-purple: #7c4dff;
-  --color-stock-up: #e53935;
-  --color-stock-down: #43a047;
-  --color-stock-up-bg: rgba(229, 57, 53, 0.08);
-  --color-stock-down-bg: rgba(67, 160, 71, 0.08);
+/* ══════════════════════════════════════════════════
+   QuantForge 双主题系统
+   暗色 = visionOS 风格 · 亮色 = iOS 17/18 风格
+   ══════════════════════════════════════════════════ */
+
+:root, [data-theme="dark"] {
+  /* ── 背景 ── */
+  --bg-page: #08080e;
+  --bg-card: rgba(255,255,255,.04);
+  --bg-card-hover: rgba(255,255,255,.08);
+  --bg-elevated: rgba(255,255,255,.06);
+  --bg-nav: rgba(10,10,15,.85);
+  --bg-input: rgba(255,255,255,.06);
+  --bg-tag: rgba(255,255,255,.06);
+  --bg-badge: rgba(255,255,255,.08);
+
+  /* ── 文字 ── */
+  --text-primary: #ffffff;
+  --text-secondary: rgba(255,255,255,.7);
+  --text-muted: rgba(255,255,255,.35);
+  --text-dim: rgba(255,255,255,.18);
+
+  /* ── 边框 ── */
+  --border-default: rgba(255,255,255,.06);
+  --border-hover: rgba(255,255,255,.12);
+  --border-accent: rgba(99,102,241,.25);
+
+  /* ── 强调色 ── */
+  --accent: #6366f1;
+  --accent-light: #a5b4fc;
+  --accent-bg: rgba(99,102,241,.12);
+  --accent-glow: rgba(99,102,241,.08);
+  --blue: #3b82f6;
+  --blue-bg: rgba(59,130,246,.1);
+
+  /* ── 涨跌色（A股惯例：红涨绿跌） ── */
+  --up: #f87171;
+  --up-bg: rgba(248,113,113,.1);
+  --down: #34d399;
+  --down-bg: rgba(52,211,153,.1);
+
+  /* ── 卡片 ── */
+  --card-radius: 20px;
+  --card-border: rgba(255,255,255,.06);
+  --card-shadow: 0 0 60px rgba(99,102,241,.06);
+
+  /* ── 导航 ── */
+  --nav-blur: blur(30px);
+  --nav-border: rgba(255,255,255,.04);
+
+  /* ── 滚动条 ── */
+  --scrollbar-track: transparent;
+  --scrollbar-thumb: rgba(255,255,255,.08);
 }
 
+[data-theme="light"] {
+  /* ── 背景 ── */
+  --bg-page: #f2f2f7;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f8f9fa;
+  --bg-elevated: #ffffff;
+  --bg-nav: rgba(255,255,255,.85);
+  --bg-input: #f2f2f7;
+  --bg-tag: #f2f2f7;
+  --bg-badge: #e8e8ed;
+
+  /* ── 文字 ── */
+  --text-primary: #1c1c1e;
+  --text-secondary: #3a3a3c;
+  --text-muted: #8e8e93;
+  --text-dim: #aeaeb2;
+
+  /* ── 边框 ── */
+  --border-default: #e5e5ea;
+  --border-hover: #d1d1d6;
+  --border-accent: rgba(0,122,255,.25);
+
+  /* ── 强调色 ── */
+  --accent: #007aff;
+  --accent-light: #409cff;
+  --accent-bg: rgba(0,122,255,.08);
+  --accent-glow: rgba(0,122,255,.04);
+  --blue: #007aff;
+  --blue-bg: rgba(0,122,255,.08);
+
+  /* ── 涨跌色（A股惯例） ── */
+  --up: #ff3b30;
+  --up-bg: rgba(255,59,48,.08);
+  --down: #34c759;
+  --down-bg: rgba(52,199,89,.08);
+
+  /* ── 卡片 ── */
+  --card-radius: 16px;
+  --card-border: #e5e5ea;
+  --card-shadow: 0 2px 12px rgba(0,0,0,.04);
+
+  /* ── 导航 ── */
+  --nav-blur: blur(20px);
+  --nav-border: rgba(0,0,0,.06);
+
+  /* ── 滚动条 ── */
+  --scrollbar-track: transparent;
+  --scrollbar-thumb: #d1d1d6;
+}
+
+/* ── 全局样式 ── */
 body {
   margin: 0;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background: var(--color-bg-primary);
-  color: var(--color-text-primary);
+  background: var(--bg-page);
+  color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
+  transition: background .3s ease, color .3s ease;
 }
 
-/* 自定义滚动条 */
+/* ── 滚动条 ── */
 ::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: var(--color-bg-secondary); }
-::-webkit-scrollbar-thumb { background: var(--color-border-default); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: var(--color-accent-blue); }
+::-webkit-scrollbar-track { background: var(--scrollbar-track); }
+::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--accent); }
 
-/* 股票卡片 */
-.stock-card {
-  background: var(--color-bg-card);
-  border: 1px solid var(--color-border-default);
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(30, 136, 229, 0.06);
-  transition: all 0.25s ease;
+/* ── 通用卡片 ── */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--card-border);
+  border-radius: var(--card-radius);
+  box-shadow: var(--card-shadow);
+  transition: all .25s ease;
+  backdrop-filter: blur(40px);
+  -webkit-backdrop-filter: blur(40px);
 }
-.stock-card:hover {
-  border-color: var(--color-accent-blue);
-  box-shadow: 0 4px 16px rgba(30, 136, 229, 0.12);
-}
-
-/* 毛玻璃卡片 */
-.glass-card {
-  background: var(--color-bg-card);
-  border: 1px solid var(--color-border-default);
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(30, 136, 229, 0.06);
-  transition: all 0.25s ease;
-}
-.glass-card:hover {
-  border-color: var(--color-accent-blue);
-  box-shadow: 0 4px 16px rgba(30, 136, 229, 0.12);
+.card:hover {
+  border-color: var(--border-hover);
+  background: var(--bg-card-hover);
 }
 
-/* 渐变边框 */
-.gradient-border {
-  position: relative;
-}
-.gradient-border::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: 12px;
-  padding: 1px;
-  background: linear-gradient(135deg, var(--color-accent-blue), var(--color-accent-cyan));
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
+/* ── 发光装饰（仅暗色） ── */
+[data-theme="dark"] .glow-spot {
+  position: fixed;
   pointer-events: none;
+  z-index: 0;
+  border-radius: 50%;
+}
+[data-theme="dark"] .glow-spot-tr {
+  top: -200px; right: -200px;
+  width: 500px; height: 500px;
+  background: radial-gradient(circle, rgba(99,102,241,.06) 0%, transparent 70%);
+}
+[data-theme="dark"] .glow-spot-bl {
+  bottom: -300px; left: -200px;
+  width: 600px; height: 600px;
+  background: radial-gradient(circle, rgba(139,92,246,.04) 0%, transparent 70%);
 }
 
-/* 脉冲动画 */
-@keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 5px rgba(30, 136, 229, 0.15); }
-  50% { box-shadow: 0 0 20px rgba(30, 136, 229, 0.3); }
+/* ── 脉冲点 ── */
+[data-theme="dark"] .pulse-dot::after {
+  border-color: rgba(52,211,153,.3);
 }
-.pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
 
-/* 加载骨架屏 */
+/* ── 动画 ── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.fade-in { animation: fadeIn .35s ease forwards; }
+
 @keyframes shimmer {
   0% { background-position: -200% 0; }
   100% { background-position: 200% 0; }
 }
 .skeleton {
-  background: linear-gradient(90deg, var(--color-bg-card) 25%, var(--color-bg-hover) 50%, var(--color-bg-card) 75%);
+  background: linear-gradient(90deg, var(--bg-card) 25%, var(--bg-elevated) 50%, var(--bg-card) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: var(--card-radius);
+}
+
+/* ── 工具类 ── */
+.up { color: var(--up); }
+.down { color: var(--down); }
+.up-bg { background: var(--up-bg); }
+.down-bg { background: var(--down-bg); }
+.mono { font-family: 'JetBrains Mono', monospace; }
+.text-muted { color: var(--text-muted); }
+
+/* ── Nav pills ── */
+.nav-pills {
+  display: flex; gap: 2px;
+  background: var(--bg-card);
+  padding: 4px;
+  border-radius: 12px;
+  border: 1px solid var(--border-default);
+}
+.nav-pills a {
+  padding: 8px 18px;
   border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: all .2s;
+}
+.nav-pills a:hover { color: var(--text-primary); background: var(--bg-elevated); }
+.nav-pills a.active {
+  background: var(--accent);
+  color: #fff;
+}
+[data-theme="light"] .nav-pills a.active {
+  background: var(--accent);
+  color: #fff;
 }
 
-/* 滚动渐现 */
-@keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(15px); }
-  to { opacity: 1; transform: translateY(0); }
+/* ── Badge ── */
+.badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 100px;
+  font-size: 11px;
+  font-weight: 500;
+  background: var(--bg-tag);
+  color: var(--text-muted);
 }
-.fade-in-up { animation: fadeInUp 0.4s ease forwards; }
+.badge-accent { background: var(--accent-bg); color: var(--accent-light); }
+.badge-up { background: var(--up-bg); color: var(--up); }
+.badge-down { background: var(--down-bg); color: var(--down); }
 
-/* 数字跳动 */
-@keyframes countIn {
-  from { opacity: 0; transform: scale(0.85); }
-  to { opacity: 1; transform: scale(1); }
+/* ── Section header ── */
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
 }
-.count-in { animation: countIn 0.3s ease forwards; }
-
-/* 网格背景 */
-.bg-grid {
-  background-image:
-    linear-gradient(rgba(30, 136, 229, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(30, 136, 229, 0.05) 1px, transparent 1px);
-  background-size: 40px 40px;
-  background-position: center center;
+.section-header h3 {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
 }
 
-/* 股票涨跌色 */
-.stock-up { color: var(--color-stock-up); }
-.stock-down { color: var(--color-stock-down); }
-.stock-up-bg { background: var(--color-stock-up-bg); }
-.stock-down-bg { background: var(--color-stock-down-bg); }
+/* ── Row item ── */
+.row-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-default);
+}
+.row-item:last-child { border-bottom: none; }
+.row-item .rn { font-size: 14px; font-weight: 500; color: var(--text-primary); }
+.row-item .rv { font-size: 14px; font-weight: 600; font-family: 'JetBrains Mono', monospace; }
+.row-item .rsub { font-size: 11px; color: var(--text-dim); font-family: 'JetBrains Mono', monospace; margin-top: 1px; }

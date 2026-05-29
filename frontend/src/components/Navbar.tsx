@@ -1,94 +1,88 @@
 import { NavLink, Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { useTheme } from '../contexts/ThemeContext'
 
 const protectedNavItems = [
-  { path: '/report', label: '市场报告', icon: '📊' },
-  { path: '/recommend', label: '智能推荐', icon: '🎯' },
-  { path: '/tracking', label: '收益跟踪', icon: '📈' },
-  { path: '/poster', label: '海报', icon: '🖼️' },
-  { path: '/analysis', label: '数据分析', icon: '🔬' },
+  { path: '/report', label: '市场报告' },
+  { path: '/recommend', label: '智能推荐' },
+  { path: '/tracking', label: '收益跟踪' },
+  { path: '/poster', label: '海报' },
+  { path: '/analysis', label: '数据分析' },
 ]
 
 const adminNavItems = [
-  { path: '/settings', label: '设置', icon: '⚙️' },
+  { path: '/settings', label: '设置' },
 ]
 
 export default function Navbar() {
   const { user, logout } = useAuth()
+  const { theme, toggle } = useTheme()
   const isLoggedIn = !!user
   const isAdmin = user?.role === 'admin'
 
-  const linkClass = ({ isActive }: { isActive: boolean }) =>
-    `relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-300 ${
-      isActive
-        ? 'bg-blue-600 text-white shadow-md shadow-blue-200'
-        : 'text-text-secondary hover:text-blue-600 hover:bg-blue-50'
-    }`
+  const linkBase: React.CSSProperties = {
+    padding: '6px 14px', borderRadius: 8, fontSize: 13, fontWeight: 500,
+    textDecoration: 'none', transition: 'all .2s',
+  }
 
   return (
-    <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-border-default shadow-sm">
-      <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between gap-2">
-        <NavLink to="/" className="flex items-center gap-2.5 shrink-0">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white font-bold text-xs shadow-md shadow-blue-200">
-            QF
-          </div>
-          <span className="text-lg font-bold text-blue-700 tracking-tight hidden sm:inline">QuantForge</span>
+    <nav style={{
+      position: 'sticky', top: 0, zIndex: 50,
+      background: 'var(--bg-nav)',
+      backdropFilter: 'var(--nav-blur)',
+      WebkitBackdropFilter: 'var(--nav-blur)',
+      borderBottom: '1px solid var(--nav-border)'
+    }}>
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 16px', height: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <NavLink to="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none', flexShrink: 0 }}>
+          <div style={{
+            width: 28, height: 28, borderRadius: 8,
+            background: 'linear-gradient(135deg, var(--accent), #8b5cf6)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 11, fontWeight: 700, color: '#fff'
+          }}>QF</div>
+          <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', letterSpacing: '-.01em' }}>QuantForge</span>
         </NavLink>
 
-        {/* 导航项：登录后显示 */}
         {isLoggedIn && (
-          <div className="flex items-center gap-0.5 overflow-x-auto scrollbar-none">
-            <NavLink to="/" end className={linkClass}>
-              <span className="text-sm">🏠</span>
-              <span>首页</span>
-            </NavLink>
-            {protectedNavItems.map((item) => (
-              <NavLink key={item.path} to={item.path} className={linkClass}>
-                <span className="text-sm">{item.icon}</span>
-                <span>{item.label}</span>
-              </NavLink>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 2, overflow: 'auto' }}>
+            <NavLink to="/" end style={({ isActive }) => ({ ...linkBase, color: isActive ? '#fff' : 'var(--text-muted)', background: isActive ? 'var(--accent)' : 'transparent' })}>首页</NavLink>
+            {protectedNavItems.map(item => (
+              <NavLink key={item.path} to={item.path} style={({ isActive }) => ({ ...linkBase, color: isActive ? '#fff' : 'var(--text-muted)', background: isActive ? 'var(--accent)' : 'transparent' })}>{item.label}</NavLink>
             ))}
-            {isAdmin && adminNavItems.map((item) => (
-              <NavLink key={item.path} to={item.path} className={linkClass}>
-                <span className="text-sm">{item.icon}</span>
-                <span>{item.label}</span>
-              </NavLink>
+            {isAdmin && adminNavItems.map(item => (
+              <NavLink key={item.path} to={item.path} style={({ isActive }) => ({ ...linkBase, color: isActive ? '#fff' : 'var(--text-muted)', background: isActive ? 'var(--accent)' : 'transparent' })}>{item.label}</NavLink>
             ))}
           </div>
         )}
 
-        {/* 右侧：未登录 → 登录/注册按钮；已登录 → 用户信息 + 退出 */}
-        <div className="flex items-center gap-2 shrink-0">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          <button onClick={toggle} title={theme === 'dark' ? '切换亮色模式' : '切换暗色模式'} style={{
+            width: 36, height: 36, borderRadius: 10,
+            border: '1px solid var(--border-default)',
+            background: 'var(--bg-card)', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 16, transition: 'all .2s'
+          }}>
+            {theme === 'dark' ? '☀️' : '🌙'}
+          </button>
+
           {isLoggedIn ? (
             <>
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-100">
-                <span className="text-xs leading-none">👤</span>
-                <span className="text-xs text-blue-700 font-medium max-w-[80px] truncate">{user.username}</span>
-                {isAdmin && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-600 text-white font-medium leading-none">Admin</span>
-                )}
+              <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg" style={{ background: 'var(--accent-bg)', border: '1px solid var(--border-accent)' }}>
+                <span style={{ fontSize: 11, color: 'var(--accent-light)', fontWeight: 500, maxWidth: 80 }} className="truncate">{user.username}</span>
+                {isAdmin && <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 4, background: 'var(--accent)', color: '#fff', fontWeight: 600 }}>Admin</span>}
               </div>
-              <button
-                onClick={logout}
-                className="px-2.5 py-1.5 rounded-lg text-xs font-medium text-text-muted hover:text-red-500 hover:bg-red-50 transition-colors"
-              >
-                退出
-              </button>
+              <button onClick={logout} style={{
+                padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 500,
+                color: 'var(--text-muted)', border: 'none', background: 'transparent',
+                cursor: 'pointer', transition: 'all .2s'
+              }}>退出</button>
             </>
           ) : (
             <>
-              <Link
-                to="/login"
-                className="px-3 py-1.5 rounded-lg text-sm font-medium text-text-secondary hover:text-blue-600 hover:bg-blue-50 transition-all duration-300"
-              >
-                登录
-              </Link>
-              <Link
-                to="/register"
-                className="px-3 py-1.5 rounded-lg text-sm font-medium bg-blue-600 text-white shadow-md shadow-blue-200 hover:bg-blue-700 transition-all duration-300"
-              >
-                注册
-              </Link>
+              <Link to="/login" style={{ ...linkBase, color: 'var(--text-muted)' }}>登录</Link>
+              <Link to="/register" style={{ ...linkBase, background: 'var(--accent)', color: '#fff', boxShadow: '0 2px 8px var(--accent-glow)' }}>注册</Link>
             </>
           )}
         </div>
