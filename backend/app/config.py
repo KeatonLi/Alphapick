@@ -22,9 +22,9 @@ class Settings:
     QUANTFORGE_DB_NAME: str = os.getenv("QUANTFORGE_DB_NAME", "quantforge")
 
     # AI API 配置
-    ANTHROPIC_AUTH_TOKEN: str = os.getenv("ANTHROPIC_AUTH_TOKEN", "")
-    ANTHROPIC_BASE_URL: str = os.getenv("ANTHROPIC_BASE_URL", "https://api.minimaxi.com/anthropic")
-    ANTHROPIC_MODEL: str = os.getenv("ANTHROPIC_MODEL", "MiniMax-M2.7-highspeed")
+    LLM_AUTH_TOKEN: str = os.getenv("LLM_AUTH_TOKEN", "")
+    LLM_BASE_URL: str = os.getenv("LLM_BASE_URL", "https://api.deepseek.com")
+    LLM_MODEL: str = os.getenv("LLM_MODEL", "DeepSeek-V4-Flash")
 
     @property
     def database_url(self) -> str:

@@ -11,7 +11,7 @@ async def chat(messages: list[dict[str, str]], max_tokens: int = 4096) -> str:
 
     def _sync_call():
         payload = {
-            "model": settings.ANTHROPIC_MODEL,
+            "model": settings.LLM_MODEL,
             "max_tokens": max_tokens,
             "messages": [{"role": m["role"], "content": m["content"]} for m in user_messages],
         }
@@ -19,9 +19,9 @@ async def chat(messages: list[dict[str, str]], max_tokens: int = 4096) -> str:
             payload["system"] = system
 
         resp = requests.post(
-            settings.ANTHROPIC_BASE_URL,
+            settings.LLM_BASE_URL,
             headers={
-                "Authorization": f"Bearer {settings.ANTHROPIC_AUTH_TOKEN}",
+                "Authorization": f"Bearer {settings.LLM_AUTH_TOKEN}",
                 "Content-Type": "application/json",
             },
             json=payload,
@@ -29,7 +29,7 @@ async def chat(messages: list[dict[str, str]], max_tokens: int = 4096) -> str:
         )
         resp.raise_for_status()
         data = resp.json()
-        # MiniMax returns content in choices[0].message.content
+        # DeepSeek returns content in choices[0].message.content
         return data.get("choices", [{}])[0].get("message", {}).get("content", "")
 
     return await asyncio.to_thread(_sync_call)
