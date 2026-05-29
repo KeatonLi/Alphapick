@@ -12,9 +12,13 @@
 
 import asyncio
 import json
+import logging
 import requests
 
 import akshare as ak
+
+logger = logging.getLogger(__name__)
+
 
 # ─── 主板过滤 ────────────────────────────────────────────────────────────
 # 沪主板: 600/601/603  深主板: 000/001/002
@@ -121,18 +125,15 @@ def get_ths_candidates() -> dict:
         'from_cxg': len([c for c in candidates if c['source'] == 'cxg']),
     }
 
-
-
-
 # ─── 腾讯批量行情 ──────────────────────────────────────────────────────
 
 def _fetch_tencent_prices(codes: list) -> dict:
     """用腾讯 qt.gtimg.cn 批量获取行情，返回 {code: {price, change_pct, volume, turnover}}"""
-    import requests
     from app.utils.akshare_utils import _to_tencent_code, _from_tencent_code
 
     result = {}
     batch_size = 80
+    logger.info("Fetching Tencent prices for %d codes in batches of %d", len(codes), batch_size)
     for i in range(0, len(codes), batch_size):
         batch = codes[i:i + batch_size]
         tencent_codes = [_to_tencent_code(c) for c in batch]
@@ -161,7 +162,9 @@ def _fetch_tencent_prices(codes: list) -> dict:
                     "volume": volume, "turnover": turnover,
                 }
         except Exception:
+            logger.warning("Failed to fetch Tencent prices batch %d-%d", i, i + len(batch))
             continue
+    logger.info("Fetched Tencent prices: %d/%d codes", len(result), len(codes))
     return result
 
 
@@ -244,36 +247,31 @@ async def get_ma_filtered_candidates(top_n: int = 50) -> dict:
         return {'success': False, 'error': 'THS 选股池返回为空'}
 
     # Step 2: 腾讯批量获取实时行情
-    bare_codes = []
+    code_to_bare = {}
     for s in candidates:
-        c = s['code']
+        bare = s['code']
         for prefix in ('sh', 'sz', 'bj'):
-            if c.startswith(prefix):
-                c = c[len(prefix):]
+            if bare.startswith(prefix):
+                bare = bare[len(prefix):]
                 break
-        bare_codes.append(c)
+        code_to_bare[s['code']] = bare
 
-    price_map = _fetch_tencent_prices(bare_codes)
+    price_map = _fetch_tencent_prices(list(code_to_bare.values()))
 
     # Step 3: 合并行情数据 + 过滤主板 + 排序
     merged = []
     for s in candidates:
-        c = s['code']
-        for prefix in ('sh', 'sz', 'bj'):
-            if c.startswith(prefix):
-                c = c[len(prefix):]
-                break
-
-        if c not in price_map:
+        bare = code_to_bare[s['code']]
+        if bare not in price_map:
             continue
-        if not _is_zhuban(c):
+        if not _is_zhuban(bare):
             continue
 
-        qt = price_map[c]
+        qt = price_map[bare]
         merged.append({
             **s,
             'price': qt['price'],
-            'change_pct': s.get('change_pct', qt['change_pct']),
+            'change_pct': qt['change_pct'],
             'volume': qt['volume'],
             'turnover': qt.get('turnover', s.get('turnover', 0)),
         })
@@ -295,7 +293,6 @@ async def get_ma_filtered_candidates(top_n: int = 50) -> dict:
     for idx, s in enumerate(merged):
         s['news'] = news_map.get(s['code'], [])
         s['hot_rank'] = idx + 1
-        s['hot_score'] = 0
 
     return {
         'success': True,
@@ -316,7 +313,7 @@ def format_candidates_for_ai(candidates: list) -> str:
             f"现价:{s['price']} 涨幅:{s.get('change_pct', 0):.2f}% "
             f"换手:{s.get('turnover', 0):.2f}% 连涨:{s.get('continuous_days', 0)}天 "
             f"板块:{s.get('sector', '')} "
-            f"热度:#{s.get('hot_rank', '?')} "
+            f"排序:#{s.get('hot_rank', '?')} "
             f"消息面:{news_str}"
         )
     return '\n'.join(lines)
