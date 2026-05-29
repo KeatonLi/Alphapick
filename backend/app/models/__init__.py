@@ -8,7 +8,6 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.database import Base
 from app.models.generation_task import GenerationTask
 from app.models.schedule_config import ScheduleConfig
-from app.models.market_cache import MarketCache
 from app.models.user import User
 
 
@@ -59,6 +58,15 @@ class MarketReport(Base):
     html_report_path: Mapped[Optional[str]] = mapped_column(String(500), nullable=True, comment="HTML 报告文件路径")
     yesterday_limit_ups: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="昨日涨停股代码列表JSON")
     yesterday_limit_ups_performance: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2), nullable=True, comment="昨日涨停股今日平均涨幅")
+    hsgt_flow: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="沪深港通资金流 JSON")
+    sectors_full: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="全量行业板块 JSON")
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), comment="创建时间"
     )
+
+
+# === 数据库迁移 SQL（无 Alembic 时手动执行）===
+# ALTER TABLE market_reports
+#     ADD COLUMN hsgt_flow TEXT COMMENT '沪深港通资金流 JSON' AFTER yesterday_limit_ups_performance;
+# ALTER TABLE market_reports
+#     ADD COLUMN sectors_full TEXT COMMENT '全量行业板块 JSON' AFTER hsgt_flow;
