@@ -24,14 +24,15 @@ AI 驱动的 A 股分析工具，支持个股深度分析、每日量化推荐�
 
 ```
 QuantForge/
-├── deploy.sh                  # 部署到服务器（Linux / Git Bash / MSYS2）
-├── deploy-windows.sh          # 部署到服务器（Windows 原生 bash）
-├── generate_report.py         # 生成市场报告 + 量化推荐（cron 主脚本）
-├── update_prices.py          # 更新推荐股现价和收益率（cron 第二步）
+├── deploy.sh                  # 一键部署到服务器
+├── scripts/
+│   └── test_integration.sh    # 端到端集成测试
 ├── backend/
 │   ├── .env.example           # 环境变量模板
-│   ├── generate_report.py     # 定时生成市场报告脚本
 │   ├── requirements.txt
+│   ├── tests/
+│   │   ├── test_api_endpoints.py  # AKShare 接口连通性测试
+│   │   └── test_integration.py    # API 端到端集成测试
 │   └── app/
 │       ├── main.py            # FastAPI 入口
 │       ├── config.py          # 配置管理
@@ -75,18 +76,11 @@ npm run dev
 
 ### 3. 生产部署
 
-**Windows**（Git Bash / MSYS2 / WSL）：
-```bash
-bash deploy-windows.sh
-# 部署时会提示输入服务器 SSH 密码
-```
-
-**Linux**（或 Git Bash / MSYS2）：
 ```bash
 bash deploy.sh
 ```
 
-部署时会构建前端、上传代码、安装依赖、重启服务。
+脚本会自动检测 SSH 认证方式（密钥/密码），构建前端、上传代码、安装依赖、重启服务。
 
 ```
 前端: http://<server>:3002

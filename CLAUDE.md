@@ -30,8 +30,7 @@ npm run build        # 生产构建
 
 ### 定时脚本
 ```bash
-python backend/generate_report.py [YYYY-MM-DD]   # 生成市场报告+量化推荐
-python backend/update_prices.py                   # 更新所有推荐股的现价和收益率
+# 报告和推荐已改为通过前端 Settings 页面按钮触发，无需手动执行
 ```
 
 ## 架构要点
@@ -40,12 +39,11 @@ python backend/update_prices.py                   # 更新所有推荐股的现�
 - `app/routers/` — API 路由定义（Analysis/Report/Recommend/Stock）
 - `app/services/` — 业务逻辑层（report_service 处理报告生成，recommend_service 处理推荐）
 - `app/utils/akshare_utils.py` — 数据源封装，统一腾讯代码格式（`_to_tencent_code` / `_from_tencent_code`）
-- `app/utils/ai_client.py` — MiniMax M2.7 AI 客户端
+- `app/utils/ai_client.py` — LLM 客户端
 
 ### 前端结构
 - `pages/DailyReport.tsx` — 核心页面，三个 Tab：市场报告 / 量化推荐 / 收益跟踪
 - `services/api.ts` — API 调用层
-- `services/mockData.ts` — 非核心页面的 mock 数据
 
 ### 数据流向
 1. 推荐生成：THS 服务端选股池（理想选股 + 持续强势股，~500只）→ 并发获取日线，MA5>MA10>MA20 多头筛选 → AI 精选 5 只 → 存入 MySQL
