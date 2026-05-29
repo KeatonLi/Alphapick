@@ -19,3 +19,4 @@ backend/.env
 *.swp
 frontend/.env.production
 frontend/dist/
+.codegraph/
