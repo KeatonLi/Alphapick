@@ -1,14 +1,6 @@
 import { useEffect, useState } from 'react'
 import { apiGet } from '../services/api'
-
-interface HistoryRec {
-  id: number; recommend_date: string; stock_code: string; stock_name: string
-  recommend_price: number; current_price: number; return_rate: number; reason: string
-  tracking_days: number; status: string
-  price_day1: number; price_day2: number; price_day3: number
-  return_rate_day1: number; return_rate_day2: number; return_rate_day3: number
-  final_return_rate: number; max_gain: number; max_drawdown: number
-}
+import type { HistoryRec } from '../services/api'
 
 function fmt(n: number, d = 2) { return n.toFixed(d) }
 
@@ -27,16 +19,22 @@ function RateBadge({ rate }: { rate: number }) {
 
 export default function TrackingPage() {
   const [recs, setRecs] = useState<HistoryRec[]>([])
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  useEffect(() => {
-    setLoading(true)
-    apiGet<any>('/recommend/history')
-      .then(d => { if (d.success) setRecs(d.data || []); else setError(d.error || '') })
-      .catch((e: any) => setError(e.message))
-      .finally(() => setLoading(false))
-  }, [])
+  const fetchData = async () => {
+    try {
+      const d = await apiGet<any>('/recommend/history')
+      if (d.success) setRecs(d.data || [])
+      else setError(d.error || '')
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { fetchData() }, [])
 
   const grouped = recs.reduce<Record<string, HistoryRec[]>>((acc, r) => {
     (acc[r.recommend_date] ||= []).push(r)
@@ -152,14 +150,10 @@ export default function TrackingPage() {
                           <div className="font-mono font-semibold text-sm">{fmt(rec.recommend_price)}</div>
                         </div>
                         {completed && (
-                          <div className="shrink-0 px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-[10px] font-semibold">
-                            已完结
-                          </div>
+                          <div className="shrink-0 px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-[10px] font-semibold">已完结</div>
                         )}
                         {!completed && td > 0 && (
-                          <div className="shrink-0 px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-semibold">
-                            跟踪中
-                          </div>
+                          <div className="shrink-0 px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-semibold">跟踪中</div>
                         )}
                       </div>
                       {/* Tracking days row */}
@@ -169,8 +163,7 @@ export default function TrackingPage() {
                           const dayRate = rates[day]
                           const isCurrent = day === td
                           return (
-                            <div
-                              key={day}
+                            <div key={day}
                               className={`flex-1 rounded-xl px-3 py-2 text-center border transition-all ${
                                 isCurrent && !completed ? 'border-blue-300 bg-blue-50 shadow-sm' : hasPrice ? 'border-green-200 bg-green-50/50' : 'border-gray-100 bg-gray-50/50'
                               }`}

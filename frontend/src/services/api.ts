@@ -1,8 +1,17 @@
 const API_BASE = import.meta.env.VITE_API_URL || '/api'
 
-export async function apiGet<T = any>(path: string, options?: RequestInit): Promise<T> {
-  const url = path.startsWith('http') ? path : `${API_BASE}${path}`
-  const res = await fetch(url, { method: 'GET', ...options })
+function authHeaders(): Record<string, string> {
+  const token = localStorage.getItem('auth_token')
+  return token ? { 'Authorization': `Bearer ${token}` } : {}
+}
+
+async function handleResponse<T>(res: Response): Promise<T> {
+  if (res.status === 401) {
+    localStorage.removeItem('auth_token')
+    localStorage.removeItem('auth_user')
+    // 不自动跳转，让 ProtectedRoute 或调用方处理
+    throw new Error('请先登录')
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }))
     throw new Error(err.detail || '请求失败')
@@ -10,18 +19,43 @@ export async function apiGet<T = any>(path: string, options?: RequestInit): Prom
   return res.json()
 }
 
-export async function apiPost<T = any>(path: string, body?: any): Promise<T> {
+export async function apiGet<T = any>(path: string, options?: RequestInit): Promise<T> {
   const url = path.startsWith('http') ? path : `${API_BASE}${path}`
   const res = await fetch(url, {
+    method: 'GET',
+    headers: { ...authHeaders(), ...(options?.headers as Record<string, string> | undefined) },
+    ...options,
+  })
+  return handleResponse<T>(res)
+}
+
+export async function apiPost<T = any>(path: string, body?: any): Promise<T> {
+  const url = path.startsWith('http') ? path : `${API_BASE}${path}`
+  const headers: Record<string, string> = { ...authHeaders() }
+  if (body) headers['Content-Type'] = 'application/json'
+  const res = await fetch(url, {
     method: 'POST',
-    headers: body ? { 'Content-Type': 'application/json' } : undefined,
+    headers,
     body: body ? JSON.stringify(body) : undefined,
   })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: res.statusText }))
-    throw new Error(err.detail || '请求失败')
-  }
-  return res.json()
+  return handleResponse<T>(res)
+}
+
+export async function apiDelete<T = any>(path: string): Promise<T> {
+  const url = path.startsWith('http') ? path : `${API_BASE}${path}`
+  const res = await fetch(url, { method: 'DELETE', headers: authHeaders() })
+  return handleResponse<T>(res)
+}
+
+// ─── 收益跟踪数据类型 ───────────────────────────────────────────
+
+export interface HistoryRec {
+  id: number; recommend_date: string; stock_code: string; stock_name: string
+  recommend_price: number; current_price: number; return_rate: number; reason: string
+  tracking_days: number; status: string
+  price_day1: number; price_day2: number; price_day3: number
+  return_rate_day1: number; return_rate_day2: number; return_rate_day3: number
+  final_return_rate: number; max_gain: number; max_drawdown: number
 }
 
 export async function apiPut<T = any>(path: string, body?: any): Promise<T> {

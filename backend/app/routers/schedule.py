@@ -5,9 +5,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db, SessionLocal
+from app.dependencies import get_current_user, require_admin
+from app.models.user import User
 from app.models import ScheduleConfig, MarketReport, Recommendation
 
-router = APIRouter(prefix="/api/schedule", tags=["schedule"])
+router = APIRouter(prefix="/api/schedule", tags=["schedule"], dependencies=[Depends(get_current_user)])
 
 
 def get_or_create_config(db: Session) -> ScheduleConfig:
@@ -66,6 +68,7 @@ async def save_config(
     run_report: bool = True,
     run_recommend: bool = True,
     db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
 ):
     """保存定时任务配置"""
     if not (0 <= int(run_time.split(":")[0]) <= 23 and 0 <= int(run_time.split(":")[1]) <= 59):
@@ -116,11 +119,6 @@ def run_scheduled_tasks():
                 import asyncio
                 result = asyncio.run(generate_recommendations(db, rec_date=today))
                 results.append(f"推荐: {'成功' if result['success'] else '失败'}")
-
-            from app.services.recommend_service import update_recommend_prices
-            import asyncio
-            price_result = asyncio.run(update_recommend_prices(db))
-            results.append(f"现价: {'成功' if price_result['success'] else '失败'}")
 
         config.last_run_at = now
         config.last_run_result = " | ".join(results)

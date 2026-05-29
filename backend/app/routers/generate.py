@@ -8,6 +8,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db, SessionLocal
+from app.dependencies import get_current_user, require_admin
+from app.models.user import User
 from app.models import GenerationTask, MarketReport, Recommendation
 from app.services.report_service import generate_daily_report
 from app.services.recommend_service import generate_recommendations, update_recommend_prices
@@ -15,7 +17,7 @@ from app.services.candidate_service import get_ma_filtered_candidates, format_ca
 from app.utils.ai_client import chat
 from app.prompts import RECOMMEND_SYSTEM_PROMPT, RECOMMEND_OUTPUT_FORMAT
 
-router = APIRouter(prefix="/api/generate", tags=["generate"])
+router = APIRouter(prefix="/api/generate", tags=["generate"], dependencies=[Depends(get_current_user)])
 
 
 def _update_task(task_id: int, **kwargs):
@@ -143,6 +145,7 @@ async def _run_recommend(task_id: int, target_date: date):
 async def start_report(
     report_date: Optional[date] = Query(None, alias="date"),
     db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
 ):
     """异步启动报告生成，返回 task_id"""
     target_date = report_date or date.today()
@@ -177,6 +180,7 @@ async def start_report(
 async def start_recommend(
     rec_date: Optional[date] = Query(None, alias="date"),
     db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
 ):
     """异步启动推荐生成，返回 task_id"""
     target_date = rec_date or date.today()
@@ -240,6 +244,7 @@ async def _run_all(task_id: int, target_date: date):
 async def start_all(
     report_date: Optional[date] = Query(None, alias="date"),
     db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
 ):
     """异步启动全部生成：报告 + 推荐 + 更新现价"""
     target_date = report_date or date.today()

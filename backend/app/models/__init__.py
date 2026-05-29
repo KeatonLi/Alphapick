@@ -9,6 +9,7 @@ from app.database import Base
 from app.models.generation_task import GenerationTask
 from app.models.schedule_config import ScheduleConfig
 from app.models.market_cache import MarketCache
+from app.models.user import User
 
 
 class Recommendation(Base):
@@ -37,6 +38,7 @@ class Recommendation(Base):
     final_return_rate: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4), nullable=True, comment="三个交易日最终收益率")
     max_gain: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4), nullable=True, comment="最高收益率（三天中最高价相对推荐价）")
     max_drawdown: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4), nullable=True, comment="最大回撤（三天中最低价相对推荐价）")
+    price_updated_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True, comment="最近一次价格更新的交易日日期")
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), comment="创建时间"
     )

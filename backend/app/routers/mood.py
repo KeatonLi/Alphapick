@@ -7,9 +7,10 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from app.database import get_db
+from app.dependencies import get_current_user
 from app.services.mood_service import get_market_mood
 
-router = APIRouter(prefix="/api/mood", tags=["mood"])
+router = APIRouter(prefix="/api/mood", tags=["mood"], dependencies=[Depends(get_current_user)])
 limiter = Limiter(key_func=get_remote_address)
 
 

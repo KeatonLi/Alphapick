@@ -10,6 +10,9 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from app.database import get_db
+from app.dependencies import get_current_user
+
+from app.database import get_db
 from app.models import MarketReport
 from app.services.report_service import (
     get_report_by_date,
@@ -23,7 +26,7 @@ from app.services.chart_service import generate_all_charts
 from app.services.poster_service import generate_poster, generate_poster_base64
 from app.utils.akshare_utils import get_market_index, get_hot_sectors, get_stock_list, get_stock_daily
 
-router = APIRouter(prefix="/api/report", tags=["report"])
+router = APIRouter(prefix="/api/report", tags=["report"], dependencies=[Depends(get_current_user)])
 limiter = Limiter(key_func=get_remote_address)
 
 
