@@ -311,16 +311,6 @@ function SummaryPanel({ date }: { date: string }) {
 
   return (
     <div>
-      <div style={{ marginBottom: 16 }}>
-        <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)', marginRight: 8 }}>目标日期</span>
-        <input type="date" value={date} max={today()} readOnly
-          style={{
-            background: 'var(--bg-input)', border: '1px solid var(--border-default)', color: 'var(--text-primary)',
-            padding: '6px 12px', borderRadius: 8, fontSize: 14, outline: 'none',
-            fontFamily: "'JetBrains Mono', monospace",
-          }} />
-      </div>
-
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10, marginBottom: 16 }}>
         {/* 市场报告 */}
         <div className="card" style={{ padding: 14 }}>
@@ -655,10 +645,11 @@ function SchedulePanel() {
 
 export default function SettingsPage() {
   const [nav, setNav] = useState<NavKey>('collect')
+  const [targetDate, setTargetDate] = useState(today())
 
   const panels: Record<NavKey, () => JSX.Element> = {
-    collect: () => <CollectPanel date={today()} />,
-    summary: () => <SummaryPanel date={today()} />,
+    collect: () => <CollectPanel date={targetDate} />,
+    summary: () => <SummaryPanel date={targetDate} />,
     tracking: () => <TrackingPanel />,
     schedule: () => <SchedulePanel />,
   }
@@ -688,9 +679,22 @@ export default function SettingsPage() {
 
       {/* Right Content */}
       <div style={{ flex: 1, padding: '24px 28px', overflowY: 'auto' }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>
-          {NAV_ITEMS.find(i => i.key === nav)?.label}
-        </h1>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+          <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
+            {NAV_ITEMS.find(i => i.key === nav)?.label}
+          </h1>
+          {(nav === 'collect' || nav === 'summary') && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>目标日期</span>
+              <input type="date" value={targetDate} max={today()} onChange={e => setTargetDate(e.target.value)}
+                style={{
+                  background: 'var(--bg-input)', border: '1px solid var(--border-default)', color: 'var(--text-primary)',
+                  padding: '6px 10px', borderRadius: 8, fontSize: 13, outline: 'none',
+                  fontFamily: "'JetBrains Mono', monospace",
+                }} />
+            </div>
+          )}
+        </div>
         <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 24 }}>
           {nav === 'collect' && '管理外部数据源采集，查看采集状态和日志'}
           {nav === 'summary' && '基于已采集数据生成市场报告、量化推荐和海报'}
