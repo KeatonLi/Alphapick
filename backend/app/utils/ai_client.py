@@ -18,8 +18,9 @@ async def chat(messages: list[dict[str, str]], max_tokens: int = 4096) -> str:
         if system:
             payload["system"] = system
 
+        base = settings.LLM_BASE_URL.rstrip("/")
         resp = requests.post(
-            settings.LLM_BASE_URL,
+            f"{base}/chat/completions",
             headers={
                 "Authorization": f"Bearer {settings.LLM_AUTH_TOKEN}",
                 "Content-Type": "application/json",
