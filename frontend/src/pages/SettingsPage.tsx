@@ -4,7 +4,6 @@ import ConsoleToolbar from '../components/tracking/ConsoleToolbar'
 import DetailedTable from '../components/tracking/DetailedTable'
 import ConfirmModal from '../components/ConfirmModal'
 
-type StatusT = 'idle' | 'pending' | 'running' | 'completed' | 'failed'
 type MsgT = { type: 'success' | 'error' | 'warn'; text: string }
 
 function fmt(n: number, d = 2) { return n.toFixed(d) }
@@ -667,7 +666,7 @@ export default function SettingsPage() {
   const [nav, setNav] = useState<NavKey>('collect')
   const [targetDate, setTargetDate] = useState(today())
 
-  const panels: Record<NavKey, () => JSX.Element> = {
+  const panels: Record<NavKey, () => React.ReactNode> = {
     collect: () => <CollectPanel date={targetDate} />,
     summary: () => <SummaryPanel date={targetDate} />,
     tracking: () => <TrackingPanel />,

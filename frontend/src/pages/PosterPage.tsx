@@ -68,7 +68,7 @@ export default function PosterPage() {
   }
 
   const handleCopyLink = async () => {
-    const url = `${window.location.origin}${API_BASE}/report/poster?date=${selectedDate}`
+    const url = `${window.location.origin}/api/report/poster?date=${selectedDate}`
     try {
       await navigator.clipboard.writeText(url)
       alert('链接已复制到剪贴板')
