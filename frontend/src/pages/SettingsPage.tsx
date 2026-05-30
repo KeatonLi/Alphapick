@@ -50,18 +50,21 @@ function Msg({ msg }: { msg: MsgT }) {
 function CollectPanel({ date }: { date: string }) {
   const [status, setStatus] = useState<DatasourceStatusItem[]>([])
   const [logs, setLogs] = useState<FetchLogEntry[]>([])
+  const [dates, setDates] = useState<Record<string, { label: string; dates: string[] }>>({})
   const [triggering, setTriggering] = useState<string | null>(null)
   const [feedback, setFeedback] = useState<MsgT[]>([])
 
   const addFb = (fb: MsgT) => setFeedback(prev => [fb, ...prev].slice(0, 20))
 
   const load = useCallback(async () => {
-    const [sr, lr] = await Promise.all([
+    const [sr, lr, dr] = await Promise.all([
       datasourceApi.getStatus(date).catch(() => null),
       datasourceApi.getLogs(1).catch(() => null),
+      datasourceApi.getDates().catch(() => null),
     ])
     if (sr?.success) setStatus(sr.data)
     if (lr?.success) setLogs(lr.data.logs)
+    if (dr?.success) setDates(dr.data)
   }, [date])
 
   useEffect(() => { load() }, [load])
@@ -106,8 +109,26 @@ function CollectPanel({ date }: { date: string }) {
 
   return (
     <div>
+      {Object.keys(dates).length > 0 && (
+        <div className="card" style={{ padding: 14, marginBottom: 16 }}>
+          <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)', marginBottom: 10 }}>已采集数据概览</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 10 }}>
+            {Object.entries(dates).map(([dtype, info]) => (
+              <div key={dtype} style={{ fontSize: 12 }}>
+                <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{info.label}</span>
+                <span style={{ color: 'var(--text-muted)', marginLeft: 6 }}>
+                  {info.dates.length > 0
+                    ? `${info.dates.length} 天 (${info.dates[info.dates.length - 1]} ~ ${info.dates[0]})`
+                    : '暂无数据'}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>共 {status.length} 类数据源</div>
+        <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>今日采集状态</div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={triggerAll} disabled={triggering === '__all__'}
             style={accentBtn(triggering === '__all__')}>

@@ -305,6 +305,8 @@ export const datasourceApi = {
     apiDelete<{ success: boolean; data: any }>(`/datasource/records/${dataType}${date ? `?date=${date}` : ''}`),
   deleteAllRecords: (date?: string) =>
     apiDelete<{ success: boolean; data: any }>(`/datasource/records${date ? `?date=${date}` : ''}`),
+  getDates: () =>
+    apiGet<{ success: boolean; data: Record<string, { label: string; dates: string[] }> }>('/datasource/dates'),
   getLogs: (page: number = 1, dataType?: string, status?: string) => {
     const params = new URLSearchParams()
     params.append('page', String(page))

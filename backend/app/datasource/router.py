@@ -193,6 +193,26 @@ def delete_record(data_type: str, target_date: Optional[date] = Query(None, alia
     }
 
 
+@router.get("/dates")
+def datasource_dates(db: Session = Depends(get_db)):
+    """获取各数据源已采集的日期列表"""
+    from sqlalchemy import distinct
+    result = {}
+    for dtype, label in FETCHER_LABELS.items():
+        dates = (
+            db.query(distinct(RawDataRecord.target_date))
+            .filter(RawDataRecord.data_type == dtype)
+            .order_by(RawDataRecord.target_date.desc())
+            .limit(60)
+            .all()
+        )
+        result[dtype] = {
+            "label": label,
+            "dates": [str(d[0]) for d in dates],
+        }
+    return {"success": True, "data": result}
+
+
 @router.delete("/records")
 def delete_all_records(target_date: Optional[date] = Query(None, alias="date"), db: Session = Depends(get_db)):
     """删除指定日期所有采集记录（全部清空）"""
