@@ -41,21 +41,41 @@ FETCHER_LABELS = {
 
 @router.get("/status")
 def datasource_status(target_date: Optional[date] = Query(None, alias="date"), db: Session = Depends(get_db)):
-    """获取各数据源今日采集状态"""
+    """获取各数据源今日采集状态（优化：只查必要字段，不拉 raw_json）"""
     today = target_date or date.today()
+
+    # 一次性查出所有数据类型的 log（只取需要的列）
+    logs = (
+        db.query(
+            DataFetchLog.data_type,
+            DataFetchLog.status,
+            DataFetchLog.duration_ms,
+            DataFetchLog.response_size,
+            DataFetchLog.error_message,
+            DataFetchLog.retry_count,
+            DataFetchLog.created_at,
+        )
+        .filter(DataFetchLog.target_date == today)
+        .order_by(desc(DataFetchLog.created_at))
+        .all()
+    )
+
+    # 一次性查出有数据的所有类型（只查 id，不拉 raw_json）
+    record_types = set(
+        r[0] for r in db.query(RawDataRecord.data_type)
+        .filter(RawDataRecord.target_date == today)
+        .all()
+    )
+
+    # 每种类型取最新一条 log
+    log_map = {}
+    for l in logs:
+        if l.data_type not in log_map:
+            log_map[l.data_type] = l
+
     result = []
     for dtype, label in FETCHER_LABELS.items():
-        log = (
-            db.query(DataFetchLog)
-            .filter(DataFetchLog.data_type == dtype, DataFetchLog.target_date == today)
-            .order_by(desc(DataFetchLog.created_at))
-            .first()
-        )
-        record = (
-            db.query(RawDataRecord)
-            .filter(RawDataRecord.data_type == dtype, RawDataRecord.target_date == today)
-            .first()
-        )
+        log = log_map.get(dtype)
         result.append({
             "data_type": dtype,
             "label": label,
@@ -64,7 +84,7 @@ def datasource_status(target_date: Optional[date] = Query(None, alias="date"), d
             "response_size": log.response_size if log else None,
             "error_message": log.error_message if log else None,
             "retry_count": log.retry_count if log else None,
-            "has_data": record is not None,
+            "has_data": dtype in record_types,
             "fetched_at": str(log.created_at) if log else None,
         })
     return {"success": True, "data": result}
@@ -195,21 +215,21 @@ def delete_record(data_type: str, target_date: Optional[date] = Query(None, alia
 
 @router.get("/dates")
 def datasource_dates(db: Session = Depends(get_db)):
-    """获取各数据源已采集的日期列表"""
-    from sqlalchemy import distinct
+    """获取各数据源已采集的日期列表（单次查询）"""
+    from collections import defaultdict
+    rows = (
+        db.query(RawDataRecord.data_type, RawDataRecord.target_date)
+        .order_by(RawDataRecord.target_date.desc())
+        .all()
+    )
+    grouped = defaultdict(list)
+    for dtype, d in rows:
+        if len(grouped[dtype]) < 60:
+            grouped[dtype].append(str(d))
+
     result = {}
     for dtype, label in FETCHER_LABELS.items():
-        dates = (
-            db.query(distinct(RawDataRecord.target_date))
-            .filter(RawDataRecord.data_type == dtype)
-            .order_by(RawDataRecord.target_date.desc())
-            .limit(60)
-            .all()
-        )
-        result[dtype] = {
-            "label": label,
-            "dates": [str(d[0]) for d in dates],
-        }
+        result[dtype] = {"label": label, "dates": grouped.get(dtype, [])}
     return {"success": True, "data": result}
 
 
