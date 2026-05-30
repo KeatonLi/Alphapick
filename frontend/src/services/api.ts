@@ -301,6 +301,10 @@ export const datasourceApi = {
     apiPost<{ success: boolean; data: any }>(`/datasource/trigger/${dataType}${date ? `?date=${date}` : ''}`),
   triggerAll: (date?: string) =>
     apiPost<{ success: boolean; data: any }>(`/datasource/trigger-all${date ? `?date=${date}` : ''}`),
+  deleteRecord: (dataType: string, date?: string) =>
+    apiDelete<{ success: boolean; data: any }>(`/datasource/records/${dataType}${date ? `?date=${date}` : ''}`),
+  deleteAllRecords: (date?: string) =>
+    apiDelete<{ success: boolean; data: any }>(`/datasource/records${date ? `?date=${date}` : ''}`),
   getLogs: (page: number = 1, dataType?: string, status?: string) => {
     const params = new URLSearchParams()
     params.append('page', String(page))
@@ -308,4 +312,11 @@ export const datasourceApi = {
     if (status) params.append('status', status)
     return apiGet<{ success: boolean; data: { total: number; logs: FetchLogEntry[] } }>(`/datasource/logs?${params}`)
   },
+}
+
+export const generateApi = {
+  deleteReport: (date?: string) =>
+    apiDelete<{ success: boolean; data: any }>(`/generate/report${date ? `?date=${date}` : ''}`),
+  deleteRecommend: (date?: string) =>
+    apiDelete<{ success: boolean; data: any }>(`/generate/recommend${date ? `?date=${date}` : ''}`),
 }

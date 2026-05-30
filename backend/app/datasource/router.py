@@ -162,3 +162,42 @@ def datasource_logs(
             ],
         },
     }
+
+
+@router.delete("/records/{data_type}")
+def delete_record(data_type: str, target_date: Optional[date] = Query(None, alias="date"), db: Session = Depends(get_db)):
+    """删除某类数据的采集记录（可重新采集）"""
+    if data_type not in FETCHER_LABELS:
+        raise HTTPException(status_code=400, detail=f"未知数据类型: {data_type}")
+    today = target_date or date.today()
+
+    deleted_records = (
+        db.query(RawDataRecord)
+        .filter(RawDataRecord.data_type == data_type, RawDataRecord.target_date == today)
+        .delete()
+    )
+    deleted_logs = (
+        db.query(DataFetchLog)
+        .filter(DataFetchLog.data_type == data_type, DataFetchLog.target_date == today)
+        .delete()
+    )
+    db.commit()
+    return {
+        "success": True,
+        "data": {
+            "data_type": data_type,
+            "date": str(today),
+            "deleted_records": deleted_records,
+            "deleted_logs": deleted_logs,
+        },
+    }
+
+
+@router.delete("/records")
+def delete_all_records(target_date: Optional[date] = Query(None, alias="date"), db: Session = Depends(get_db)):
+    """删除指定日期所有采集记录（全部清空）"""
+    today = target_date or date.today()
+    dr = db.query(RawDataRecord).filter(RawDataRecord.target_date == today).delete()
+    dl = db.query(DataFetchLog).filter(DataFetchLog.target_date == today).delete()
+    db.commit()
+    return {"success": True, "data": {"date": str(today), "deleted_records": dr, "deleted_logs": dl}}

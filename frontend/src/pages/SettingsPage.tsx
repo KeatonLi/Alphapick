@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useCallback, type ReactNode } from 'react'
-import { apiGet, apiPost, apiDelete, type HistoryRec, datasourceApi, type DatasourceStatusItem } from '../services/api'
+import { apiGet, apiPost, apiDelete, type HistoryRec, datasourceApi, generateApi, type DatasourceStatusItem, type FetchLogEntry } from '../services/api'
 import ConsoleToolbar from '../components/tracking/ConsoleToolbar'
 import DetailedTable from '../components/tracking/DetailedTable'
 import ConfirmModal from '../components/ConfirmModal'
@@ -8,373 +8,383 @@ type StatusT = 'idle' | 'pending' | 'running' | 'completed' | 'failed'
 type MsgT = { type: 'success' | 'error' | 'warn'; text: string }
 
 function fmt(n: number, d = 2) { return n.toFixed(d) }
+function fmtSize(b: number | null) { if (!b) return '-'; return b >= 1e6 ? `${(b/1e6).toFixed(2)}MB` : b >= 1e3 ? `${(b/1e3).toFixed(0)}KB` : `${b}B` }
+function fmtMs(ms: number | null) { if (!ms) return '-'; return ms >= 1000 ? `${(ms/1000).toFixed(1)}s` : `${ms}ms` }
 
-const TABS = [
-  { key: 'settings', label: '设置', icon: '⚙️' },
-  { key: 'console', label: '控制台', icon: '⚡' },
+const NAV_ITEMS = [
+  { key: 'collect', label: '数据采集', icon: '📡' },
+  { key: 'summary', label: '数据汇总', icon: '📊' },
+  { key: 'tracking', label: '收益跟踪', icon: '💰' },
+  { key: 'schedule', label: '定时配置', icon: '⏰' },
 ] as const
+type NavKey = typeof NAV_ITEMS[number]['key']
 
-const btnBase: React.CSSProperties = {
-  display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%',
-  padding: '12px 16px', borderRadius: 12, fontSize: 14, fontWeight: 600,
-  border: '1px solid var(--border-default)', background: 'var(--bg-card)',
-  color: 'var(--text-primary)', cursor: 'pointer', transition: 'all .2s',
-}
-
-function primaryBtn(disabled = false): React.CSSProperties {
-  return {
-    ...btnBase,
-    borderColor: 'var(--border-accent)',
-    background: 'var(--accent-bg)',
-    color: 'var(--accent-light)',
-    opacity: disabled ? 0.5 : 1,
-    cursor: disabled ? 'not-allowed' : 'pointer',
-  }
-}
+const today = () => new Date().toISOString().split('T')[0]
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
   return (
     <div onClick={() => onChange(!checked)}
       style={{
-        width: 36, height: 20, borderRadius: 10,
-        background: checked ? 'var(--accent)' : 'var(--bg-badge)',
-        position: 'relative', cursor: 'pointer', transition: 'background .2s',
+        width: 36, height: 20, borderRadius: 10, cursor: 'pointer', transition: 'background .2s',
+        background: checked ? 'var(--accent)' : 'var(--bg-badge)', position: 'relative',
       }}>
       <div style={{
         width: 16, height: 16, borderRadius: '50%', background: '#fff',
-        position: 'absolute', top: 2, left: checked ? 18 : 2,
-        transition: 'left .2s',
+        position: 'absolute', top: 2, left: checked ? 18 : 2, transition: 'left .2s',
       }} />
     </div>
   )
 }
 
-function SettingsTab() {
-  const today = new Date().toISOString().split('T')[0]
-  const [date, setDate] = useState(today)
-
-  const [r, setR] = useState({ status: 'idle' as StatusT, step: 0, total: 0, label: '', pct: 0, msg: null as MsgT | null })
-  const [c, setC] = useState({ status: 'idle' as StatusT, step: 0, total: 0, label: '', pct: 0, candidates: [] as any[], msg: null as MsgT | null })
-  const [a, setA] = useState({ status: 'idle' as StatusT, step: 0, total: 0, label: '', pct: 0, msg: null as MsgT | null })
-  const [posterLoading, setPosterLoading] = useState(false)
-  const [posterMsg, setPosterMsg] = useState<MsgT | null>(null)
-
-  const [sched, setSched] = useState<any>(null)
-  const [sEn, setSEn] = useState(false)
-  const [sTime, setSTime] = useState('16:00')
-  const [sRpt, setSRpt] = useState(true)
-  const [sRec, setSRec] = useState(true)
-  const [sSaving, setSSaving] = useState(false)
-  const [sMsg, setSMsg] = useState('')
-
-  // 数据采集状态
-  const [dsStatus, setDsStatus] = useState<DatasourceStatusItem[]>([])
-  const [dsLoading, setDsLoading] = useState(false)
-  const [dsTriggering, setDsTriggering] = useState<string | null>(null)
-
-  const loadDsStatus = async () => {
-    try {
-      const r = await datasourceApi.getStatus(date)
-      if (r.success) setDsStatus(r.data)
-    } catch { /* */ }
+function Msg({ msg }: { msg: MsgT }) {
+  const colors: Record<string, React.CSSProperties> = {
+    success: { background: 'rgba(52,211,153,0.1)', border: '1px solid var(--down)', color: 'var(--down)' },
+    error: { background: 'rgba(248,113,113,0.1)', border: '1px solid var(--up)', color: 'var(--up)' },
+    warn: { background: 'rgba(129,140,248,0.1)', border: '1px solid var(--accent)', color: 'var(--accent-light)' },
   }
+  return <div style={{ borderRadius: 8, padding: '8px 12px', fontSize: 12, fontWeight: 500, ...colors[msg.type] }}>{msg.text}</div>
+}
 
-  const triggerFetch = async (dataType: string) => {
-    setDsTriggering(dataType)
-    try {
-      await datasourceApi.triggerFetch(dataType, date)
-      setTimeout(() => loadDsStatus(), 500)
-    } catch { /* */ }
-    finally { setDsTriggering(null) }
-  }
+// ====== 数据采集面板 ======
 
-  const triggerAllFetch = async () => {
-    setDsLoading(true)
-    try {
-      await datasourceApi.triggerAll(date)
-      setTimeout(() => loadDsStatus(), 1000)
-    } catch { /* */ }
-    finally { setDsLoading(false) }
-  }
+function CollectPanel({ date }: { date: string }) {
+  const [status, setStatus] = useState<DatasourceStatusItem[]>([])
+  const [logs, setLogs] = useState<FetchLogEntry[]>([])
+  const [triggering, setTriggering] = useState<string | null>(null)
+  const [feedback, setFeedback] = useState<MsgT[]>([])
 
-  useEffect(() => {
-    loadDsStatus()
+  const addFb = (fb: MsgT) => setFeedback(prev => [fb, ...prev].slice(0, 20))
+
+  const load = useCallback(async () => {
+    const [sr, lr] = await Promise.all([
+      datasourceApi.getStatus(date).catch(() => null),
+      datasourceApi.getLogs(1).catch(() => null),
+    ])
+    if (sr?.success) setStatus(sr.data)
+    if (lr?.success) setLogs(lr.data.logs)
   }, [date])
 
-  useEffect(() => {
-    apiGet<any>('/schedule/config').then(d => {
-      if (d.success) { setSched(d.data); setSEn(d.data.enabled); setSTime(d.data.run_time || '16:00'); setSRpt(d.data.run_report); setSRec(d.data.run_recommend) }
-    }).catch(() => {})
-  }, [])
+  useEffect(() => { load() }, [load])
 
-  const busy = (s: StatusT) => s === 'pending' || s === 'running'
-
-  const poll = (taskId: number, t: 'r' | 'c' | 'a') => {
-    const iv = setInterval(async () => {
-      try {
-        const res = await apiGet<any>(`/generate/task/${taskId}`)
-        if (!res.success) { clearInterval(iv); return }
-        const d = res.data
-        if (t === 'r') {
-          setR(p => ({ ...p, step: d.current_step, total: d.total_steps, label: d.step_label || '', pct: d.progress_pct, status: d.status }))
-          if (d.status === 'completed') { clearInterval(iv); setR(p => ({ ...p, msg: { type: 'success' as const, text: `✅ 报告完成（${d.target_date}）` } })) }
-          else if (d.status === 'failed') { clearInterval(iv); setR(p => ({ ...p, msg: { type: 'error' as const, text: d.error_message || '失败' } })) }
-        }
-        if (t === 'c') {
-          setC(p => ({ ...p, step: d.current_step, total: d.total_steps, label: d.step_label || '', pct: d.progress_pct, status: d.status, candidates: d.candidate_stocks?.length > 0 ? d.candidate_stocks : p.candidates }))
-          if (d.status === 'completed') {
-            clearInterval(iv)
-            const cnt = d.result?.count
-            if (cnt === 0 || cnt === undefined) setC(p => ({ ...p, msg: { type: 'warn' as const, text: `⚠️ ${d.target_date} 无候选主板股票` } }))
-            else setC(p => ({ ...p, msg: { type: 'success' as const, text: `✅ ${d.target_date} 推荐完成，共 ${cnt} 只` } }))
-          } else if (d.status === 'failed') { clearInterval(iv); setC(p => ({ ...p, msg: { type: 'error' as const, text: d.error_message || '失败' } })) }
-        }
-        if (t === 'a') {
-          setA(p => ({ ...p, step: d.current_step, total: d.total_steps, label: d.step_label || '', pct: d.progress_pct, status: d.status }))
-          if (d.candidate_stocks?.length > 0) setC(p => ({ ...p, candidates: d.candidate_stocks }) as any)
-          if (d.status === 'completed') { clearInterval(iv); setA(p => ({ ...p, msg: { type: 'success' as const, text: '✅ 全部完成' } })) }
-          else if (d.status === 'failed') { clearInterval(iv); setA(p => ({ ...p, msg: { type: 'error' as const, text: d.error_message || '失败' } })) }
-        }
-      } catch { /* */ }
-    }, 1000)
-  }
-
-  const start = async (ep: string, t: 'r' | 'c' | 'a') => {
-    const set = t === 'r' ? setR : t === 'c' ? setC : setA
-    ;(set as any)((p: any) => ({ ...p, status: 'pending', msg: null }))
+  const trigger = async (dataType: string) => {
+    setTriggering(dataType)
     try {
-      const res = await apiPost(`${ep}?date=${date}`)
-      if (res.success && res.data?.task_id) {
-        ;(set as any)((p: any) => ({ ...p, status: 'running' }))
-        poll(res.data.task_id, t)
-      } else if (res.data?.message) {
-        ;(set as any)((p: any) => ({ ...p, status: 'completed', msg: { type: 'success', text: res.data.message } }))
-      }
+      const r = await datasourceApi.triggerFetch(dataType, date)
+      addFb(r.success ? { type: 'success', text: `✅ ${dataType} 采集${r.data.status === 'skipped' ? '跳过（已存在）' : '成功'} (${fmtMs(r.data.duration_ms)})` } : { type: 'error', text: `❌ ${dataType} 失败: ${r.data.error || ''}` })
+      setTimeout(() => load(), 600)
     } catch (e: any) {
-      ;(set as any)((p: any) => ({ ...p, status: 'failed', msg: { type: 'error', text: `启动失败: ${e.message}` } }))
-    }
+      addFb({ type: 'error', text: `❌ ${dataType} 异常: ${e.message}` })
+    } finally { setTriggering(null) }
   }
 
-  const API_BASE = import.meta.env.VITE_API_URL || '/api'
-  const genPoster = async () => {
-    setPosterLoading(true); setPosterMsg(null)
+  const triggerAll = async () => {
+    setTriggering('__all__')
     try {
-      const resp = await fetch(`${API_BASE}/report/poster?date=${date}`)
-      if (!resp.ok) { const err = await resp.json().catch(() => ({ detail: '海报生成失败' })); setPosterMsg({ type: 'error', text: err.detail || '海报生成失败' }); return }
-      const blob = await resp.blob()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a'); a.href = url; a.download = `QuantForge_市场日报_${date}.png`
-      document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url)
-      setPosterMsg({ type: 'success', text: `✅ 海报已生成并下载（${date}）` })
-    } catch (e: any) { setPosterMsg({ type: 'error', text: `生成失败: ${e.message}` }) }
-    finally { setPosterLoading(false) }
+      const r = await datasourceApi.triggerAll(date)
+      addFb({ type: 'success', text: `✅ 全部采集完成: ${r.data.success}/${r.data.total} 成功` })
+      setTimeout(() => load(), 1000)
+    } catch (e: any) {
+      addFb({ type: 'error', text: `❌ 全部采集异常: ${e.message}` })
+    } finally { setTriggering(null) }
   }
 
-  const saveSched = async () => {
-    setSSaving(true); setSMsg('')
-    try { const r = await apiPost(`/schedule/config?enabled=${sEn}&run_time=${sTime}&run_report=${sRpt}&run_recommend=${sRec}`); setSMsg(r.success ? '✅ 已保存' : '❌ 失败') }
-    catch { setSMsg('❌ 失败') }
-    finally { setSSaving(false); setTimeout(() => setSMsg(''), 3000) }
+  const deleteOne = async (dataType: string) => {
+    try {
+      await datasourceApi.deleteRecord(dataType, date)
+      addFb({ type: 'warn', text: `🗑️ ${dataType} 已删除，可重新采集` })
+      load()
+    } catch (e: any) { addFb({ type: 'error', text: `❌ 删除失败: ${e.message}` }) }
   }
 
-  const btnDisabled = busy(r.status) || busy(c.status) || busy(a.status)
-
-  const inputStyle: React.CSSProperties = {
-    width: '100%', background: 'var(--bg-input)', border: '1px solid var(--border-default)',
-    color: 'var(--text-primary)', textAlign: 'center', padding: '8px 12px', borderRadius: 12,
-    fontFamily: "'JetBrains Mono', monospace", fontSize: 14, outline: 'none',
+  const deleteAll = async () => {
+    try {
+      await datasourceApi.deleteAllRecords(date)
+      addFb({ type: 'warn', text: '🗑️ 今日全部数据已清空' })
+      load()
+    } catch (e: any) { addFb({ type: 'error', text: `❌ 清空失败: ${e.message}` }) }
   }
 
   return (
-    <div className="space-y-5">
-      <Section icon="📅" title="目标日期">
-        <input type="date" value={date} max={today} onChange={e => setDate(e.target.value)} disabled={btnDisabled}
-          style={{ ...inputStyle, opacity: btnDisabled ? 0.5 : 1 }} />
-      </Section>
-
-      <Section icon="⚡" title="数据生成">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div className="card p-4 space-y-3 sm:col-span-2" style={{ borderLeft: '4px solid var(--accent)' }}>
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm font-bold" style={{ color: 'var(--accent-light)' }}>一键生成全部</div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>市场报告 → 量化推荐 → 更新现价</div>
-              </div>
-              <StatusBadge s={a.status} />
-            </div>
-            {busy(a.status) && <PBar pct={a.pct} label={a.label} cur={a.step} tot={a.total} />}
-            <button onClick={() => start('/generate/all', 'a')} disabled={busy(a.status)} style={primaryBtn(busy(a.status))}>
-              {busy(a.status) ? (a.label || '执行中...') : '🚀 一键全部'}
-            </button>
-            {a.msg && <Msg msg={a.msg} />}
-          </div>
-
-          <div className="card p-4 space-y-3" style={{ borderLeft: '4px solid var(--blue)' }}>
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm font-bold" style={{ color: 'var(--blue)' }}>市场报告</div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>指数行情 + 板块热点 + AI 分析</div>
-              </div>
-              <StatusBadge s={r.status} />
-            </div>
-            {busy(r.status) && <PBar pct={r.pct} label={r.label} cur={r.step} tot={r.total} />}
-            <button onClick={() => start('/generate/report', 'r')} disabled={busy(r.status)} style={primaryBtn(busy(r.status))}>
-              {busy(r.status) ? (r.label || '生成中...') : '📊 生成报告'}
-            </button>
-            {r.msg && <Msg msg={r.msg} />}
-          </div>
-
-          <div className="card p-4 space-y-3" style={{ borderLeft: '4px solid var(--up)' }}>
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm font-bold" style={{ color: 'var(--up)' }}>量化推荐</div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>THS 热股 × 热度排名 × 消息面 → AI 精选</div>
-              </div>
-              <StatusBadge s={c.status} />
-            </div>
-            {busy(c.status) && <PBar pct={c.pct} label={c.label} cur={c.step} tot={c.total} />}
-            <button onClick={() => start('/generate/recommend', 'c')} disabled={busy(c.status)} style={primaryBtn(busy(c.status))}>
-              {busy(c.status) ? (c.label || '生成中...') : '🎯 生成推荐'}
-            </button>
-            {c.msg && <Msg msg={c.msg} />}
-          </div>
-        </div>
-
-        <div className="card p-4 space-y-3 mt-3" style={{ borderLeft: '4px solid var(--accent-light)' }}>
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-sm font-bold" style={{ color: 'var(--accent-light)' }}>生成海报</div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>基于当日报告生成公众号推文海报，自动下载 PNG</div>
-            </div>
-          </div>
-          <button onClick={genPoster} disabled={posterLoading} style={primaryBtn(posterLoading)}>
-            {posterLoading ? '生成中...' : '🖼️ 生成海报'}
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>共 {status.length} 类数据源</div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={triggerAll} disabled={triggering === '__all__'}
+            style={accentBtn(triggering === '__all__')}>
+            {triggering === '__all__' ? '采集中...' : '🔄 全部采集'}
           </button>
-          {posterMsg && <Msg msg={posterMsg} />}
-        </div>
-      </Section>
-
-      <Section icon="📡" title="数据采集">
-        <div className="flex items-center justify-between mb-3">
-          <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-            各数据源今日采集状态 · 手动触发采集
-          </div>
-          <button onClick={triggerAllFetch} disabled={dsLoading}
-            style={{
-              padding: '6px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600,
-              border: '1px solid var(--accent)', background: 'var(--accent)',
-              color: '#fff', cursor: dsLoading ? 'not-allowed' : 'pointer',
-              opacity: dsLoading ? 0.6 : 1,
-            }}>
-            {dsLoading ? '采集中...' : '🔄 全部采集'}
+          <button onClick={deleteAll} style={dangerBtn()}>
+            🗑️ 清空今日
           </button>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 8 }}>
-          {dsStatus.map(item => {
-            const triggering = dsTriggering === item.data_type
-            const statusColor = item.status === 'success' ? 'var(--down)' :
-                               item.status === 'failed' ? 'var(--up)' :
-                               item.status === 'skipped' ? 'var(--text-muted)' :
-                               'var(--text-muted)'
-            const statusText = item.status === 'success' ? '已采集' :
-                               item.status === 'failed' ? '失败' :
-                               item.status === 'skipped' ? '已跳过' :
-                               item.status === 'never' ? '未采集' : item.status
-            return (
-              <div key={item.data_type} className="card" style={{ padding: '10px 14px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{item.label}</span>
-                  <span style={{ fontSize: 11, padding: '1px 6px', borderRadius: 999, fontWeight: 600,
-                    background: item.status === 'success' ? 'rgba(52,211,153,0.15)' :
-                                item.status === 'failed' ? 'rgba(248,113,113,0.15)' : 'rgba(255,255,255,0.06)',
-                    color: statusColor }}>
-                    {statusText}
-                  </span>
-                </div>
-                {item.status === 'success' && (
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>
-                    {item.duration_ms ? `${(item.duration_ms / 1000).toFixed(1)}s` : '-'} ·
-                    {item.response_size ? ` ${(item.response_size / 1024).toFixed(0)}KB` : ' - KB'}
-                  </div>
-                )}
-                {item.error_message && (
-                  <div style={{ fontSize: 10, color: 'var(--up)', marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {item.error_message.slice(0, 60)}
-                  </div>
-                )}
-                <button onClick={() => triggerFetch(item.data_type)} disabled={triggering}
-                  style={{
-                    width: '100%', marginTop: 4, padding: '4px 0', borderRadius: 6, fontSize: 12,
-                    border: '1px solid var(--border-default)', background: 'transparent',
-                    color: 'var(--text-secondary)', cursor: triggering ? 'not-allowed' : 'pointer',
-                    opacity: triggering ? 0.5 : 1,
-                  }}>
-                  {triggering ? '采集中...' : '触发采集'}
-                </button>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10, marginBottom: 20 }}>
+        {status.map(item => {
+          const busy = triggering === item.data_type
+          const sColor = item.status === 'success' ? 'var(--down)' : item.status === 'failed' ? 'var(--up)' : 'var(--text-muted)'
+          const sText = item.status === 'success' ? '已采集' : item.status === 'failed' ? '失败' : item.status === 'skipped' ? '已跳过' : '未采集'
+          return (
+            <div key={item.data_type} className="card" style={{ padding: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>{item.label}</span>
+                <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 99, fontWeight: 600,
+                  background: item.status === 'success' ? 'rgba(52,211,153,0.12)' : item.status === 'failed' ? 'rgba(248,113,113,0.12)' : 'rgba(255,255,255,0.06)',
+                  color: sColor }}>{sText}</span>
               </div>
-            )
-          })}
-        </div>
-      </Section>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>
+                {fmtSize(item.response_size)} · {fmtMs(item.duration_ms)}
+                {item.error_message && <span style={{ color: 'var(--up)', marginLeft: 8 }}>{item.error_message.slice(0, 40)}</span>}
+              </div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {item.status === 'success' ? (
+                  <>
+                    <button onClick={() => deleteOne(item.data_type)} style={miniDangerBtn()}>删除</button>
+                    <button onClick={() => trigger(item.data_type)} disabled={busy} style={miniBtn(busy)}>
+                      {busy ? '...' : '重采'}
+                    </button>
+                  </>
+                ) : (
+                  <button onClick={() => trigger(item.data_type)} disabled={busy} style={miniAccentBtn(busy)}>
+                    {busy ? '采集中...' : '采集'}
+                  </button>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
 
-      <Section icon="⏰" title="定时任务">
-        <div className="flex items-center justify-between mb-4">
-          <div className="text-sm" style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>每日自动生成</div>
-          <Toggle checked={sEn} onChange={setSEn} />
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
-          <div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6, fontWeight: 500 }}>执行时间</div>
-            <input type="time" value={sTime} onChange={e => setSTime(e.target.value)}
-              style={{
-                width: '100%', background: 'var(--bg-input)', border: '1px solid var(--border-default)',
-                color: 'var(--text-primary)', textAlign: 'center', padding: '6px 8px', borderRadius: 8,
-                fontFamily: "'JetBrains Mono', monospace", fontSize: 14, outline: 'none',
-              }} />
-          </div>
-          <div className="flex items-end gap-4">
-            <div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6, fontWeight: 500 }}>自动报告</div>
-              <Toggle checked={sRpt} onChange={setSRpt} />
-            </div>
-            <div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6, fontWeight: 500 }}>自动推荐</div>
-              <Toggle checked={sRec} onChange={setSRec} />
-            </div>
-          </div>
-          <div className="flex items-end justify-end">
-            <button onClick={saveSched} disabled={sSaving}
-              style={{
-                padding: '8px 20px', background: 'var(--accent)', color: '#fff',
-                borderRadius: 8, fontSize: 14, fontWeight: 600, border: 'none',
-                cursor: sSaving ? 'not-allowed' : 'pointer', opacity: sSaving ? 0.5 : 1,
-                transition: 'all .2s',
-              }}>
-              {sSaving ? '保存中...' : '保存配置'}
-            </button>
-            {sMsg && <span style={{ fontSize: 12, marginLeft: 8, fontWeight: 500, color: 'var(--down)' }}>{sMsg}</span>}
+      {feedback.length > 0 && (
+        <div className="card" style={{ padding: 12, marginBottom: 16 }}>
+          <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)', marginBottom: 8 }}>操作反馈</div>
+          <div style={{ maxHeight: 160, overflow: 'auto' }}>
+            {feedback.map((fb, i) => <Msg key={i} msg={fb} />)}
           </div>
         </div>
+      )}
 
-        {sched && (
-          <div className="grid grid-cols-2 gap-3 p-3 rounded-xl" style={{ background: 'var(--bg-tag)', fontSize: 12 }}>
-            <div>
-              <div style={{ color: 'var(--text-muted)', marginBottom: 2, fontWeight: 500 }}>上次执行</div>
-              <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{sched.last_run_at ? `${sched.last_run_at}（${sched.last_run_info || '未知'}）` : '从未执行'}</div>
-              {sched.last_run_result && <div style={{ color: 'var(--text-muted)', marginTop: 2, fontSize: 11 }}>{sched.last_run_result}</div>}
-            </div>
-            <div>
-              <div style={{ color: 'var(--text-muted)', marginBottom: 2, fontWeight: 500 }}>下次执行</div>
-              <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{sEn ? `每天 ${sTime}` : '已禁用'}</div>
-            </div>
-          </div>
-        )}
-      </Section>
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-default)', fontWeight: 600, fontSize: 14, color: 'var(--text-primary)' }}>
+          采集日志
+        </div>
+        <div style={{ maxHeight: 300, overflow: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <thead>
+              <tr style={{ background: 'rgba(255,255,255,0.02)', position: 'sticky', top: 0 }}>
+                <th style={thStyle}>时间</th><th style={thStyle}>类型</th><th style={thStyle}>状态</th><th style={thStyle}>耗时</th><th style={thStyle}>大小</th><th style={thStyle}>重试</th>
+              </tr>
+            </thead>
+            <tbody>
+              {logs.slice(0, 30).map(l => (
+                <tr key={l.id} style={{ borderBottom: '1px solid var(--border-default)' }}>
+                  <td style={tdStyle}>{l.created_at?.slice(11, 19) || '-'}</td>
+                  <td style={tdStyle}>{l.label}</td>
+                  <td style={{ ...tdStyle, color: l.status === 'success' ? 'var(--down)' : l.status === 'failed' ? 'var(--up)' : 'var(--text-muted)' }}>
+                    {l.status === 'success' ? '✓' : l.status === 'failed' ? '✗' : l.status}
+                  </td>
+                  <td style={tdStyle}>{fmtMs(l.duration_ms)}</td>
+                  <td style={tdStyle}>{fmtSize(l.response_size)}</td>
+                  <td style={tdStyle}>{l.retry_count > 0 ? `${l.retry_count}次` : '-'}</td>
+                </tr>
+              ))}
+              {logs.length === 0 && (
+                <tr><td colSpan={6} style={{ ...tdStyle, textAlign: 'center', color: 'var(--text-muted)' }}>暂无日志</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   )
 }
 
-function ConsoleTab() {
+// ====== 数据汇总面板 ======
+
+function SummaryPanel({ date }: { date: string }) {
+  const [rptExists, setRptExists] = useState(false)
+  const [recExists, setRecExists] = useState(false)
+  const [rptLoading, setRptLoading] = useState(false)
+  const [recLoading, setRecLoading] = useState(false)
+  const [allLoading, setAllLoading] = useState(false)
+  const [posterLoading, setPosterLoading] = useState(false)
+  const [feedback, setFeedback] = useState<MsgT[]>([])
+
+  const addFb = (fb: MsgT) => setFeedback(prev => [fb, ...prev].slice(0, 30))
+
+  const checkStatus = useCallback(async () => {
+    try {
+      const [rpt, rec] = await Promise.all([
+        apiGet<any>(`/report/daily?date=${date}`).catch(() => null),
+        apiGet<any>(`/recommend/daily?date=${date}`).catch(() => null),
+      ])
+      setRptExists(rpt?.success && rpt?.data?.ai_report)
+      setRecExists(rec?.success && rec?.data?.length > 0)
+    } catch { /* */ }
+  }, [date])
+
+  useEffect(() => { checkStatus() }, [checkStatus])
+
+  const startTask = async (ep: string) => {
+    try {
+      const res = await apiPost<any>(`${ep}?date=${date}`)
+      if (res.success) {
+        const taskId = res.data?.task_id
+        if (taskId) {
+          // poll
+          const iv = setInterval(async () => {
+            try {
+              const t = await apiGet<any>(`/generate/task/${taskId}`)
+              if (!t.success) { clearInterval(iv); return }
+              if (t.data.status === 'completed') {
+                clearInterval(iv)
+                addFb({ type: 'success', text: `✅ ${ep} 完成 (${t.data.target_date})` })
+                checkStatus()
+              } else if (t.data.status === 'failed') {
+                clearInterval(iv)
+                addFb({ type: 'error', text: `❌ ${ep} 失败: ${t.data.error_message || ''}` })
+              } else {
+                addFb({ type: 'warn', text: `⏳ ${t.data.step_label || '执行中...'} (${t.data.progress_pct}%)` })
+              }
+            } catch { /* */ }
+          }, 1000)
+        } else {
+          addFb({ type: 'success', text: `✅ ${res.data.message || '已完成（已存在）'}` })
+          checkStatus()
+        }
+      }
+    } catch (e: any) {
+      addFb({ type: 'error', text: `❌ 启动失败: ${e.message}` })
+    }
+  }
+
+  const delAndRedo = async (ep: string, delEp: string, setLoading: (v: boolean) => void, label: string) => {
+    setLoading(true)
+    try {
+      await apiDelete<any>(`${delEp}?date=${date}`)
+      addFb({ type: 'warn', text: `🗑️ ${label} 已删除，正在重新生成...` })
+      await startTask(ep)
+    } catch (e: any) {
+      addFb({ type: 'error', text: `❌ ${e.message}` })
+    } finally {
+      setLoading(false)
+      checkStatus()
+    }
+  }
+
+  const genPoster = async () => {
+    setPosterLoading(true)
+    try {
+      const API_BASE = import.meta.env.VITE_API_URL || '/api'
+      const resp = await fetch(`${API_BASE}/report/poster?date=${date}`)
+      if (!resp.ok) throw new Error('海报生成失败')
+      const blob = await resp.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a'); a.href = url; a.download = `QuantForge_${date}.png`
+      document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url)
+      addFb({ type: 'success', text: `✅ 海报已下载 (${date})` })
+    } catch (e: any) {
+      addFb({ type: 'error', text: `❌ ${e.message}` })
+    } finally { setPosterLoading(false) }
+  }
+
+  return (
+    <div>
+      <div style={{ marginBottom: 16 }}>
+        <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)', marginRight: 8 }}>目标日期</span>
+        <input type="date" value={date} max={today()} readOnly
+          style={{
+            background: 'var(--bg-input)', border: '1px solid var(--border-default)', color: 'var(--text-primary)',
+            padding: '6px 12px', borderRadius: 8, fontSize: 14, outline: 'none',
+            fontFamily: "'JetBrains Mono', monospace",
+          }} />
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10, marginBottom: 16 }}>
+        {/* 市场报告 */}
+        <div className="card" style={{ padding: 14 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+            <span style={{ fontWeight: 600, fontSize: 14 }}>📊 市场报告</span>
+            <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 99, fontWeight: 600,
+              background: rptExists ? 'rgba(52,211,153,0.12)' : 'rgba(255,255,255,0.06)',
+              color: rptExists ? 'var(--down)' : 'var(--text-muted)' }}>
+              {rptExists ? '已生成' : '未生成'}
+            </span>
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>
+            {rptExists ? '含 AI 分析 + 北向资金 + 板块' : '指数行情 + 板块热点 + AI 分析'}
+          </div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {rptExists && (
+              <button onClick={() => delAndRedo('/generate/report', '/generate/report', setRptLoading, '市场报告')}
+                disabled={rptLoading} style={miniDangerBtn()}>删除并重新生成</button>
+            )}
+            {!rptExists && (
+              <button onClick={async () => { setRptLoading(true); await startTask('/generate/report'); setRptLoading(false) }}
+                disabled={rptLoading} style={miniAccentBtn(rptLoading)}>
+                {rptLoading ? '...' : '生成报告'}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* 量化推荐 */}
+        <div className="card" style={{ padding: 14 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+            <span style={{ fontWeight: 600, fontSize: 14 }}>🎯 量化推荐</span>
+            <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 99, fontWeight: 600,
+              background: recExists ? 'rgba(52,211,153,0.12)' : 'rgba(255,255,255,0.06)',
+              color: recExists ? 'var(--down)' : 'var(--text-muted)' }}>
+              {recExists ? '已生成' : '未生成'}
+            </span>
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>
+            {recExists ? 'THS 候选池 → AI 精选 5 只' : 'THS 热股 × 热度排名 → AI 精选'}
+          </div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {recExists && (
+              <button onClick={() => delAndRedo('/generate/recommend', '/generate/recommend', setRecLoading, '量化推荐')}
+                disabled={recLoading} style={miniDangerBtn()}>删除并重新生成</button>
+            )}
+            {!recExists && (
+              <button onClick={async () => { setRecLoading(true); await startTask('/generate/recommend'); setRecLoading(false) }}
+                disabled={recLoading} style={miniAccentBtn(recLoading)}>
+                {recLoading ? '...' : '生成推荐'}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* 海报 */}
+        <div className="card" style={{ padding: 14 }}>
+          <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 6 }}>🖼️ 生成海报</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>基于当日报告生成 PNG 海报</div>
+          <button onClick={genPoster} disabled={posterLoading} style={miniAccentBtn(posterLoading)}>
+            {posterLoading ? '生成中...' : '生成并下载'}
+          </button>
+        </div>
+      </div>
+
+      <button onClick={async () => { setAllLoading(true); await startTask('/generate/all'); setAllLoading(false) }}
+        disabled={allLoading} style={bigAccentBtn(allLoading)}>
+        {allLoading ? '执行中...' : '🚀 一键全部生成（报告 + 推荐）'}
+      </button>
+
+      {feedback.length > 0 && (
+        <div className="card" style={{ padding: 12, marginTop: 16 }}>
+          <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)', marginBottom: 8 }}>操作反馈</div>
+          <div style={{ maxHeight: 200, overflow: 'auto' }}>
+            {feedback.map((fb, i) => <Msg key={i} msg={fb} />)}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ====== 收益跟踪面板 ======
+
+function TrackingPanel() {
   const [recs, setRecs] = useState<HistoryRec[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -394,6 +404,7 @@ function ConsoleTab() {
   }, [])
 
   const fetchData = useCallback(async () => {
+    setLoading(true)
     try {
       const d = await apiGet<any>('/recommend/history')
       if (d.success) { setRecs(d.data || []); setSelectedIds(prev => new Set([...prev].filter(id => new Set(d.data.map((r: HistoryRec) => r.id)).has(id)))) }
@@ -430,18 +441,9 @@ function ConsoleTab() {
   const clearSelection = () => setSelectedIds(new Set())
 
   const batchOp = async (action: string, ids: number[], successMsg: string) => {
-    setBatchBusy(true)
-    let s = 0
-    for (const id of ids) {
-      try {
-        const r = action === 'delete' ? await apiDelete<any>(`/recommend/item/${id}`) : await apiPost<any>(`/recommend/item/${id}/${action}`)
-        if (r.success) s++
-      } catch { /* skip */ }
-    }
-    setBatchBusy(false)
-    showToast(`${successMsg}: ${s}/${ids.length} 条`)
-    fetchData()
-    clearSelection()
+    setBatchBusy(true); let s = 0
+    for (const id of ids) { try { const r = action === 'delete' ? await apiDelete<any>(`/recommend/item/${id}`) : await apiPost<any>(`/recommend/item/${id}/${action}`); if (r.success) s++ } catch { /* */ } }
+    setBatchBusy(false); showToast(`${successMsg}: ${s}/${ids.length} 条`); fetchData(); clearSelection()
   }
 
   const doBatchUpdate = async () => {
@@ -454,7 +456,7 @@ function ConsoleTab() {
 
   const doSingleUpdate = async (id: number) => {
     setBusyIds(p => new Set(p).add(id))
-    try { const r = await apiPost<any>(`/recommend/item/${id}/update`); showToast(r.success ? `更新成功: ${r.data?.filled || 0} 天` : r.error || '更新失败', !r.success); fetchData() }
+    try { const r = await apiPost<any>(`/recommend/item/${id}/update`); showToast(r.success ? `✅ 更新 ${r.data?.filled || 0} 天` : r.error || '失败', !r.success); fetchData() }
     catch (e: any) { showToast(e.message, true) }
     finally { setBusyIds(p => { const n = new Set(p); n.delete(id); return n }) }
   }
@@ -467,51 +469,27 @@ function ConsoleTab() {
     <div>
       {toast && (
         <div className="fixed top-4 right-4 z-50 px-4 py-2.5 rounded-xl text-sm font-semibold"
-          style={{
-            background: toast.err ? 'var(--up)' : 'var(--bg-card)',
-            color: toast.err ? '#fff' : 'var(--text-primary)',
-            border: '1px solid var(--border-default)',
-            boxShadow: 'var(--card-shadow)',
-          }}>
+          style={{ background: toast.err ? 'var(--up)' : 'var(--bg-card)', color: toast.err ? '#fff' : 'var(--text-primary)', border: '1px solid var(--border-default)', boxShadow: 'var(--card-shadow)' }}>
           {toast.msg}
         </div>
       )}
       <ConfirmModal open={confirm.open} title={confirm.title} message={confirm.message} variant={confirm.variant} onConfirm={confirm.onConfirm} onCancel={() => setConfirm(prev => ({ ...prev, open: false }))} />
 
-      <Section icon="💰" title="价格更新">
-        <div className="flex items-center gap-4">
-          <div className="text-xs flex-1" style={{ color: 'var(--text-secondary)' }}>批量回溯所有 tracking 状态的推荐股票 T+1/2/3 交易日收盘价</div>
-          <button onClick={async () => {
-            const res = await apiPost<any>('/recommend/update-prices')
-            showToast(`更新完成: ${res.data?.updated || 0} 条`)
-            fetchData()
-          }} style={{
-            padding: '8px 20px', background: 'var(--down)', color: '#fff',
-            borderRadius: 12, fontSize: 14, fontWeight: 600, border: 'none',
-            cursor: 'pointer', transition: 'all .2s', whiteSpace: 'nowrap',
-          }}>
-            💰 更新现价
-          </button>
+      <div className="card p-3 mb-4">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <span style={{ fontWeight: 600, fontSize: 14 }}>💰 价格更新</span>
+          <button onClick={async () => { const r = await apiPost<any>('/recommend/update-prices'); showToast(`✅ 更新 ${r.data?.updated || 0} 条`); fetchData() }}
+            style={miniAccentBtn(false)}>💰 批量更新现价</button>
         </div>
-      </Section>
-
-      {!loading && (
-        <div className="card p-3 mb-5">
-          <div className="flex items-center justify-around text-center">
-            <StatBox label="总计" value={stats.total} color="var(--text-primary)" />
-            <SDivider />
-            <StatBox label="跟踪中" value={stats.tracking} color="var(--accent-light)" />
-            <SDivider />
-            <StatBox label="已完结" value={stats.completed} color="var(--down)" />
-            <SDivider />
-            <StatBox label="盈利" value={stats.wins} color="var(--up)" />
-            <SDivider />
-            <StatBox label="平均收益" value={`${stats.avgReturn >= 0 ? '+' : ''}${fmt(stats.avgReturn)}%`} color={stats.avgReturn >= 0 ? 'var(--up)' : 'var(--down)'} />
-            <SDivider />
-            <StatBox label="胜率" value={`${fmt(stats.winRate)}%`} color="var(--text-muted)" />
-          </div>
+        <div className="flex items-center justify-around text-center" style={{ fontSize: 12 }}>
+          <StatBox label="总计" value={stats.total} color="var(--text-primary)" />
+          <StatBox label="跟踪中" value={stats.tracking} color="var(--accent-light)" />
+          <StatBox label="已完结" value={stats.completed} color="var(--down)" />
+          <StatBox label="盈利" value={stats.wins} color="var(--up)" />
+          <StatBox label="平均收益" value={`${stats.avgReturn >= 0 ? '+' : ''}${fmt(stats.avgReturn)}%`} color={stats.avgReturn >= 0 ? 'var(--up)' : 'var(--down)'} />
+          <StatBox label="胜率" value={`${fmt(stats.winRate)}%`} color="var(--text-muted)" />
         </div>
-      )}
+      </div>
 
       <ConsoleToolbar
         search={search} onSearchChange={setSearch}
@@ -527,117 +505,220 @@ function ConsoleTab() {
       />
 
       {loading && <div className="space-y-3">{[0,1,2].map(i => <div key={i} className="skeleton h-24 rounded-2xl"/>)}</div>}
-      {error && !loading && (
-        <div className="mb-4 p-3 rounded-xl text-sm"
-          style={{ background: 'var(--up-bg)', border: '1px solid var(--up)', color: 'var(--up)' }}>{error}</div>
-      )}
+      {error && !loading && <div className="mb-4 p-3 rounded-xl text-sm" style={{ background: 'var(--up-bg)', border: '1px solid var(--up)', color: 'var(--up)' }}>{error}</div>}
 
       {!loading && filteredRecs.length > 0 && (
         <DetailedTable
-          recs={filteredRecs}
-          selectedIds={selectedIds}
+          recs={filteredRecs} selectedIds={selectedIds}
           onSelect={toggleSelect} onSelectAll={selectAll}
           onUpdate={doSingleUpdate}
-          onReset={(rec) => confirmThen('重置收益跟踪', <>确认重置 <strong>{rec.stock_name}</strong> 的跟踪数据？</>, 'warning', async () => { setBusyIds(p => new Set(p).add(rec.id)); await apiPost<any>(`/recommend/item/${rec.id}/reset`); showToast(`${rec.stock_name} 已重置`); fetchData(); setBusyIds(p => { const n = new Set(p); n.delete(rec.id); return n }) })}
-          onDelete={(rec) => confirmThen('删除记录', <>确认删除 <strong>{rec.stock_name}</strong>（{rec.stock_code}）？</>, 'danger', async () => { setBusyIds(p => new Set(p).add(rec.id)); await apiDelete<any>(`/recommend/item/${rec.id}`); showToast(`${rec.stock_name} 已删除`); fetchData(); setBusyIds(p => { const n = new Set(p); n.delete(rec.id); return n }) })}
-          busyIds={busyIds}
-          sortBy={sortBy}
-          onSortByChange={setSortBy}
+          onReset={(rec) => confirmThen('重置', <>确认重置 <strong>{rec.stock_name}</strong> 跟踪？</>, 'warning', async () => {
+            setBusyIds(p => new Set(p).add(rec.id))
+            await apiPost<any>(`/recommend/item/${rec.id}/reset`)
+            showToast(`${rec.stock_name} 已重置`); fetchData()
+            setBusyIds(p => { const n = new Set(p); n.delete(rec.id); return n })
+          })}
+          onDelete={(rec) => confirmThen('删除', <>确认删除 <strong>{rec.stock_name}</strong>（{rec.stock_code}）？</>, 'danger', async () => {
+            setBusyIds(p => new Set(p).add(rec.id))
+            await apiDelete<any>(`/recommend/item/${rec.id}`)
+            showToast(`${rec.stock_name} 已删除`); fetchData()
+            setBusyIds(p => { const n = new Set(p); n.delete(rec.id); return n })
+          })}
+          busyIds={busyIds} sortBy={sortBy} onSortByChange={setSortBy}
         />
       )}
 
       {!loading && filteredRecs.length === 0 && (
         <div className="card py-10 text-center">
-          <div className="text-4xl mb-2" style={{ opacity: 0.6 }}>{recs.length === 0 ? '📈' : '🔍'}</div>
-          <div className="text-sm" style={{ color: 'var(--text-muted)' }}>{recs.length === 0 ? '暂无历史推荐数据' : '没有匹配的记录'}</div>
-          {recs.length > 0 && <button onClick={() => { setSearch(''); setStatusFilter('all') }} style={{ marginTop: 8, fontSize: 12, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>清除筛选</button>}
+          <div style={{ fontSize: 32, marginBottom: 8, opacity: 0.6 }}>{recs.length === 0 ? '📈' : '🔍'}</div>
+          <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>{recs.length === 0 ? '暂无历史推荐数据' : '没有匹配的记录'}</div>
         </div>
       )}
     </div>
   )
 }
 
-export default function SettingsPage() {
-  const [tab, setTab] = useState<'settings' | 'console'>('settings')
+// ====== 定时配置面板 ======
+
+function SchedulePanel() {
+  const [sEn, setSEn] = useState(false)
+  const [sTime, setSTime] = useState('16:00')
+  const [sRpt, setSRpt] = useState(true)
+  const [sRec, setSRec] = useState(true)
+  const [sMsg, setSMsg] = useState('')
+  const [sSaving, setSSaving] = useState(false)
+  const [lastRun, setLastRun] = useState<any>(null)
+
+  useEffect(() => {
+    apiGet<any>('/schedule/config').then(d => {
+      if (d.success) { setSEn(d.data.enabled); setSTime(d.data.run_time || '16:00'); setSRpt(d.data.run_report); setSRec(d.data.run_recommend); setLastRun(d.data) }
+    }).catch(() => {})
+  }, [])
+
+  const save = async () => {
+    setSSaving(true); setSMsg('')
+    try {
+      await apiPost(`/schedule/config?enabled=${sEn}&run_time=${sTime}&run_report=${sRpt}&run_recommend=${sRec}`)
+      setSMsg('✅ 已保存')
+    } catch { setSMsg('❌ 保存失败') }
+    finally { setSSaving(false); setTimeout(() => setSMsg(''), 3000) }
+  }
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 fade-in">
-      <div className="text-center mb-6">
-        <h1 className="text-2xl sm:text-3xl font-extrabold mb-1 tracking-tight" style={{ color: 'var(--accent)' }}>
-          {tab === 'settings' ? '设置' : '控制台'}
-        </h1>
-        <p className="text-xs sm:text-sm" style={{ color: 'var(--text-secondary)' }}>
-          {tab === 'settings' ? '数据生成 · 定时任务 · 系统配置' : '收益跟踪数据管理 · 增删改查'}
-        </p>
-      </div>
-
-      <div className="flex items-center justify-center mb-6">
-        <div className="inline-flex p-1 gap-1" style={{ background: 'var(--bg-tag)', borderRadius: 12 }}>
-          {TABS.map(t => (
-            <button key={t.key} onClick={() => setTab(t.key)}
+    <div>
+      <div className="card" style={{ padding: 16, marginBottom: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div>
+            <div style={{ fontWeight: 600, fontSize: 15, color: 'var(--text-primary)' }}>定时数据采集</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>每天自动采集外部数据源到 raw_data_records</div>
+          </div>
+          <Toggle checked={sEn} onChange={setSEn} />
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          <div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6, fontWeight: 500 }}>执行时间</div>
+            <input type="time" value={sTime} onChange={e => setSTime(e.target.value)}
               style={{
-                display: 'flex', alignItems: 'center', gap: 6, padding: '8px 20px',
-                borderRadius: 8, fontSize: 14, fontWeight: 600, border: 'none',
-                background: tab === t.key ? 'var(--bg-card)' : 'transparent',
-                color: tab === t.key ? 'var(--accent)' : 'var(--text-muted)',
-                cursor: 'pointer', transition: 'all .2s',
-              }}>
-              <span>{t.icon}</span>
-              <span>{t.label}</span>
-            </button>
-          ))}
+                width: '100%', background: 'var(--bg-input)', border: '1px solid var(--border-default)',
+                color: 'var(--text-primary)', textAlign: 'center', padding: '8px 12px', borderRadius: 8,
+                fontFamily: "'JetBrains Mono', monospace", fontSize: 14, outline: 'none',
+              }} />
+          </div>
+          <div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6, fontWeight: 500 }}>自动任务</div>
+            <div style={{ display: 'flex', gap: 16, alignItems: 'center', paddingTop: 4 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Toggle checked={sRpt} onChange={setSRpt} />
+                <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>生成报告</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Toggle checked={sRec} onChange={setSRec} />
+                <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>生成推荐</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16, gap: 12, alignItems: 'center' }}>
+          {sMsg && <span style={{ fontSize: 12, fontWeight: 500, color: sMsg.includes('✅') ? 'var(--down)' : 'var(--up)' }}>{sMsg}</span>}
+          <button onClick={save} disabled={sSaving}
+            style={{
+              padding: '8px 24px', background: 'var(--accent)', color: '#fff',
+              borderRadius: 8, fontSize: 14, fontWeight: 600, border: 'none',
+              cursor: sSaving ? 'not-allowed' : 'pointer', opacity: sSaving ? 0.5 : 1,
+            }}>
+            {sSaving ? '保存中...' : '保存配置'}
+          </button>
         </div>
       </div>
 
-      {tab === 'settings' ? <SettingsTab /> : <ConsoleTab />}
+      {lastRun && (
+        <div className="card" style={{ padding: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, fontSize: 12 }}>
+            <div>
+              <div style={{ color: 'var(--text-muted)', marginBottom: 2, fontWeight: 500 }}>上次执行</div>
+              <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{lastRun.last_run_at ? `${lastRun.last_run_at}（${lastRun.last_run_info || '未知'}）` : '从未执行'}</div>
+              {lastRun.last_run_result && <div style={{ color: 'var(--text-muted)', marginTop: 2 }}>{lastRun.last_run_result}</div>}
+            </div>
+            <div>
+              <div style={{ color: 'var(--text-muted)', marginBottom: 2, fontWeight: 500 }}>下次执行</div>
+              <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{sEn ? `每天 ${sTime}` : '已禁用'}</div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
-function Section({ icon, title, children }: { icon: string; title: string; children: React.ReactNode }) {
-  return (
-    <div className="card p-4 sm:p-5 mb-5 space-y-4">
-      <div className="flex items-center gap-2 pb-2" style={{ borderBottom: '1px solid var(--border-default)' }}>
-        <span className="text-base">{icon}</span>
-        <h2 className="text-base font-bold" style={{ color: 'var(--text-primary)' }}>{title}</h2>
-      </div>
-      {children}
-    </div>
-  )
-}
+// ====== 主页面 ======
 
-function Msg({ msg }: { msg: MsgT }) {
-  const styles: Record<string, React.CSSProperties> = {
-    success: { background: 'var(--down-bg)', border: '1px solid var(--down)', color: 'var(--down)' },
-    error: { background: 'var(--up-bg)', border: '1px solid var(--up)', color: 'var(--up)' },
-    warn: { background: 'var(--accent-bg)', border: '1px solid var(--border-accent)', color: 'var(--accent-light)' },
+export default function SettingsPage() {
+  const [nav, setNav] = useState<NavKey>('collect')
+
+  const panels: Record<NavKey, () => JSX.Element> = {
+    collect: () => <CollectPanel date={today()} />,
+    summary: () => <SummaryPanel date={today()} />,
+    tracking: () => <TrackingPanel />,
+    schedule: () => <SchedulePanel />,
   }
-  return <div style={{ borderRadius: 12, padding: '8px 12px', fontSize: 12, fontWeight: 500, ...styles[msg.type] }}>{msg.text}</div>
-}
 
-function StatusBadge({ s }: { s: StatusT }) {
-  const map: Record<StatusT, { style: React.CSSProperties; label: string }> = {
-    idle: { style: { background: 'var(--bg-tag)', color: 'var(--text-muted)' }, label: '就绪' },
-    pending: { style: { background: 'var(--accent-bg)', color: 'var(--accent-light)' }, label: '启动中' },
-    running: { style: { background: 'var(--accent-bg)', color: 'var(--accent-light)' }, label: '执行中' },
-    completed: { style: { background: 'var(--down-bg)', color: 'var(--down)' }, label: '已完成' },
-    failed: { style: { background: 'var(--up-bg)', color: 'var(--up)' }, label: '失败' },
-  }
-  const { style, label } = map[s]
-  return <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 999, fontWeight: 600, ...style }}>{label}</span>
-}
+  const Panel = panels[nav]
 
-function PBar({ pct, label, cur, tot }: { pct: number; label: string; cur: number; tot: number }) {
   return (
-    <div className="space-y-1">
-      {label && <div style={{ fontSize: 12, color: 'var(--accent-light)', fontWeight: 500 }} className="truncate">{label}</div>}
-      <div style={{ width: '100%', background: 'var(--bg-tag)', borderRadius: 999, height: 8, overflow: 'hidden' }}>
-        <div style={{ height: '100%', borderRadius: 999, background: 'var(--accent)', width: `${Math.max(pct, 2)}%`, transition: 'all .5s ease-out' }} />
+    <div style={{ maxWidth: 1100, margin: '0 auto', display: 'flex', gap: 0, minHeight: 'calc(100vh - 80px)' }}>
+      {/* Left Nav */}
+      <div style={{
+        width: 140, flexShrink: 0, borderRight: '1px solid var(--border-default)',
+        padding: '20px 0', position: 'sticky', top: 60, alignSelf: 'flex-start',
+      }}>
+        {NAV_ITEMS.map(item => (
+          <div key={item.key} onClick={() => setNav(item.key)}
+            style={{
+              padding: '10px 14px', margin: '2px 8px', borderRadius: 8, cursor: 'pointer',
+              fontSize: 13, fontWeight: nav === item.key ? 600 : 400, transition: 'all .15s',
+              background: nav === item.key ? 'var(--accent)' : 'transparent',
+              color: nav === item.key ? '#fff' : 'var(--text-secondary)',
+            }}>
+            <span style={{ marginRight: 6 }}>{item.icon}</span>
+            {item.label}
+          </div>
+        ))}
       </div>
-      {tot > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)' }}><span>步骤 {cur}/{tot}</span><span>{pct}%</span></div>}
+
+      {/* Right Content */}
+      <div style={{ flex: 1, padding: '24px 28px', overflowY: 'auto' }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>
+          {NAV_ITEMS.find(i => i.key === nav)?.label}
+        </h1>
+        <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 24 }}>
+          {nav === 'collect' && '管理外部数据源采集，查看采集状态和日志'}
+          {nav === 'summary' && '基于已采集数据生成市场报告、量化推荐和海报'}
+          {nav === 'tracking' && '管理量化推荐记录，更新和跟踪收益数据'}
+          {nav === 'schedule' && '配置每日定时数据采集和自动生成任务'}
+        </p>
+        <Panel />
+      </div>
     </div>
   )
 }
+
+// ====== 按钮样式 ======
+
+function accentBtn(disabled: boolean): React.CSSProperties {
+  return {
+    padding: '8px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600,
+    border: '1px solid var(--accent)', background: 'var(--accent)', color: '#fff',
+    cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.6 : 1,
+  }
+}
+function dangerBtn(): React.CSSProperties {
+  return {
+    padding: '8px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600,
+    border: '1px solid var(--up)', background: 'transparent', color: 'var(--up)',
+    cursor: 'pointer',
+  }
+}
+function bigAccentBtn(disabled: boolean): React.CSSProperties {
+  return {
+    width: '100%', padding: '14px', borderRadius: 12, fontSize: 15, fontWeight: 700,
+    border: '1px solid var(--accent)', background: 'var(--accent)', color: '#fff',
+    cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.6 : 1,
+  }
+}
+function miniBtn(disabled: boolean): React.CSSProperties {
+  return { padding: '4px 12px', borderRadius: 6, fontSize: 12, border: '1px solid var(--border-default)', background: 'transparent', color: 'var(--text-secondary)', cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.5 : 1 }
+}
+function miniAccentBtn(disabled: boolean): React.CSSProperties {
+  return { padding: '4px 12px', borderRadius: 6, fontSize: 12, border: 'none', background: 'var(--accent)', color: '#fff', cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.5 : 1, fontWeight: 500 }
+}
+function miniDangerBtn(): React.CSSProperties {
+  return { padding: '4px 12px', borderRadius: 6, fontSize: 12, border: '1px solid var(--up)', background: 'transparent', color: 'var(--up)', cursor: 'pointer' }
+}
+
+// ====== 通用样式 ======
+
+const thStyle: React.CSSProperties = { padding: '8px 12px', textAlign: 'left', fontWeight: 500, color: 'var(--text-secondary)', fontSize: 11, whiteSpace: 'nowrap' }
+const tdStyle: React.CSSProperties = { padding: '7px 12px', fontSize: 12, color: 'var(--text-primary)', fontFamily: "'JetBrains Mono', 'SF Mono', monospace" }
 
 function StatBox({ label, value, color }: { label: string; value: string | number; color: string }) {
   return (
@@ -647,5 +728,3 @@ function StatBox({ label, value, color }: { label: string; value: string | numbe
     </div>
   )
 }
-
-function SDivider() { return <div className="w-px h-8" style={{ background: 'var(--border-default)' }} /> }

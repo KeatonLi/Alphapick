@@ -306,3 +306,29 @@ async def get_task(task_id: int, db: Session = Depends(get_db)):
             "updated_at": str(task.updated_at),
         },
     }
+
+
+@router.delete("/report")
+async def delete_report(
+    report_date: Optional[date] = Query(None, alias="date"),
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """删除指定日期的市场报告（可重新生成）"""
+    target = report_date or date.today()
+    deleted = db.query(MarketReport).filter(MarketReport.report_date == target).delete()
+    db.commit()
+    return {"success": True, "data": {"date": str(target), "deleted": deleted}}
+
+
+@router.delete("/recommend")
+async def delete_recommendations(
+    rec_date: Optional[date] = Query(None, alias="date"),
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """删除指定日期的量化推荐（可重新生成）"""
+    target = rec_date or date.today()
+    deleted = db.query(Recommendation).filter(Recommendation.recommend_date == target).delete()
+    db.commit()
+    return {"success": True, "data": {"date": str(target), "deleted": deleted}}
