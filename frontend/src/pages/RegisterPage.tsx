@@ -35,16 +35,19 @@ export default function RegisterPage() {
 
   return (
     <div className="min-h-[calc(100vh-3.5rem)] flex items-center justify-center px-4 py-12 fade-in">
-      <div className="glow-spot glow-spot-tr" />
 
       <div className="relative w-full max-w-sm">
         <div className="text-center mb-8">
-          <div
-            className="inline-flex items-center justify-center w-14 h-14 mb-4"
-            style={{ borderRadius: 'var(--card-radius)', background: 'var(--accent)', boxShadow: '0 0 30px var(--accent-glow)' }}
-          >
-            <span className="font-bold text-xl" style={{ color: '#fff' }}>QF</span>
-          </div>
+          <svg width="52" height="52" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ margin: '0 auto 16px', display: 'block' }}>
+            <rect x="2" y="2" width="44" height="44" rx="14" fill="var(--accent)" />
+            <line x1="12" y1="14" x2="12" y2="32" stroke="rgba(255,255,255,0.5)" strokeWidth="1.8" strokeLinecap="round"/>
+            <rect x="8" y="24" width="8" height="7" rx="2" fill="rgba(255,255,255,0.6)" />
+            <line x1="22" y1="18" x2="22" y2="30" stroke="rgba(255,255,255,0.5)" strokeWidth="1.8" strokeLinecap="round"/>
+            <rect x="18" y="24" width="8" height="5" rx="2" fill="rgba(255,255,255,0.45)" />
+            <line x1="33" y1="8" x2="33" y2="32" stroke="rgba(255,255,255,0.9)" strokeWidth="2" strokeLinecap="round"/>
+            <rect x="28" y="13" width="10" height="18" rx="2.5" fill="rgba(255,255,255,0.9)" />
+            <rect x="29" y="14" width="3" height="16" rx="1.5" fill="rgba(255,255,255,0.25)" />
+          </svg>
           <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>注册 QuantForge</h1>
           <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>创建账号，开启量化分析之旅</p>
         </div>
