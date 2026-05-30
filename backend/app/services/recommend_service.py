@@ -185,9 +185,8 @@ async def update_recommend_prices(db: Session) -> dict:
     幂等：已有数据不重复覆盖。
     纯按钮触发，无自动调度。
     """
-    import asyncio
-    import akshare as ak
-    from app.utils.akshare_utils import _to_sina_code, get_trade_days_after
+    from app.display.data_reader import read_trade_days_after
+    from app.datasource.fetchers.stock_daily import fetch_stock_daily
 
     today = date.today()
 
@@ -210,7 +209,7 @@ async def update_recommend_prices(db: Session) -> dict:
             continue
 
         # 获取 T 之后第 1..3 个交易日
-        trade_days = get_trade_days_after(rec_date, 3)
+        trade_days = read_trade_days_after(db, rec_date, 3)
         if not trade_days:
             continue
 
@@ -231,33 +230,17 @@ async def update_recommend_prices(db: Session) -> dict:
         if not needs_fetch:
             continue
 
-        # 拉取历史日线数据
-        sina_code = _to_sina_code(rec.stock_code)
-        try:
-            loop = asyncio.get_event_loop()
-            df = await loop.run_in_executor(
-                None,
-                lambda: ak.stock_zh_a_daily(
-                    symbol=sina_code,
-                    start_date=needs_fetch[0].strftime("%Y%m%d"),
-                    end_date=needs_fetch[-1].strftime("%Y%m%d"),
-                    adjust="qfq",
-                ),
-            )
-        except Exception:
-            # 单只股票失败不影响其他
+        # 通过 datasource 模块拉取个股日线
+        result = fetch_stock_daily(
+            db, rec.stock_code,
+            start_date=needs_fetch[0],
+            end_date=needs_fetch[-1],
+        )
+        if not result["success"]:
             continue
 
-        if df is None or df.empty:
-            continue
-
-        # 从日线数据提取指定日期的收盘价
-        for _, row in df.iterrows():
-            raw_date = row["date"]
-            if isinstance(raw_date, pd.Timestamp):
-                row_date = raw_date.date()
-            else:
-                row_date = pd.Timestamp(str(raw_date)).date()
+        for row in result["data"]:
+            row_date = date.fromisoformat(row["date"])
 
             if row_date not in day_map:
                 continue
@@ -346,9 +329,8 @@ async def update_single_recommend_price(db: Session, rec_id: int) -> dict:
     if rec.status == "completed":
         return {"success": False, "error": "该记录已完结，如需重新跟踪请先重置"}
 
-    import asyncio
-    import akshare as ak
-    from app.utils.akshare_utils import _to_sina_code, get_trade_days_after
+    from app.display.data_reader import read_trade_days_after
+    from app.datasource.fetchers.stock_daily import fetch_stock_daily
 
     today = date.today()
     rec_date = rec.recommend_date
@@ -359,11 +341,10 @@ async def update_single_recommend_price(db: Session, rec_id: int) -> dict:
     if base <= 0:
         return {"success": False, "error": "推荐价格异常"}
 
-    trade_days = get_trade_days_after(rec_date, 3)
+    trade_days = read_trade_days_after(db, rec_date, 3)
     if not trade_days:
         return {"success": False, "error": "无法获取交易日"}
 
-    # 找到第一个需要填充的交易日
     needs_fetch = []
     day_map = {}
     for i, d in enumerate(trade_days):
@@ -380,31 +361,17 @@ async def update_single_recommend_price(db: Session, rec_id: int) -> dict:
     if not needs_fetch:
         return {"success": True, "data": {"message": "所有交易日数据已存在，无需更新"}}
 
-    sina_code = _to_sina_code(rec.stock_code)
-    try:
-        loop = asyncio.get_event_loop()
-        df = await loop.run_in_executor(
-            None,
-            lambda: ak.stock_zh_a_daily(
-                symbol=sina_code,
-                start_date=needs_fetch[0].strftime("%Y%m%d"),
-                end_date=needs_fetch[-1].strftime("%Y%m%d"),
-                adjust="qfq",
-            ),
-        )
-    except Exception as e:
-        return {"success": False, "error": f"获取行情失败: {str(e)}"}
-
-    if df is None or df.empty:
-        return {"success": False, "error": "行情数据为空"}
+    result = fetch_stock_daily(
+        db, rec.stock_code,
+        start_date=needs_fetch[0],
+        end_date=needs_fetch[-1],
+    )
+    if not result["success"]:
+        return {"success": False, "error": f"获取行情失败: {result.get('error', '未知错误')}"}
 
     filled = 0
-    for _, row in df.iterrows():
-        raw_date = row["date"]
-        if isinstance(raw_date, pd.Timestamp):
-            row_date = raw_date.date()
-        else:
-            row_date = pd.Timestamp(str(raw_date)).date()
+    for row in result["data"]:
+        row_date = date.fromisoformat(row["date"])
 
         if row_date not in day_map:
             continue

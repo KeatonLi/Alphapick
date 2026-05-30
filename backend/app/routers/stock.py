@@ -1,5 +1,5 @@
 import json
-from datetime import date
+from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
@@ -10,7 +10,8 @@ from app.database import get_db
 from app.dependencies import get_current_user
 from app.models import MarketReport
 from app.services.stock_service import analyze_stock
-from app.utils.akshare_utils import get_stock_info, get_stock_daily, get_market_index
+from app.utils.akshare_utils import get_stock_info, get_market_index
+from app.datasource.fetchers.stock_daily import fetch_stock_daily
 
 router = APIRouter(prefix="/api/stock", tags=["stock"], dependencies=[Depends(get_current_user)])
 limiter = Limiter(key_func=get_remote_address)
@@ -81,11 +82,15 @@ async def info(request: Request, code: str):
 
 @router.get("/daily")
 @limiter.limit("20/minute")
-async def daily(request: Request, code: str, days: int = 60):
-    """获取个股日线数据"""
-    result = await get_stock_daily(code, days)
+async def daily(request: Request, code: str, days: int = 60, db: Session = Depends(get_db)):
+    """获取个股日线数据（通过 datasource 模块按需拉取）"""
+    end_date = date.today()
+    start_date = end_date - timedelta(days=days + 10)  # 多取几天应对非交易日
+    result = fetch_stock_daily(db, code, start_date=start_date, end_date=end_date)
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result["error"])
+    # 只返回最近 days 条
+    result["data"] = result["data"][-days:]
     return result
 
 

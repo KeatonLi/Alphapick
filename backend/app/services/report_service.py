@@ -1,21 +1,25 @@
 # backend/app/services/report_service.py
 import json
+import numpy as np
 from datetime import date, timedelta
 from typing import Optional
 
-import akshare as ak
-import numpy as np
-import requests
 from sqlalchemy.orm import Session
 
-from app.utils.akshare_utils import get_market_index, get_hot_sectors, _to_tencent_code, get_hsgt_flow
+from app.display.data_reader import (
+    read_index_data,
+    read_sector_data,
+    read_hsgt_data,
+    read_limit_up_codes,
+    read_stock_quotes_for_codes,
+)
 from app.utils.ai_client import chat
 from app.models import MarketReport
 from app.prompts import REPORT_SYSTEM_PROMPT, REPORT_OUTPUT_FORMAT
 
 
 async def generate_daily_report(db: Session, report_date: Optional[date] = None) -> dict:
-    """生成指定日期市场报告并保存到数据库"""
+    """生成指定日期市场报告并保存到数据库（数据来源：raw_data_records）"""
     today = report_date if report_date is not None else date.today()
 
     # 检查是否已存在
@@ -25,9 +29,9 @@ async def generate_daily_report(db: Session, report_date: Optional[date] = None)
     if existing and existing.ai_report:
         return {"success": True, "data": {}, "message": f"今日报告已存在，跳过生成"}
 
-    # 抓取指数和板块数据
-    index_result = await get_market_index()
-    sectors_result = await get_hot_sectors(top_n=10)
+    # 从 raw_data_records 读取指数和板块数据
+    index_result = read_index_data(db, today)
+    sectors_result = read_sector_data(db, today, top_n=10)
 
     if not index_result["success"]:
         return {"success": False, "error": f"获取指数数据失败: {index_result['error']}"}
@@ -40,7 +44,7 @@ async def generate_daily_report(db: Session, report_date: Optional[date] = None)
     # ── 全量板块数据 ─────────────────────────────────────────────
     sectors_full_data = []
     try:
-        full_sectors_result = await get_hot_sectors(top_n=200)
+        full_sectors_result = read_sector_data(db, today, top_n=200)
         if full_sectors_result["success"]:
             sectors_full_data = full_sectors_result["data"]
     except Exception:
@@ -49,20 +53,19 @@ async def generate_daily_report(db: Session, report_date: Optional[date] = None)
     # ── 沪深港通资金流 ──────────────────────────────────────────
     hsgt_data = None
     try:
-        hsgt_result = await get_hsgt_flow()
+        hsgt_result = read_hsgt_data(db, today)
         if hsgt_result["success"]:
             hsgt_data = hsgt_result["data"]
     except Exception:
         pass
 
-    # ── 涨停板池（替代原来的全市场分页） ──────────────────────────────────
+    # ── 涨停板池 ──────────────────────────────────────────────
     today_limit_up_codes = "[]"
     yesterday_limit_ups_perf = None
 
     try:
-        zt_df = ak.stock_zt_pool_em(date=today.strftime("%Y%m%d"))
-        if zt_df is not None and not zt_df.empty:
-            codes = zt_df["代码"].tolist()
+        codes = read_limit_up_codes(db, today)
+        if codes:
             today_limit_up_codes = json.dumps(codes, ensure_ascii=False)
 
         # 查询昨日涨停股今日表现
@@ -73,29 +76,13 @@ async def generate_daily_report(db: Session, report_date: Optional[date] = None)
             try:
                 yesterday_codes = json.loads(yesterday_report.yesterday_limit_ups)
                 if yesterday_codes:
-                    # 腾讯批量查询昨日涨停股的今日行情
-                    batch = yesterday_codes[:80]
-                    tencent_codes = [_to_tencent_code(c) for c in batch]
-                    if tencent_codes:
-                        r = requests.get(
-                            f"https://qt.gtimg.cn/q={','.join(tencent_codes)}",
-                            headers={"Referer": "https://finance.qq.com", "User-Agent": "Mozilla/5.0"},
-                            timeout=10,
-                        )
-                        today_perfs = []
-                        for line in r.text.strip().split("\n"):
-                            if "~\"" not in line:
-                                continue
-                            parts = line.split("~")
-                            if len(parts) > 32:
-                                try:
-                                    change_pct = float(parts[32]) if parts[32] not in ("",) else 0
-                                    if change_pct != 0:
-                                        today_perfs.append(change_pct)
-                                except (ValueError, IndexError):
-                                    continue
-                        if today_perfs:
-                            yesterday_limit_ups_perf = round(float(np.mean(today_perfs)), 2)
+                    quotes = read_stock_quotes_for_codes(db, today, yesterday_codes)
+                    today_perfs = [
+                        q["change_pct"] for q in quotes.values()
+                        if q.get("change_pct", 0) != 0
+                    ]
+                    if today_perfs:
+                        yesterday_limit_ups_perf = round(float(np.mean(today_perfs)), 2)
             except Exception:
                 pass
     except Exception:
