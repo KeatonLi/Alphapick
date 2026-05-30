@@ -1,7 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { apiGet } from '../services/api'
-
-const API_BASE = import.meta.env.VITE_API_URL || '/api'
+import { apiGet, generateApi } from '../services/api'
 
 interface PosterState {
   loading: boolean
@@ -41,19 +39,12 @@ export default function PosterPage() {
     setState({ loading: true, error: '', hasReport: false })
     setPosterUrl('')
     try {
-      const url = `${API_BASE}/report/poster?date=${d}`
-      const resp = await fetch(url)
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => ({ detail: '海报生成失败' }))
-        setState({ loading: false, error: err.detail || '暂无该日期报告', hasReport: false })
-        return
-      }
-      const blob = await resp.blob()
+      const blob = await generateApi.downloadPoster(d)
       const objUrl = URL.createObjectURL(blob)
       setPosterUrl(objUrl)
       setState({ loading: false, error: '', hasReport: true })
-    } catch {
-      setState({ loading: false, error: '网络错误，请稍后重试', hasReport: false })
+    } catch (e: any) {
+      setState({ loading: false, error: e.message || '海报生成失败', hasReport: false })
     }
   }
 

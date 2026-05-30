@@ -321,4 +321,12 @@ export const generateApi = {
     apiDelete<{ success: boolean; data: any }>(`/generate/report${date ? `?date=${date}` : ''}`),
   deleteRecommend: (date?: string) =>
     apiDelete<{ success: boolean; data: any }>(`/generate/recommend${date ? `?date=${date}` : ''}`),
+  downloadPoster: async (date: string): Promise<Blob> => {
+    const API_BASE = import.meta.env.VITE_API_URL || '/api'
+    const token = localStorage.getItem('auth_token')
+    const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
+    const resp = await fetch(`${API_BASE}/report/poster?date=${date}`, { headers })
+    if (!resp.ok) throw new Error('海报生成失败')
+    return resp.blob()
+  },
 }
