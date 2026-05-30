@@ -230,6 +230,7 @@ function SummaryPanel({ date }: { date: string }) {
   const [allLoading, setAllLoading] = useState(false)
   const [posterLoading, setPosterLoading] = useState(false)
   const [feedback, setFeedback] = useState<MsgT[]>([])
+  const [taskProgress, setTaskProgress] = useState<{ step: number; total: number; label: string; pct: number } | null>(null)
 
   const addFb = (fb: MsgT) => setFeedback(prev => [fb, ...prev].slice(0, 30))
 
@@ -256,19 +257,20 @@ function SummaryPanel({ date }: { date: string }) {
           const iv = setInterval(async () => {
             try {
               const t = await apiGet<any>(`/generate/task/${taskId}`)
-              if (!t.success) { clearInterval(iv); return }
+              if (!t.success) { clearInterval(iv); setTaskProgress(null); return }
+              setTaskProgress({ step: t.data.current_step, total: t.data.total_steps, label: t.data.step_label || '', pct: t.data.progress_pct })
               if (t.data.status === 'completed') {
                 clearInterval(iv)
-                addFb({ type: 'success', text: `✅ ${ep} 完成 (${t.data.target_date})` })
+                setTimeout(() => setTaskProgress(null), 2000)
+                addFb({ type: 'success', text: `✅ 生成完成 (${t.data.target_date})` })
                 checkStatus()
               } else if (t.data.status === 'failed') {
                 clearInterval(iv)
-                addFb({ type: 'error', text: `❌ ${ep} 失败: ${t.data.error_message || ''}` })
-              } else {
-                addFb({ type: 'warn', text: `⏳ ${t.data.step_label || '执行中...'} (${t.data.progress_pct}%)` })
+                setTimeout(() => setTaskProgress(null), 2000)
+                addFb({ type: 'error', text: `❌ 失败: ${t.data.error_message || '未知错误'}` })
               }
             } catch { /* */ }
-          }, 1000)
+          }, 800)
         } else {
           addFb({ type: 'success', text: `✅ ${res.data.message || '已完成（已存在）'}` })
           checkStatus()
@@ -311,6 +313,27 @@ function SummaryPanel({ date }: { date: string }) {
 
   return (
     <div>
+      {taskProgress && (
+        <div className="card" style={{ padding: 16, marginBottom: 16, border: '1px solid var(--accent)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 18, animation: 'spin 1s linear infinite' }}>⏳</span>
+              <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--accent-light)' }}>{taskProgress.label}</span>
+            </div>
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-light)' }}>{taskProgress.pct}%</span>
+          </div>
+          <div style={{ width: '100%', height: 6, background: 'var(--bg-tag)', borderRadius: 99, overflow: 'hidden' }}>
+            <div style={{
+              height: '100%', borderRadius: 99, background: 'var(--accent)',
+              width: `${Math.max(taskProgress.pct, 3)}%`, transition: 'width .5s ease-out',
+            }} />
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
+            步骤 {taskProgress.step}/{taskProgress.total}
+          </div>
+        </div>
+      )}
+
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10, marginBottom: 16 }}>
         {/* 市场报告 */}
         <div className="card" style={{ padding: 14 }}>

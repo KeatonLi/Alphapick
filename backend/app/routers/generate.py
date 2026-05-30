@@ -37,12 +37,16 @@ def _update_task(task_id: int, **kwargs):
 async def _run_report(task_id: int, target_date: date):
     """后台执行报告生成"""
     try:
-        _update_task(task_id, status="running", current_step=1, total_steps=4,
-                     step_label="正在抓取指数行情数据...", progress_pct=10)
+        async def on_progress(step: int, total: int, label: str, pct: int):
+            _update_task(task_id, status="running", current_step=step, total_steps=total,
+                         step_label=label, progress_pct=pct)
+
+        _update_task(task_id, status="running", current_step=1, total_steps=5,
+                     step_label="正在读取市场数据...", progress_pct=5)
 
         db = SessionLocal()
         try:
-            result = await generate_daily_report(db, report_date=target_date)
+            result = await generate_daily_report(db, report_date=target_date, on_progress=on_progress)
         finally:
             db.close()
 
@@ -51,7 +55,7 @@ async def _run_report(task_id: int, target_date: date):
                          progress_pct=100)
             return
 
-        _update_task(task_id, current_step=4, step_label="报告生成完成 ✅", progress_pct=100,
+        _update_task(task_id, current_step=5, step_label="报告生成完成 ✅", progress_pct=100,
                      result=json.dumps({"date": str(target_date)}, ensure_ascii=False),
                      status="completed")
     except Exception as e:
@@ -217,7 +221,10 @@ async def _run_all(task_id: int, target_date: date):
     try:
         _update_task(task_id, status="running", current_step=1, total_steps=3,
                      step_label="正在生成市场报告...", progress_pct=10)
-        result = await generate_daily_report(db, report_date=target_date)
+        async def on_progress(step, total, label, pct):
+            _update_task(task_id, status="running", current_step=1, total_steps=3,
+                         step_label=f"报告: {label}", progress_pct=max(10, pct // 3))
+        result = await generate_daily_report(db, report_date=target_date, on_progress=on_progress)
         if not result["success"]:
             _update_task(task_id, status="failed", error_message=f"报告生成失败: {result.get('error')}", progress_pct=100)
             return

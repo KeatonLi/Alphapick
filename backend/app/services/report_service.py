@@ -18,9 +18,17 @@ from app.models import MarketReport
 from app.prompts import REPORT_SYSTEM_PROMPT, REPORT_OUTPUT_FORMAT
 
 
-async def generate_daily_report(db: Session, report_date: Optional[date] = None) -> dict:
+async def generate_daily_report(
+    db: Session,
+    report_date: Optional[date] = None,
+    on_progress=None,
+) -> dict:
     """生成指定日期市场报告并保存到数据库（数据来源：raw_data_records）"""
     today = report_date if report_date is not None else date.today()
+
+    async def _progress(step: int, total: int, label: str, pct: int):
+        if on_progress:
+            await on_progress(step, total, label, pct)
 
     # 检查是否已存在
     existing = db.query(MarketReport).filter(
@@ -29,7 +37,7 @@ async def generate_daily_report(db: Session, report_date: Optional[date] = None)
     if existing and existing.ai_report:
         return {"success": True, "data": {}, "message": f"今日报告已存在，跳过生成"}
 
-    # 从 raw_data_records 读取指数和板块数据
+    await _progress(1, 5, "正在读取指数数据...", 10)
     index_result = read_index_data(db, today)
     sectors_result = read_sector_data(db, today, top_n=10)
 
@@ -37,6 +45,8 @@ async def generate_daily_report(db: Session, report_date: Optional[date] = None)
         return {"success": False, "error": f"获取指数数据失败: {index_result['error']}"}
     if not sectors_result["success"]:
         return {"success": False, "error": f"获取板块数据失败: {sectors_result['error']}"}
+
+    await _progress(2, 5, "正在读取板块/北向/涨停数据...", 25)
 
     index_data = index_result["data"]
     sectors_data = sectors_result["data"]
@@ -92,6 +102,8 @@ async def generate_daily_report(db: Session, report_date: Optional[date] = None)
     up_count = sum(1 for i in index_data if i["change_pct"] > 0)
     market_summary = f"三大指数{'普涨' if up_count >= 2 else '涨跌互现' if up_count == 1 else '普跌'}"
 
+    await _progress(3, 5, "AI 正在分析市场数据生成报告...", 40)
+
     # 组装 AI 输入
     user_message = f"""今日市场数据：
 
@@ -125,6 +137,8 @@ async def generate_daily_report(db: Session, report_date: Optional[date] = None)
         )
     except (json.JSONDecodeError, KeyError):
         ai_report_text = ai_response
+
+    await _progress(4, 5, "正在保存报告...", 85)
 
     # 保存到数据库
     if existing:
