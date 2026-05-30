@@ -28,6 +28,9 @@ class Settings:
 
     @property
     def database_url(self) -> str:
+        env_url = os.getenv("DATABASE_URL", "")
+        if env_url:
+            return env_url
         return (
             f"mysql+pymysql://{self.QUANTFORGE_DB_USER}:{self.QUANTFORGE_DB_PASSWORD}"
             f"@{self.QUANTFORGE_DB_HOST}:{self.QUANTFORGE_DB_PORT}/{self.QUANTFORGE_DB_NAME}"
