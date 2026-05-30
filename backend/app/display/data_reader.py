@@ -1,12 +1,24 @@
 """展示层数据读取 — 从 raw_data_records 读取原始 JSON 并解析为结构化数据"""
 
 import json
+import math
 import numpy as np
 from datetime import date, timedelta
 from typing import Optional
 
 from sqlalchemy.orm import Session
 from app.datasource.models import RawDataRecord
+
+
+def _safe_float(v, default=0.0):
+    """安全转 float，NaN/Inf → default"""
+    try:
+        f = float(v)
+        if math.isnan(f) or math.isinf(f):
+            return default
+        return f
+    except (ValueError, TypeError):
+        return default
 
 
 def _get_raw(db: Session, data_type: str, target_date: date) -> Optional[dict]:
@@ -43,16 +55,17 @@ def read_index_data(db: Session, target_date: date) -> dict:
                 continue
             latest = records[-1]
             prev = records[-2]
-            prev_close = float(prev.get("close", 0))
+            prev_close = _safe_float(prev.get("close"))
             if prev_close == 0:
                 continue
-            change_pct = (float(latest["close"]) - prev_close) / prev_close * 100
+            latest_close = _safe_float(latest.get("close"))
+            change_pct = (latest_close - prev_close) / prev_close * 100
             data.append({
                 "name": name,
                 "code": code,
-                "close": round(float(latest["close"]), 2),
+                "close": round(latest_close, 2),
                 "change_pct": round(change_pct, 2),
-                "volume": float(latest.get("volume", 0)),
+                "volume": _safe_float(latest.get("volume")),
             })
 
     if not data:
@@ -73,7 +86,7 @@ def read_sector_data(db: Session, target_date: date, top_n: int = 10) -> dict:
     # 按涨跌幅排序，取前 top_n
     sorted_records = sorted(
         records,
-        key=lambda r: float(r.get("涨跌幅", 0) or 0),
+        key=lambda r: _safe_float(r.get("涨跌幅") or 0),
         reverse=True,
     )
     top = sorted_records[:top_n]
@@ -81,8 +94,7 @@ def read_sector_data(db: Session, target_date: date, top_n: int = 10) -> dict:
     data = []
     for row in top:
         try:
-            change_str = str(row.get("涨跌幅", "0"))
-            change_pct = float(change_str) if change_str not in ("", "None") else 0
+            change_pct = _safe_float(row.get("涨跌幅"))
             data.append({
                 "name": str(row.get("板块", "")),
                 "change_pct": round(change_pct, 2),
@@ -116,14 +128,14 @@ def read_hsgt_data(db: Session, target_date: date) -> dict:
 
     today_flow = {
         "date": str(sh_latest.get("日期", "")),
-        "sh_net_buy": round(float(sh_latest.get("当日成交净买额", 0)), 2),
-        "sh_total_inflow": round(float(sh_latest.get("当日资金流入", 0)), 2),
-        "sh_cumulative": round(float(sh_latest.get("历史累计净买额", 0)), 2),
-        "sz_net_buy": round(float(sz_latest.get("当日成交净买额", 0)), 2),
-        "sz_total_inflow": round(float(sz_latest.get("当日资金流入", 0)), 2),
-        "sz_cumulative": round(float(sz_latest.get("历史累计净买额", 0)), 2),
+        "sh_net_buy": round(_safe_float(sh_latest.get("当日成交净买额")), 2),
+        "sh_total_inflow": round(_safe_float(sh_latest.get("当日资金流入")), 2),
+        "sh_cumulative": round(_safe_float(sh_latest.get("历史累计净买额")), 2),
+        "sz_net_buy": round(_safe_float(sz_latest.get("当日成交净买额")), 2),
+        "sz_total_inflow": round(_safe_float(sz_latest.get("当日资金流入")), 2),
+        "sz_cumulative": round(_safe_float(sz_latest.get("历史累计净买额")), 2),
         "total_net_buy": round(
-            float(sh_latest.get("当日成交净买额", 0)) + float(sz_latest.get("当日成交净买额", 0)), 2
+            _safe_float(sh_latest.get("当日成交净买额")) + _safe_float(sz_latest.get("当日成交净买额")), 2
         ),
     }
 
@@ -135,8 +147,8 @@ def read_hsgt_data(db: Session, target_date: date) -> dict:
         sz_row = sz_hist[i] if i < len(sz_hist) else None
         history.append({
             "date": str(sh_row.get("日期", "")),
-            "sh_net_buy": round(float(sh_row.get("当日成交净买额", 0)), 2),
-            "sz_net_buy": round(float(sz_row.get("当日成交净买额", 0)), 2) if sz_row else 0,
+            "sh_net_buy": round(_safe_float(sh_row.get("当日成交净买额")), 2),
+            "sz_net_buy": round(_safe_float(sz_row.get("当日成交净买额")), 2) if sz_row else 0,
         })
 
     return {"success": True, "data": {"today": today_flow, "history": history}}
