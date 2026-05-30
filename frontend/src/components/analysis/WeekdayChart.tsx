@@ -57,17 +57,47 @@ export default function WeekdayChart({ data }: WeekdayChartProps) {
     },
   }
 
+  const chartOptions = {
+    ...options,
+    plugins: {
+      ...options.plugins,
+      legend: {
+        ...options.plugins.legend,
+        labels: { color: 'var(--text-secondary)' },
+      },
+      title: {
+        ...options.plugins.title,
+        color: 'var(--text-primary)',
+      },
+    },
+    scales: {
+      ...options.scales,
+      x: {
+        ticks: { color: 'var(--text-muted)' },
+        grid: { color: 'var(--border-default)' },
+      },
+      y: {
+        ...options.scales.y,
+        ticks: {
+          ...options.scales.y.ticks,
+          color: 'var(--text-muted)',
+        },
+        grid: { color: 'var(--border-default)' },
+      },
+    },
+  }
+
   if (Object.keys(data).length === 0) {
     return (
-      <div className="bg-white rounded-lg border border-gray-200 p-6 h-80 flex items-center justify-center">
-        <p className="text-gray-500">暂无数据</p>
+      <div style={{ height: 320, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
+        暂无数据
       </div>
     )
   }
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-6">
-      <Bar data={chartData} options={options} />
+    <div>
+      <Bar data={chartData} options={chartOptions} />
     </div>
   )
 }

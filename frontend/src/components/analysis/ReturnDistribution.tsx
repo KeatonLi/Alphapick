@@ -44,22 +44,52 @@ export default function ReturnDistribution({ data }: ReturnDistributionProps) {
     },
   }
 
+  const chartOptions = {
+    ...options,
+    plugins: {
+      ...options.plugins,
+      legend: {
+        ...options.plugins.legend,
+        labels: { color: 'var(--text-secondary)' },
+      },
+      title: {
+        ...options.plugins.title,
+        color: 'var(--text-primary)',
+      },
+    },
+    scales: {
+      ...options.scales,
+      x: {
+        ticks: { color: 'var(--text-muted)' },
+        grid: { color: 'var(--border-default)' },
+      },
+      y: {
+        ...options.scales.y,
+        ticks: {
+          ...options.scales.y.ticks,
+          color: 'var(--text-muted)',
+        },
+        grid: { color: 'var(--border-default)' },
+      },
+    },
+  }
+
   if (data.bins.length === 0) {
     return (
-      <div className="bg-white rounded-lg border border-gray-200 p-6 h-80 flex items-center justify-center">
-        <p className="text-gray-500">暂无数据</p>
+      <div style={{ height: 320, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
+        暂无数据
       </div>
     )
   }
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-6">
-      <div className="mb-4 flex gap-4 text-sm text-gray-600">
+    <div>
+      <div style={{ marginBottom: 16, display: 'flex', gap: 16, fontSize: 14, color: 'var(--text-secondary)' }}>
         <span>25分位: {(data.percentiles.p25 * 100).toFixed(1)}%</span>
         <span>中位数: {(data.percentiles.p50 * 100).toFixed(1)}%</span>
         <span>75分位: {(data.percentiles.p75 * 100).toFixed(1)}%</span>
       </div>
-      <Bar data={chartData} options={options} />
+      <Bar data={chartData} options={chartOptions} />
     </div>
   )
 }

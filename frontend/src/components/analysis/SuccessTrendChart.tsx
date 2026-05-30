@@ -38,29 +38,32 @@ export default function SuccessTrendChart({ data, trend }: SuccessTrendChartProp
   const options = {
     responsive: true,
     plugins: {
-      legend: { position: 'top' as const },
-      title: { display: true, text: `成功率趋势 (${trend})` },
+      legend: { position: 'top' as const, labels: { color: 'var(--text-secondary)' } },
+      title: { display: true, text: `成功率趋势 (${trend})`, color: 'var(--text-primary)' },
     },
     scales: {
+      x: { ticks: { color: 'var(--text-muted)' }, grid: { color: 'var(--border-default)' } },
       y: {
         beginAtZero: true,
         ticks: {
           callback: (value: any) => `${value}%`,
+          color: 'var(--text-muted)',
         },
+        grid: { color: 'var(--border-default)' },
       },
     },
   }
 
   if (data.length === 0) {
     return (
-      <div className="bg-white rounded-lg border border-gray-200 p-6 h-80 flex items-center justify-center">
-        <p className="text-gray-500">暂无数据</p>
+      <div style={{ height: 320, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
+        暂无数据
       </div>
     )
   }
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-6">
+    <div>
       <Line data={chartData} options={options} />
     </div>
   )

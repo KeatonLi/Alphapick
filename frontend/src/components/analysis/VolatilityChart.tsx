@@ -39,22 +39,25 @@ export default function VolatilityChart({ data }: VolatilityChartProps) {
   const options = {
     responsive: true,
     plugins: {
-      legend: { position: 'top' as const },
-      title: { display: true, text: '收益波动性分析' },
+      legend: { position: 'top' as const, labels: { color: 'var(--text-secondary)' } },
+      title: { display: true, text: '收益波动性分析', color: 'var(--text-primary)' },
     },
     scales: {
+      x: { ticks: { color: 'var(--text-muted)' }, grid: { color: 'var(--border-default)' } },
       y: {
         beginAtZero: true,
         ticks: {
           callback: (value: any) => `${value}%`,
+          color: 'var(--text-muted)',
         },
+        grid: { color: 'var(--border-default)' },
       },
     },
   }
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-6">
-      <div className="mb-4 text-sm text-gray-600">
+    <div>
+      <div style={{ marginBottom: 16, fontSize: 14, color: 'var(--text-secondary)' }}>
         <span>最大收益正向率: <strong>{(data.gain_positive_rate * 100).toFixed(1)}%</strong></span>
       </div>
       <Bar data={chartData} options={options} />
