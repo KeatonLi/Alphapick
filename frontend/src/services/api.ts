@@ -242,3 +242,26 @@ export const extendedAnalysisApi = {
     return apiGet<SuccessTrendResponse>(`/analysis/success-trend?${params}`)
   },
 }
+
+// ─── 个股日线 ─────────────────────────────────────────────
+
+export interface StockDailyRow {
+  date: string
+  open: number
+  close: number
+  high: number
+  low: number
+  volume: number
+  change_pct: number
+}
+
+export interface StockDailyResponse {
+  success: boolean
+  data: StockDailyRow[]
+  error?: string
+}
+
+export const stockDailyApi = {
+  getDaily: (code: string, days: number = 60) =>
+    apiGet<StockDailyResponse>(`/stock/daily?code=${code}&days=${days}`),
+}

@@ -12,15 +12,16 @@ import TrackingPage from './pages/TrackingPage'
 import PosterPage from './pages/PosterPage'
 import AnalysisPage from './pages/AnalysisPage'
 import SettingsPage from './pages/SettingsPage'
+import StockDailyPage from './pages/StockDailyPage'
 
 export default function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
         <BrowserRouter>
-          <div className="min-h-screen" style={{ background: 'var(--bg-page)', position: 'relative', overflow: 'hidden' }}>
-            <div className="glow-spot glow-spot-tr" />
-            <div className="glow-spot glow-spot-bl" />
+          <div className="min-h-screen" style={{ background: 'var(--bg-page)', position: 'relative' }}>
+            <div className="ambient-glow-top" />
+            <div className="ambient-glow-bottom" />
             <Navbar />
             <main style={{ position: 'relative', zIndex: 1 }}>
               <Routes>
@@ -32,6 +33,7 @@ export default function App() {
                 <Route path="/tracking" element={<ProtectedRoute><TrackingPage /></ProtectedRoute>} />
                 <Route path="/poster" element={<ProtectedRoute><PosterPage /></ProtectedRoute>} />
                 <Route path="/analysis" element={<ProtectedRoute><AnalysisPage /></ProtectedRoute>} />
+                <Route path="/stock-daily" element={<ProtectedRoute><StockDailyPage /></ProtectedRoute>} />
                 <Route path="/settings" element={<ProtectedRoute requiredRole="admin"><SettingsPage /></ProtectedRoute>} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>

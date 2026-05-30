@@ -6,8 +6,9 @@ const protectedNavItems = [
   { path: '/report', label: '市场报告' },
   { path: '/recommend', label: '智能推荐' },
   { path: '/tracking', label: '收益跟踪' },
-  { path: '/poster', label: '海报' },
+  { path: '/stock-daily', label: '个股日线' },
   { path: '/analysis', label: '数据分析' },
+  { path: '/poster', label: '海报' },
 ]
 
 const adminNavItems = [
@@ -35,12 +36,16 @@ export default function Navbar() {
     }}>
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 16px', height: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
         <NavLink to="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none', flexShrink: 0 }}>
-          <div style={{
-            width: 28, height: 28, borderRadius: 8,
-            background: 'linear-gradient(135deg, var(--accent), #8b5cf6)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 11, fontWeight: 700, color: '#fff'
-          }}>QF</div>
+          <svg width="28" height="28" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="2" y="2" width="44" height="44" rx="14" fill="var(--bg-page)" stroke="var(--border-default)" strokeWidth="1.5" />
+            <line x1="12" y1="12" x2="12" y2="34" stroke="var(--accent)" strokeWidth="1.8" strokeLinecap="round" opacity="0.5"/>
+            <rect x="8" y="24" width="8" height="8" rx="2" fill="var(--accent)" opacity="0.6" />
+            <line x1="22" y1="16" x2="22" y2="32" stroke="var(--accent-light)" strokeWidth="1.8" strokeLinecap="round" opacity="0.5"/>
+            <rect x="18" y="23" width="8" height="7" rx="2" fill="var(--down)" opacity="0.55" />
+            <line x1="33" y1="6" x2="33" y2="34" stroke="var(--up)" strokeWidth="2" strokeLinecap="round" />
+            <rect x="28" y="12" width="10" height="20" rx="2.5" fill="var(--up)" />
+            <rect x="29" y="13" width="3" height="18" rx="1.5" fill="rgba(255,255,255,0.18)" />
+          </svg>
           <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', letterSpacing: '-.01em' }}>QuantForge</span>
         </NavLink>
 
