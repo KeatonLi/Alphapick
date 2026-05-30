@@ -81,6 +81,10 @@ async def save_config(
     config.run_recommend = run_recommend
     db.commit()
 
+    # 联动 datasource 调度器，动态更新 APScheduler
+    from app.datasource.scheduler import update_schedule
+    update_schedule(enabled, run_time)
+
     return {"success": True, "data": {"message": "定时任务配置已保存"}}
 
 

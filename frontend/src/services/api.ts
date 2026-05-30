@@ -265,3 +265,47 @@ export const stockDailyApi = {
   getDaily: (code: string, days: number = 60) =>
     apiGet<StockDailyResponse>(`/stock/daily?code=${code}&days=${days}`),
 }
+
+// ─── 数据采集管理 ───────────────────────────────────────────
+
+export interface DatasourceStatusItem {
+  data_type: string
+  label: string
+  status: string
+  duration_ms: number | null
+  response_size: number | null
+  error_message: string | null
+  retry_count: number | null
+  has_data: boolean
+  fetched_at: string | null
+}
+
+export interface FetchLogEntry {
+  id: number
+  source_name: string
+  data_type: string
+  label: string
+  target_date: string
+  status: string
+  error_message: string | null
+  retry_count: number
+  duration_ms: number
+  response_size: number | null
+  created_at: string
+}
+
+export const datasourceApi = {
+  getStatus: (date?: string) =>
+    apiGet<{ success: boolean; data: DatasourceStatusItem[] }>(`/datasource/status${date ? `?date=${date}` : ''}`),
+  triggerFetch: (dataType: string, date?: string) =>
+    apiPost<{ success: boolean; data: any }>(`/datasource/trigger/${dataType}${date ? `?date=${date}` : ''}`),
+  triggerAll: (date?: string) =>
+    apiPost<{ success: boolean; data: any }>(`/datasource/trigger-all${date ? `?date=${date}` : ''}`),
+  getLogs: (page: number = 1, dataType?: string, status?: string) => {
+    const params = new URLSearchParams()
+    params.append('page', String(page))
+    if (dataType) params.append('data_type', dataType)
+    if (status) params.append('status', status)
+    return apiGet<{ success: boolean; data: { total: number; logs: FetchLogEntry[] } }>(`/datasource/logs?${params}`)
+  },
+}

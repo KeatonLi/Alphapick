@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useCallback, type ReactNode } from 'react'
-import { apiGet, apiPost, apiDelete, type HistoryRec } from '../services/api'
+import { apiGet, apiPost, apiDelete, type HistoryRec, datasourceApi, type DatasourceStatusItem } from '../services/api'
 import ConsoleToolbar from '../components/tracking/ConsoleToolbar'
 import DetailedTable from '../components/tracking/DetailedTable'
 import ConfirmModal from '../components/ConfirmModal'
@@ -66,6 +66,40 @@ function SettingsTab() {
   const [sRec, setSRec] = useState(true)
   const [sSaving, setSSaving] = useState(false)
   const [sMsg, setSMsg] = useState('')
+
+  // 数据采集状态
+  const [dsStatus, setDsStatus] = useState<DatasourceStatusItem[]>([])
+  const [dsLoading, setDsLoading] = useState(false)
+  const [dsTriggering, setDsTriggering] = useState<string | null>(null)
+
+  const loadDsStatus = async () => {
+    try {
+      const r = await datasourceApi.getStatus(date)
+      if (r.success) setDsStatus(r.data)
+    } catch { /* */ }
+  }
+
+  const triggerFetch = async (dataType: string) => {
+    setDsTriggering(dataType)
+    try {
+      await datasourceApi.triggerFetch(dataType, date)
+      setTimeout(() => loadDsStatus(), 500)
+    } catch { /* */ }
+    finally { setDsTriggering(null) }
+  }
+
+  const triggerAllFetch = async () => {
+    setDsLoading(true)
+    try {
+      await datasourceApi.triggerAll(date)
+      setTimeout(() => loadDsStatus(), 1000)
+    } catch { /* */ }
+    finally { setDsLoading(false) }
+  }
+
+  useEffect(() => {
+    loadDsStatus()
+  }, [date])
 
   useEffect(() => {
     apiGet<any>('/schedule/config').then(d => {
@@ -217,6 +251,69 @@ function SettingsTab() {
             {posterLoading ? '生成中...' : '🖼️ 生成海报'}
           </button>
           {posterMsg && <Msg msg={posterMsg} />}
+        </div>
+      </Section>
+
+      <Section icon="📡" title="数据采集">
+        <div className="flex items-center justify-between mb-3">
+          <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+            各数据源今日采集状态 · 手动触发采集
+          </div>
+          <button onClick={triggerAllFetch} disabled={dsLoading}
+            style={{
+              padding: '6px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600,
+              border: '1px solid var(--accent)', background: 'var(--accent)',
+              color: '#fff', cursor: dsLoading ? 'not-allowed' : 'pointer',
+              opacity: dsLoading ? 0.6 : 1,
+            }}>
+            {dsLoading ? '采集中...' : '🔄 全部采集'}
+          </button>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 8 }}>
+          {dsStatus.map(item => {
+            const triggering = dsTriggering === item.data_type
+            const statusColor = item.status === 'success' ? 'var(--down)' :
+                               item.status === 'failed' ? 'var(--up)' :
+                               item.status === 'skipped' ? 'var(--text-muted)' :
+                               'var(--text-muted)'
+            const statusText = item.status === 'success' ? '已采集' :
+                               item.status === 'failed' ? '失败' :
+                               item.status === 'skipped' ? '已跳过' :
+                               item.status === 'never' ? '未采集' : item.status
+            return (
+              <div key={item.data_type} className="card" style={{ padding: '10px 14px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{item.label}</span>
+                  <span style={{ fontSize: 11, padding: '1px 6px', borderRadius: 999, fontWeight: 600,
+                    background: item.status === 'success' ? 'rgba(52,211,153,0.15)' :
+                                item.status === 'failed' ? 'rgba(248,113,113,0.15)' : 'rgba(255,255,255,0.06)',
+                    color: statusColor }}>
+                    {statusText}
+                  </span>
+                </div>
+                {item.status === 'success' && (
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>
+                    {item.duration_ms ? `${(item.duration_ms / 1000).toFixed(1)}s` : '-'} ·
+                    {item.response_size ? ` ${(item.response_size / 1024).toFixed(0)}KB` : ' - KB'}
+                  </div>
+                )}
+                {item.error_message && (
+                  <div style={{ fontSize: 10, color: 'var(--up)', marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {item.error_message.slice(0, 60)}
+                  </div>
+                )}
+                <button onClick={() => triggerFetch(item.data_type)} disabled={triggering}
+                  style={{
+                    width: '100%', marginTop: 4, padding: '4px 0', borderRadius: 6, fontSize: 12,
+                    border: '1px solid var(--border-default)', background: 'transparent',
+                    color: 'var(--text-secondary)', cursor: triggering ? 'not-allowed' : 'pointer',
+                    opacity: triggering ? 0.5 : 1,
+                  }}>
+                  {triggering ? '采集中...' : '触发采集'}
+                </button>
+              </div>
+            )
+          })}
         </div>
       </Section>
 
