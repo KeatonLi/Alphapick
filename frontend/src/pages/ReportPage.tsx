@@ -151,8 +151,8 @@ export default function ReportPage() {
               </div>
               {(['sh', 'sz'] as const).map(k => {
                 const label = k === 'sh' ? '沪股通' : '深股通'
-                const net = report.hsgt_flow![`${k}_net_buy` as keyof HsgtFlow] as number
-                const total = report.hsgt_flow![`${k}_total_inflow` as keyof HsgtFlow] as number
+                const net = (report.hsgt_flow as any)?.[`${k}_net_buy`] ?? 0
+                const total = (report.hsgt_flow as any)?.[`${k}_total_inflow`] ?? 0
                 return (
                   <div key={k} style={{ marginBottom: k === 'sh' ? 16 : 0 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
