@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { apiGet } from '../services/api'
+import { useTradeDates } from '../hooks/useTradeDates'
+import TradeDatePicker from '../components/TradeDatePicker'
 
 interface IndexData { name: string; code: string; close: number; change_pct: number }
 interface SectorData { name: string; change_pct: number; leading_stock: string; driver?: string }
@@ -21,16 +23,14 @@ function fmtRate(n: number) { return (n >= 0 ? '+' : '') + fmt(n) + '%' }
 function fmtNum(n: number) { return n >= 1e8 ? `${(n/1e8).toFixed(1)}亿` : n >= 1e4 ? `${(n/1e4).toFixed(0)}万` : `${n}` }
 
 export default function ReportPage() {
-  const today = new Date().toISOString().split('T')[0]
-  const [date, setDate] = useState(today)
-  const [tradeDates, setTradeDates] = useState<string[]>([])
+  const tradeDates = useTradeDates()
+  const [date, setDate] = useState('')
   const [report, setReport] = useState<ReportData | null>(null)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    apiGet<any>('/report/trade-dates?days=365')
-      .then(d => { if (d.success) setTradeDates(d.data || []) }).catch(() => {})
-  }, [])
+    if (tradeDates.length > 0 && !date) setDate(tradeDates[0])
+  }, [tradeDates])
 
   const load = async (d: string) => {
     setLoading(true)
@@ -40,18 +40,6 @@ export default function ReportPage() {
   }
 
   useEffect(() => { if (date) load(date) }, [date])
-
-  const dateIdx = tradeDates.indexOf(date)
-  const canPrev = dateIdx > 0; const canNext = dateIdx >= 0 && dateIdx < tradeDates.length - 1
-
-  const btnStyle = (active: boolean): React.CSSProperties => ({
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    width: 36, height: 36, borderRadius: 10,
-    border: '1px solid var(--border-default)', background: 'var(--bg-card)',
-    color: active ? 'var(--text-secondary)' : 'var(--text-dim)',
-    cursor: active ? 'pointer' : 'default', opacity: active ? 1 : 0.4,
-    transition: 'all .2s',
-  })
 
   return (
     <div style={{ maxWidth: 1024, margin: '0 auto', padding: '40px 20px 60px' }}>
@@ -64,21 +52,8 @@ export default function ReportPage() {
       </div>
 
       {/* Date Picker */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginBottom: 36, flexWrap: 'wrap' }}>
-        <button onClick={() => setDate(tradeDates[dateIdx + 1])} disabled={!canNext} style={btnStyle(canNext)}>
-          <svg width={18} height={18} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/></svg>
-        </button>
-        <div className="nav-pills">
-          {tradeDates.slice(0, 7).map(d => (
-            <a key={d} href="#" onClick={e => { e.preventDefault(); setDate(d) }}
-              className={d === date ? 'active' : ''}>{d.slice(5)}</a>
-          ))}
-        </div>
-        <button onClick={() => setDate(tradeDates[dateIdx - 1])} disabled={!canPrev} style={btnStyle(canPrev)}>
-          <svg width={18} height={18} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/></svg>
-        </button>
-        <input type="date" value={date} max={today} onChange={e => setDate(e.target.value)}
-          style={{ background: 'var(--bg-input)', border: '1px solid var(--border-default)', color: 'var(--text-primary)', borderRadius: 10, padding: '8px 14px', fontFamily: "'JetBrains Mono', monospace", fontSize: 13, outline: 'none', width: 136 }} />
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 36 }}>
+        <TradeDatePicker value={date} onChange={setDate} tradeDates={tradeDates} />
       </div>
 
       {/* Loading */}
