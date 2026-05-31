@@ -1,6 +1,12 @@
 import { useState, useEffect, useMemo } from 'react'
 
-/* ── 生成模拟 K 线数据 ── */
+/* ── 确定性伪随机（替代 Math.random，保证每次渲染结果一致）── */
+function seededRandom(i: number): number {
+  const x = Math.sin(i * 127.1 + 311.7) * 43758.5453123
+  return x - Math.floor(x)
+}
+
+/* ── 生成模拟 K 线数据（固定值，每次渲染相同）── */
 interface Candle {
   x: number; open: number; close: number; high: number; low: number;
   bodyY: number; bodyH: number; wickY1: number; wickY2: number;
@@ -11,6 +17,13 @@ function generateCandles(count: number, width: number, height: number, paddingTo
   const usableH = height - paddingTop - 40
   const stepX = width / (count + 1)
   const mapY = (p: number) => paddingTop + (44 - p) / (44 - 30) * usableH
+
+  let rngCounter = 0
+  function rng(): number {
+    const v = seededRandom(rngCounter)
+    rngCounter++
+    return v
+  }
 
   // 上升趋势路径：筑底 → 突破 → 浅回调 → 再突破
   const trend = [
@@ -27,13 +40,13 @@ function generateCandles(count: number, width: number, height: number, paddingTo
     for (let i = 0; i < segLen; i++) {
       const progress = i / segLen
       const targetPrice = (tStart as number) + ((tEnd as number) - (tStart as number)) * progress
-      const drift = (targetPrice - price) * 0.6 + (Math.random() - 0.5) * 1.2
-      const isUp = Math.random() < (upBias as number)
+      const drift = (targetPrice - price) * 0.6 + (rng() - 0.5) * 1.2
+      const isUp = rng() < (upBias as number)
 
       const open = price
-      const close = isUp ? open + Math.abs(drift) + Math.random() * 0.6 : open - Math.abs(drift) - Math.random() * 0.3
-      const high = Math.max(open, close) + Math.random() * 1.2
-      const low = Math.min(open, close) - Math.random() * 1.2
+      const close = isUp ? open + Math.abs(drift) + rng() * 0.6 : open - Math.abs(drift) - rng() * 0.3
+      const high = Math.max(open, close) + rng() * 1.2
+      const low = Math.min(open, close) - rng() * 1.2
 
       const bodyTop = mapY(Math.max(open, close))
       const bodyBot = mapY(Math.min(open, close))
@@ -81,12 +94,12 @@ function Particles({ count, width, height }: { count: number; width: number; hei
   const particles = useMemo(() =>
     Array.from({ length: count }, (_, i) => ({
       id: i,
-      cx: Math.random() * width,
-      cy: Math.random() * height,
-      r: 1 + Math.random() * 2,
-      delay: Math.random() * 1.5,
-      duration: 2 + Math.random() * 3,
-      drift: (Math.random() - 0.5) * 60,
+      cx: seededRandom(i * 7 + 1) * width,
+      cy: seededRandom(i * 7 + 2) * height,
+      r: 1 + seededRandom(i * 7 + 3) * 2,
+      delay: seededRandom(i * 7 + 4) * 1.5,
+      duration: 2 + seededRandom(i * 7 + 5) * 3,
+      drift: (seededRandom(i * 7 + 6) - 0.5) * 60,
     })), [count, width, height])
 
   return (
