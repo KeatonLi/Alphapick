@@ -3,6 +3,8 @@ import { apiGet, apiPost, apiDelete, type HistoryRec, datasourceApi, generateApi
 import ConsoleToolbar from '../components/tracking/ConsoleToolbar'
 import DetailedTable from '../components/tracking/DetailedTable'
 import ConfirmModal from '../components/ConfirmModal'
+import { useTradeDates } from '../hooks/useTradeDates'
+import TradeDatePicker from '../components/TradeDatePicker'
 
 type MsgT = { type: 'success' | 'error' | 'warn'; text: string }
 
@@ -18,7 +20,6 @@ const NAV_ITEMS = [
 ] as const
 type NavKey = typeof NAV_ITEMS[number]['key']
 
-const today = () => new Date().toISOString().split('T')[0]
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -664,7 +665,11 @@ function SchedulePanel() {
 
 export default function SettingsPage() {
   const [nav, setNav] = useState<NavKey>('collect')
-  const [targetDate, setTargetDate] = useState(today())
+  const [targetDate, setTargetDate] = useState('')
+  const tradeDates = useTradeDates()
+  useEffect(() => {
+    if (tradeDates.length > 0 && !targetDate) setTargetDate(tradeDates[0])
+  }, [tradeDates])
 
   const panels: Record<NavKey, () => React.ReactNode> = {
     collect: () => <CollectPanel date={targetDate} />,
@@ -705,12 +710,7 @@ export default function SettingsPage() {
           {(nav === 'collect' || nav === 'summary') && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>目标日期</span>
-              <input type="date" value={targetDate} max={today()} onChange={e => setTargetDate(e.target.value)}
-                style={{
-                  background: 'var(--bg-input)', border: '1px solid var(--border-default)', color: 'var(--text-primary)',
-                  padding: '6px 10px', borderRadius: 8, fontSize: 13, outline: 'none',
-                  fontFamily: "'JetBrains Mono', monospace",
-                }} />
+              <TradeDatePicker value={targetDate} onChange={setTargetDate} tradeDates={tradeDates} />
             </div>
           )}
         </div>
