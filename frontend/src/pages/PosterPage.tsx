@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { apiGet, generateApi } from '../services/api'
+import { generateApi } from '../services/api'
 import { useTradeDates } from '../hooks/useTradeDates'
 import TradeDatePicker from '../components/TradeDatePicker'
 
