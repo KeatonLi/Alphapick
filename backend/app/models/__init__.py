@@ -58,6 +58,7 @@ class MarketReport(Base):
     html_report_path: Mapped[Optional[str]] = mapped_column(String(500), nullable=True, comment="HTML 报告文件路径")
     yesterday_limit_ups: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="昨日涨停股代码列表JSON")
     yesterday_limit_ups_performance: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2), nullable=True, comment="昨日涨停股今日平均涨幅")
+    today_limit_up_data: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="今日涨停板详情JSON(代码/名称/行业/连板数/封单等)")
     hsgt_flow: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="沪深港通资金流 JSON")
     sectors_full: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="全量行业板块 JSON")
     created_at: Mapped[datetime] = mapped_column(
@@ -70,3 +71,5 @@ class MarketReport(Base):
 #     ADD COLUMN hsgt_flow TEXT COMMENT '沪深港通资金流 JSON' AFTER yesterday_limit_ups_performance;
 # ALTER TABLE market_reports
 #     ADD COLUMN sectors_full TEXT COMMENT '全量行业板块 JSON' AFTER hsgt_flow;
+# ALTER TABLE market_reports
+#     ADD COLUMN today_limit_up_data TEXT COMMENT '今日涨停板详情JSON' AFTER yesterday_limit_ups_performance;

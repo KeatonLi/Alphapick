@@ -34,6 +34,7 @@ class Settings:
         return (
             f"mysql+pymysql://{self.QUANTFORGE_DB_USER}:{self.QUANTFORGE_DB_PASSWORD}"
             f"@{self.QUANTFORGE_DB_HOST}:{self.QUANTFORGE_DB_PORT}/{self.QUANTFORGE_DB_NAME}"
+            f"?charset=utf8mb4"
         )
 
 

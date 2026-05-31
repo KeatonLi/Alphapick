@@ -13,9 +13,17 @@ interface SectorFull extends SectorData {
   total_volume?: number; total_amount?: number; net_inflow?: number
   up_count?: number; down_count?: number
 }
+interface LimitUpStock {
+  code: string; name: string; price: number; change_pct: number
+  turnover_rate: number; sealed_amount: number; first_seal_time: string
+  last_seal_time: string; open_count: number; board_type: string
+  consecutive_days: number; industry: string; market_type: string
+}
 interface ReportData {
   date: string; market_summary: string; index_data: IndexData[]
   hot_sectors: SectorData[]; sectors_full: SectorFull[]; hsgt_flow: HsgtFlow | null; ai_report: string
+  today_limit_up: LimitUpStock[]; yesterday_limit_ups: string[]
+  yesterday_limit_ups_performance: number | null
 }
 
 function fmt(n: number, d = 2) { return n.toFixed(d) }
@@ -159,6 +167,97 @@ export default function ReportPage() {
                   <span className="mono" style={{ fontSize: 14, fontWeight: 700, color: s.change_pct >= 0 ? 'var(--up)' : 'var(--down)' }}>{fmtRate(s.change_pct)}</span>
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* 涨停板分析 */}
+          {report.today_limit_up?.length > 0 && (
+            <div className="card" style={{ padding: 28 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 20 }}>
+                涨停板分析 · {report.today_limit_up.length} 只主板涨停
+              </div>
+
+              {/* 关键指标 */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 24 }}>
+                {[
+                  { label: '一字板', value: report.today_limit_up.filter(s => s.board_type === '一字板').length, color: 'var(--accent)' },
+                  { label: '换手板', value: report.today_limit_up.filter(s => s.board_type === '换手板').length, color: 'var(--up)' },
+                  { label: '连板≥2', value: report.today_limit_up.filter(s => s.consecutive_days >= 2).length, color: 'var(--accent-light)' },
+                  { label: '昨日涨停今表现', value: report.yesterday_limit_ups_performance != null ? `${report.yesterday_limit_ups_performance > 0 ? '+' : ''}${report.yesterday_limit_ups_performance}%` : '—', color: (report.yesterday_limit_ups_performance ?? 0) >= 0 ? 'var(--up)' : 'var(--down)' },
+                ].map(k => (
+                  <div key={k.label} style={{ textAlign: 'center', padding: '12px 8px', background: 'var(--bg-elevated)', borderRadius: 12, border: '1px solid var(--border-default)' }}>
+                    <div className="mono" style={{ fontSize: 22, fontWeight: 700, color: k.color, marginBottom: 4 }}>{k.value}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{k.label}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* 连板龙头 */}
+              {report.today_limit_up.filter(s => s.consecutive_days >= 2).length > 0 && (
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 10 }}>连板龙头</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                    {report.today_limit_up
+                      .filter(s => s.consecutive_days >= 2)
+                      .sort((a, b) => b.consecutive_days - a.consecutive_days)
+                      .map(s => (
+                        <div key={s.code} style={{
+                          padding: '8px 14px', borderRadius: 10,
+                          background: s.consecutive_days >= 3 ? 'rgba(251,191,36,0.12)' : 'var(--bg-elevated)',
+                          border: `1px solid ${s.consecutive_days >= 3 ? 'rgba(251,191,36,0.35)' : 'var(--border-default)'}`,
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2
+                        }}>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{s.name}</span>
+                          <span className="mono" style={{ fontSize: 11, color: 'var(--accent)' }}>
+                            {s.consecutive_days}连板 {s.board_type}
+                          </span>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 涨停股列表 */}
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid var(--border-default)' }}>
+                      {['代码', '名称', '连板', '类型', '封单(万)', '换手', '首封', '开板', '行业'].map(h => (
+                        <th key={h} style={{ padding: '8px 10px', fontWeight: 500, color: 'var(--text-muted)', fontSize: 10, textAlign: h === '名称' || h === '行业' ? 'left' : 'right', whiteSpace: 'nowrap' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {report.today_limit_up.map(s => (
+                      <tr key={s.code} style={{ borderBottom: '1px solid var(--border-default)' }}>
+                        <td className="mono" style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--text-muted)', fontSize: 11 }}>{s.code}</td>
+                        <td style={{ padding: '8px 10px', fontWeight: 600, color: 'var(--text-primary)', fontSize: 12 }}>{s.name}</td>
+                        <td className="mono" style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, color: s.consecutive_days >= 2 ? 'var(--accent)' : 'var(--text-secondary)', fontSize: 12 }}>
+                          {s.consecutive_days >= 2 ? `${s.consecutive_days}板` : '首板'}
+                        </td>
+                        <td className="mono" style={{ padding: '8px 10px', textAlign: 'right', color: s.board_type === '一字板' ? 'var(--accent)' : 'var(--text-secondary)', fontSize: 11 }}>
+                          {s.board_type}
+                        </td>
+                        <td className="mono" style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 500, color: 'var(--text-primary)', fontSize: 12 }}>
+                          {s.sealed_amount > 0 ? (s.sealed_amount >= 10000 ? `${(s.sealed_amount/10000).toFixed(1)}亿` : `${s.sealed_amount.toFixed(0)}`) : '—'}
+                        </td>
+                        <td className="mono" style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--text-secondary)', fontSize: 11 }}>
+                          {s.turnover_rate > 0 ? `${s.turnover_rate.toFixed(1)}%` : '—'}
+                        </td>
+                        <td className="mono" style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--text-secondary)', fontSize: 11 }}>
+                          {s.first_seal_time || '—'}
+                        </td>
+                        <td className="mono" style={{ padding: '8px 10px', textAlign: 'right', color: s.open_count > 0 ? 'var(--down)' : 'var(--text-muted)', fontSize: 11 }}>
+                          {s.open_count > 0 ? s.open_count : '0'}
+                        </td>
+                        <td style={{ padding: '8px 10px', color: 'var(--text-muted)', fontSize: 11, maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {s.industry || '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 

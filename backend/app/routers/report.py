@@ -237,6 +237,8 @@ async def poster_image(
         index_data=index_data,
         hot_sectors=hot_sectors,
         ai_report=data.get("ai_report", ""),
+        limit_up_data=data.get("today_limit_up", []),
+        yesterday_limit_up_perf=data.get("yesterday_limit_ups_performance"),
     )
     if not png_bytes:
         raise HTTPException(status_code=500, detail="海报生成失败，请检查 Pillow 是否安装")
@@ -280,6 +282,8 @@ async def poster_base64(
         index_data=index_data,
         hot_sectors=hot_sectors,
         ai_report=data.get("ai_report", ""),
+        limit_up_data=data.get("today_limit_up", []),
+        yesterday_limit_up_perf=data.get("yesterday_limit_ups_performance"),
     )
     if not b64:
         raise HTTPException(status_code=500, detail="海报生成失败")

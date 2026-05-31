@@ -163,6 +163,100 @@ def read_limit_up_codes(db: Session, target_date: date) -> list:
     return [str(r.get("代码", "")) for r in records if r.get("代码")]
 
 
+def read_limit_up_details(db: Session, target_date: date, main_board_only: bool = True) -> dict:
+    """读取涨停板股票详情列表
+
+    返回字段：代码、名称、最新价、涨跌幅、换手率、封单金额(万元)、
+    首次封板时间、最后封板时间、打开次数、涨停板类型、连板数、所属行业、市场类型
+    """
+    raw = _get_raw(db, "limit_up_pool", target_date)
+    if not raw:
+        return {"success": False, "error": f"未找到 {target_date} 的涨停板数据，请等待数据采集完成"}
+
+    records = raw.get("data", [])
+    if not records:
+        return {"success": False, "error": "今日无涨停板数据"}
+
+    result = []
+    for r in records:
+        code = str(r.get("代码", ""))
+        name = str(r.get("名称", ""))
+
+        if not code or not name:
+            continue
+
+        # 判断市场类型
+        prefix = code[:3] if len(code) >= 3 else code
+        if prefix.startswith("60"):
+            market_type = "沪主板"   # 10% 涨跌幅
+        elif prefix.startswith("00"):
+            market_type = "深主板"   # 10% 涨跌幅
+        elif prefix.startswith("30"):
+            market_type = "创业板"   # 20% 涨跌幅
+        elif prefix.startswith("688"):
+            market_type = "科创板"   # 20% 涨跌幅
+        elif prefix.startswith("8"):
+            market_type = "北交所"   # 30% 涨跌幅
+        else:
+            market_type = "其他"
+
+        # 主板过滤
+        if main_board_only and market_type not in ("沪主板", "深主板"):
+            continue
+
+        # 封单金额处理(a股涨停板封单金额通常很大)
+        sealed_amt_raw = _safe_float(r.get("封单金额"))
+        sealed_amt = round(sealed_amt_raw / 10000, 2) if sealed_amt_raw > 0 else 0  # 转万元
+
+        # 涨停板类型判断
+        board_type_raw = r.get("涨停板类型", "")
+        board_type_map = {
+            "1": "一字板", "2": "T字板", "3": "换手板", "4": "地天板",
+            "一字板": "一字板", "T字板": "T字板", "换手板": "换手板", "地天板": "地天板",
+        }
+        board_type = board_type_map.get(str(board_type_raw), str(board_type_raw) if board_type_raw else "换手板")
+
+        # 首次封板时间格式化
+        first_seal = r.get("首次封板时间", "")
+        if first_seal and str(first_seal).isdigit():
+            raw_time = int(first_seal)
+            first_seal = f"{raw_time // 100:02d}:{raw_time % 100:02d}"
+        else:
+            first_seal = str(first_seal) if first_seal else ""
+
+        # 最后封板时间
+        last_seal = r.get("最后封板时间", "")
+        if last_seal and str(last_seal).isdigit():
+            raw_time = int(last_seal)
+            last_seal = f"{raw_time // 100:02d}:{raw_time % 100:02d}"
+        else:
+            last_seal = str(last_seal) if last_seal else ""
+
+        item = {
+            "code": code,
+            "name": name,
+            "price": _safe_float(r.get("最新价")),
+            "change_pct": _safe_float(r.get("涨跌幅")),
+            "turnover_rate": _safe_float(r.get("换手率")),
+            "sealed_amount": sealed_amt,  # 封单金额（万元）
+            "first_seal_time": first_seal,  # 首次封板时间
+            "last_seal_time": last_seal,  # 最后封板时间
+            "open_count": int(r.get("打开次数", 0)) if r.get("打开次数", 0) else 0,
+            "board_type": board_type,  # 涨停板类型（一字板/T字板/换手板/地天板）
+            "consecutive_days": int(r.get("连板数", 1)) if r.get("连板数", 1) else 1,
+            "industry": str(r.get("所属行业", "")),
+            "market_type": market_type,
+        }
+        result.append(item)
+
+    if not result:
+        return {"success": False, "error": "今日无主板涨停板数据"}
+
+    # 按连板数降序、封单金额降序排序
+    result.sort(key=lambda x: (-x["consecutive_days"], -x["sealed_amount"]))
+    return {"success": True, "data": result}
+
+
 def read_stock_quotes_for_codes(db: Session, target_date: date, codes: list) -> dict:
     """从全市场快照中读取指定股票的行情（用于涨停股表现等场景）
 
