@@ -1,5 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { apiGet, generateApi } from '../services/api'
+import { useTradeDates } from '../hooks/useTradeDates'
+import TradeDatePicker from '../components/TradeDatePicker'
 
 interface PosterState {
   loading: boolean
@@ -22,18 +24,15 @@ function EmptyState({ icon, text, action }: { icon: string; text: string; action
 }
 
 export default function PosterPage() {
-  const today = new Date().toISOString().split('T')[0]
-  const [selectedDate, setSelectedDate] = useState(today)
-  const [tradeDates, setTradeDates] = useState<string[]>([])
+  const tradeDates = useTradeDates()
+  const [selectedDate, setSelectedDate] = useState('')
   const [posterUrl, setPosterUrl] = useState<string>('')
   const [state, setState] = useState<PosterState>({ loading: false, error: '', hasReport: false })
   const imgRef = useRef<HTMLImageElement>(null)
 
   useEffect(() => {
-    apiGet<any>('/report/trade-dates?days=365')
-      .then(d => { if (d.success) setTradeDates(d.data || []) })
-      .catch(() => {})
-  }, [])
+    if (tradeDates.length > 0 && !selectedDate) setSelectedDate(tradeDates[0])
+  }, [tradeDates])
 
   const loadPoster = async (d: string) => {
     setState({ loading: true, error: '', hasReport: false })
@@ -52,10 +51,6 @@ export default function PosterPage() {
     if (selectedDate) loadPoster(selectedDate)
     return () => { if (posterUrl) URL.revokeObjectURL(posterUrl) }
   }, [selectedDate])
-
-  const dateIdx = tradeDates.indexOf(selectedDate)
-  const canPrev = dateIdx > 0
-  const canNext = dateIdx >= 0 && dateIdx < tradeDates.length - 1
 
   const handleDownload = () => {
     if (!posterUrl) return
@@ -83,13 +78,6 @@ export default function PosterPage() {
     }
   }
 
-  const dateBtnStyle = (disabled: boolean): React.CSSProperties => ({
-    padding: '6px', borderRadius: 8, background: 'var(--bg-card)',
-    border: '1px solid var(--border-default)', color: 'var(--text-secondary)',
-    cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.25 : 1,
-    transition: 'all .2s', display: 'flex', alignItems: 'center'
-  })
-
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
       <div className="text-center mb-6 fade-in">
@@ -99,48 +87,32 @@ export default function PosterPage() {
         <p className="text-xs sm:text-sm" style={{ color: 'var(--text-secondary)' }}>一键生成公众号推文海报 · 直接保存分享</p>
       </div>
 
-      <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-6">
-        <div className="flex items-center gap-2">
-          <button onClick={() => setSelectedDate(tradeDates[dateIdx + 1])} disabled={!canNext} style={dateBtnStyle(!canNext)}>
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/></svg>
-          </button>
-          <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)}
-            max={today} min={tradeDates.length ? tradeDates[tradeDates.length - 1] : ''}
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 24 }}>
+        <TradeDatePicker value={selectedDate} onChange={setSelectedDate} tradeDates={tradeDates} />
+      </div>
+
+      {state.hasReport && (
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginBottom: 24 }}>
+          <button onClick={handleDownload}
             style={{
-              background: 'var(--bg-input)', border: '1px solid var(--border-default)',
-              color: 'var(--text-primary)', textAlign: 'center', padding: '6px 12px',
-              borderRadius: 12, fontFamily: "'JetBrains Mono', monospace", fontSize: 14,
-              outline: 'none', width: 136
-            }}
-            className="transition-all" />
-          <button onClick={() => setSelectedDate(tradeDates[dateIdx - 1])} disabled={!canPrev} style={dateBtnStyle(!canPrev)}>
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/></svg>
+              display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px',
+              background: 'var(--accent)', color: '#fff', fontSize: 14, fontWeight: 500,
+              borderRadius: 12, border: 'none', cursor: 'pointer', transition: 'all .2s'
+            }}>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+            下载海报
+          </button>
+          <button onClick={handleCopyLink}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px',
+              background: 'var(--bg-card)', color: 'var(--text-secondary)', fontSize: 14, fontWeight: 500,
+              borderRadius: 12, border: '1px solid var(--border-default)', cursor: 'pointer', transition: 'all .2s'
+            }}>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+            复制链接
           </button>
         </div>
-
-        {state.hasReport && (
-          <div className="flex items-center gap-2">
-            <button onClick={handleDownload}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px',
-                background: 'var(--accent)', color: '#fff', fontSize: 14, fontWeight: 500,
-                borderRadius: 12, border: 'none', cursor: 'pointer', transition: 'all .2s'
-              }}>
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-              下载海报
-            </button>
-            <button onClick={handleCopyLink}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px',
-                background: 'var(--bg-card)', color: 'var(--text-secondary)', fontSize: 14, fontWeight: 500,
-                borderRadius: 12, border: '1px solid var(--border-default)', cursor: 'pointer', transition: 'all .2s'
-              }}>
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
-              复制链接
-            </button>
-          </div>
-        )}
-      </div>
+      )}
 
       {state.loading && (
         <div className="flex justify-center">
