@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import { analysisApi, extendedAnalysisApi } from '../services/api'
+import { useTradeDates } from '../hooks/useTradeDates'
+import TradeDatePicker from '../components/TradeDatePicker'
 import type {
   WeekdayStatsResponse, HoldingPeriodStatsResponse, ReturnDistributionResponse,
   InsightsResponse, PriceRangeStatsResponse, StockTypeStatsResponse,
@@ -31,6 +33,15 @@ export default function AnalysisPage() {
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
 
+  const tradeDates = useTradeDates()
+
+  useEffect(() => {
+    if (tradeDates.length > 0) {
+      if (!startDate) setStartDate(tradeDates[tradeDates.length - 1]) // oldest
+      if (!endDate) setEndDate(tradeDates[0]) // newest
+    }
+  }, [tradeDates])
+
   const load = async () => {
     setLoading(true); setError(null)
     try {
@@ -54,12 +65,6 @@ export default function AnalysisPage() {
 
   useEffect(() => { load() }, [tab, startDate, endDate])
 
-  const inputStyle: React.CSSProperties = {
-    background: 'var(--bg-input)', border: '1px solid var(--border-default)',
-    borderRadius: 10, padding: '8px 14px', fontSize: 13, color: 'var(--text-primary)',
-    outline: 'none', fontFamily: 'inherit',
-  }
-
   return (
     <div style={{ maxWidth: 1100, margin: '0 auto', padding: '40px 20px 60px' }}>
       {/* Header */}
@@ -70,10 +75,11 @@ export default function AnalysisPage() {
           </h1>
           <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>量化推荐多维统计 · 历史表现洞察</p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} style={inputStyle} />
-          <span style={{ color: 'var(--text-dim)', fontSize: 13 }}>—</span>
-          <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} style={inputStyle} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>起始</span>
+          <TradeDatePicker value={startDate} onChange={setStartDate} tradeDates={tradeDates} />
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>结束</span>
+          <TradeDatePicker value={endDate} onChange={setEndDate} tradeDates={tradeDates} />
         </div>
       </div>
 
