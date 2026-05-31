@@ -1,5 +1,3 @@
-import { useMemo } from 'react'
-
 interface Props {
   value: string
   onChange: (date: string) => void
@@ -15,13 +13,12 @@ function getWeekday(dateStr: string): string {
 
 export default function TradeDatePicker({ value, onChange, tradeDates }: Props) {
   const idx = tradeDates.indexOf(value)
-  const canPrev = idx >= 0 && idx < tradeDates.length - 1
-  const canNext = idx > 0
+  // tradeDates is descending (newest first), so:
+  // going to idx+1 = older date, going to idx-1 = newer date
+  const canGoOlder = idx >= 0 && idx < tradeDates.length - 1
+  const canGoNewer = idx > 0
 
-  const displayDate = useMemo(() => {
-    if (!value) return ''
-    return `${value} (${getWeekday(value)})`
-  }, [value])
+  const displayDate = value ? `${value} (${getWeekday(value)})` : ''
 
   const btnStyle = (active: boolean): React.CSSProperties => ({
     display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -31,19 +28,19 @@ export default function TradeDatePicker({ value, onChange, tradeDates }: Props) 
     color: active ? 'var(--text-secondary)' : 'var(--text-dim)',
     cursor: active ? 'pointer' : 'default',
     opacity: active ? 1 : 0.35,
-    transition: 'all 0.2s',
+    transition: 'all .2s',
   })
 
-  const todayBtnStyle: React.CSSProperties = {
+  const latestBtnStyle: React.CSSProperties = {
     padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 500,
     border: '1px solid var(--border-default)', background: 'var(--bg-card)',
     color: 'var(--text-secondary)', cursor: 'pointer',
-    transition: 'all 0.2s',
+    transition: 'all .2s',
   }
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-      <button onClick={() => onChange(tradeDates[idx + 1])} disabled={!canPrev} style={btnStyle(canPrev)}>
+      <button onClick={() => onChange(tradeDates[idx + 1])} disabled={!canGoOlder} style={btnStyle(canGoOlder)}>
         <svg width={16} height={16} fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/>
         </svg>
@@ -58,15 +55,15 @@ export default function TradeDatePicker({ value, onChange, tradeDates }: Props) 
         {displayDate || '加载中...'}
       </span>
 
-      <button onClick={() => onChange(tradeDates[idx - 1])} disabled={!canNext} style={btnStyle(canNext)}>
+      <button onClick={() => onChange(tradeDates[idx - 1])} disabled={!canGoNewer} style={btnStyle(canGoNewer)}>
         <svg width={16} height={16} fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/>
         </svg>
       </button>
 
       {tradeDates.length > 0 && tradeDates[0] !== value && (
-        <button onClick={() => onChange(tradeDates[0])} style={todayBtnStyle}>
-          返回今日
+        <button onClick={() => onChange(tradeDates[0])} style={latestBtnStyle}>
+          返回最新
         </button>
       )}
     </div>
