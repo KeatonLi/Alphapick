@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
 import { ThemeProvider } from './contexts/ThemeContext'
-import Navbar from './components/Navbar'
+import Sidebar from './components/Sidebar'
 import ProtectedRoute from './components/ProtectedRoute'
 import HomePage from './pages/HomePage'
 import LoginPage from './pages/LoginPage'
@@ -19,11 +19,11 @@ export default function App() {
     <ThemeProvider>
       <AuthProvider>
         <BrowserRouter>
-          <div className="min-h-screen" style={{ background: 'var(--bg-page)', position: 'relative' }}>
+          <div style={{ background: 'var(--bg-page)', minHeight: '100vh' }}>
             <div className="ambient-glow-top" />
             <div className="ambient-glow-bottom" />
-            <Navbar />
-            <main style={{ position: 'relative', zIndex: 1 }}>
+            <Sidebar />
+            <main style={{ marginLeft: 220, position: 'relative', zIndex: 1 }}>
               <Routes>
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/register" element={<RegisterPage />} />
@@ -38,14 +38,6 @@ export default function App() {
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </main>
-            <footer style={{
-              borderTop: '1px solid var(--border-default)', padding: '16px 0', marginTop: 40,
-              background: 'var(--bg-card)', textAlign: 'center'
-            }}>
-              <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>
-                QuantForge · 量化锻造 · AI 驱动的 A 股分析平台 · 数据仅供参考，不构成投资建议
-              </div>
-            </footer>
           </div>
         </BrowserRouter>
       </AuthProvider>
