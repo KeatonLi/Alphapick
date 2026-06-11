@@ -1,29 +1,47 @@
-"""全市场行情采集器 — EastMoney 股票列表 + 腾讯批量行情"""
+"""全市场行情采集器 — EastMoney 股票列表 + 腾讯批量行情（多源互备版）"""
 
 import requests
 from datetime import date
 from app.datasource.fetchers.base import DataFetcher
+from app.datasource.multi_source import multi_source
 from app.utils.akshare_utils import _to_tencent_code, _from_tencent_code
 
 
 class StockFetcher(DataFetcher):
     """采集全 A 股列表和实时行情快照
 
-    Step 1: EastMoney 数据中心获取所有 A 股代码+名称
-    Step 2: 腾讯 qt.gtimg.cn 批量获取实时行情（每批 100 个）
+    优先使用 MultiSourceManager（AKShare → 腾讯 → 新浪），
+    全部失败时 fallback 到原生的 EastMoney + 腾讯组合。
     """
 
-    source_name = "eastmoney+tencent"
+    source_name = "multi_source"
     data_type = "stock_spot"
-    max_retries = 2  # 这个接口较重，减少重试次数
+    max_retries = 2
 
     def fetch(self, target_date: date) -> dict:
-        # Step 1: 获取股票列表
+        # Step 1: 优先尝试多源管理器获取全市场实时行情
+        ms_result = multi_source.get_stock_spot()
+        if ms_result["success"] and ms_result["data"]:
+            quotes = ms_result["data"]
+            # 构建股票列表（从行情数据中反推）
+            stock_list = [{"code": q["code"], "name": q.get("name", "")} for q in quotes]
+            return {
+                "total_stocks": len(stock_list),
+                "quotes_count": len(quotes),
+                "stock_list": stock_list,
+                "quotes": quotes,
+                "_source": ms_result.get("_source", "unknown"),
+            }
+
+        # Step 2: 多源全部失败，fallback 到原生 EastMoney + 腾讯
+        return self._fetch_fallback(target_date)
+
+    def _fetch_fallback(self, target_date: date) -> dict:
+        """原生 EastMoney 列表 + 腾讯行情（最终 fallback）"""
         all_codes = self._fetch_stock_list()
         if not all_codes:
             return {}
 
-        # Step 2: 腾讯批量行情
         quotes = self._fetch_tencent_quotes(all_codes)
 
         return {
@@ -31,6 +49,7 @@ class StockFetcher(DataFetcher):
             "quotes_count": len(quotes),
             "stock_list": all_codes,
             "quotes": quotes,
+            "_source": "eastmoney+tencent(fallback)",
         }
 
     def _fetch_stock_list(self) -> list:

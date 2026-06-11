@@ -1,21 +1,23 @@
-"""板块行业摘要采集器 — THS 行业板块"""
+"""板块行业摘要采集器 — THS 行业板块（多源互备版）"""
 
 from datetime import date
-import akshare as ak
 
 from app.datasource.fetchers.base import DataFetcher
+from app.datasource.multi_source import multi_source
 
 
 class SectorFetcher(DataFetcher):
-    source_name = "akshare"
+    source_name = "multi_source"
     data_type = "sector_summary"
 
     def fetch(self, target_date: date) -> dict:
-        df = ak.stock_board_industry_summary_ths()
-        if df is None or df.empty:
+        result = multi_source.get_hot_sectors(top_n=200)
+        if not result["success"]:
             return {}
+        data = result["data"]
         return {
-            "columns": list(df.columns),
-            "row_count": len(df),
-            "data": df.to_dict(orient="records"),
+            "columns": ["板块", "涨跌幅", "领涨股", "driver"],
+            "row_count": len(data),
+            "data": data,
+            "_source": result.get("_source", "unknown"),
         }

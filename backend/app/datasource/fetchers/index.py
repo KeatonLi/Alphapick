@@ -1,13 +1,13 @@
-"""指数日线采集器 — 上证/深证/创业板"""
+"""指数日线采集器 — 上证/深证/创业板（多源互备版）"""
 
 from datetime import date
-import akshare as ak
 
 from app.datasource.fetchers.base import DataFetcher
+from app.datasource.multi_source import multi_source
 
 
 class IndexFetcher(DataFetcher):
-    source_name = "akshare"
+    source_name = "multi_source"
     data_type = "index_daily"
 
     INDICES = [
@@ -20,11 +20,12 @@ class IndexFetcher(DataFetcher):
         result = {}
         for code, name in self.INDICES:
             try:
-                df = ak.stock_zh_index_daily(symbol=code)
-                if df is not None and len(df) > 0:
+                ms_result = multi_source.get_index_daily(code)
+                if ms_result["success"] and ms_result["data"]:
                     result[code] = {
                         "name": name,
-                        "data": df.to_dict(orient="records"),
+                        "data": ms_result["data"],
+                        "_source": ms_result.get("_source", "unknown"),
                     }
             except Exception:
                 pass

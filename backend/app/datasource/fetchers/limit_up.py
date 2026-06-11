@@ -1,21 +1,22 @@
-"""涨停池采集器"""
+"""涨停池采集器（多源互备版）"""
 
 from datetime import date
-import akshare as ak
 
 from app.datasource.fetchers.base import DataFetcher
+from app.datasource.multi_source import multi_source
 
 
 class LimitUpFetcher(DataFetcher):
-    source_name = "akshare"
+    source_name = "multi_source"
     data_type = "limit_up_pool"
 
     def fetch(self, target_date: date) -> dict:
-        df = ak.stock_zt_pool_em(date=target_date.strftime("%Y%m%d"))
-        if df is None or df.empty:
+        result = multi_source.get_limit_up_pool(target_date)
+        if not result["success"]:
             return {}
         return {
-            "columns": list(df.columns),
-            "row_count": len(df),
-            "data": df.to_dict(orient="records"),
+            "columns": [],
+            "row_count": len(result["data"]),
+            "data": result["data"],
+            "_source": result.get("_source", "unknown"),
         }
