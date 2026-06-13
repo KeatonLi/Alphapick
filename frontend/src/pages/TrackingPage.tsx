@@ -1,9 +1,45 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { apiGet } from '../services/api'
 import type { HistoryRec } from '../services/api'
 
-function fmt(n: number, d = 2) { return n.toFixed(d) }
-function fmtRate(n: number) { return (n >= 0 ? '+' : '') + fmt(n) + '%' }
+type HistoryResponse = { success: boolean; data?: HistoryRec[]; error?: string }
+type ReturnField = 'return_rate_day3' | 'return_rate_day5' | 'return_rate_day7'
+type PriceField = 'price_day3' | 'price_day5' | 'price_day7'
+
+function fmt(n?: number, d = 2) {
+  return typeof n === 'number' && Number.isFinite(n) ? n.toFixed(d) : '--'
+}
+
+function fmtRate(n?: number) {
+  if (typeof n !== 'number' || !Number.isFinite(n)) return '--'
+  return `${n >= 0 ? '+' : ''}${n.toFixed(2)}%`
+}
+
+function ReturnCell({ day, rec }: { day: 3 | 5 | 7; rec: HistoryRec }) {
+  const priceField = `price_day${day}` as PriceField
+  const rateField = `return_rate_day${day}` as ReturnField
+  const price = rec[priceField] || 0
+  const rate = rec[rateField] || 0
+  const has = price > 0
+  const active = day === rec.tracking_days && rec.status !== 'completed'
+
+  return (
+    <div style={{
+      padding: '10px 12px',
+      borderRadius: 14,
+      background: active ? 'var(--accent-bg)' : has ? (rate >= 0 ? 'var(--up-bg)' : 'var(--down-bg)') : 'rgba(255,255,255,0.045)',
+      border: `1px solid ${active ? 'var(--border-accent)' : 'var(--border-default)'}`,
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', fontSize: 10 }}>
+        <span>{day}日</span>
+        <span>{has ? fmt(price) : '待更新'}</span>
+      </div>
+      <div className="mono" style={{ marginTop: 5, fontSize: 15, fontWeight: 900, color: has ? (rate >= 0 ? 'var(--up)' : 'var(--down)') : 'var(--text-dim)' }}>
+        {has ? fmtRate(rate) : '--'}
+      </div>
+    </div>
+  )
+}
 
 export default function TrackingPage() {
   const [recs, setRecs] = useState<HistoryRec[]>([])
@@ -11,168 +47,114 @@ export default function TrackingPage() {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    apiGet<any>('/recommend/history')
+    apiGet<HistoryResponse>('/recommend/history')
       .then(d => { if (d.success) setRecs(d.data || []); else setError(d.error || '') })
-      .catch(e => setError(e.message))
+      .catch(e => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoading(false))
   }, [])
 
-  const grouped = recs.reduce<Record<string, HistoryRec[]>>((acc, r) => { (acc[r.recommend_date] ||= []).push(r); return acc }, {})
+  const grouped = useMemo(() => recs.reduce<Record<string, HistoryRec[]>>((acc, r) => {
+    (acc[r.recommend_date] ||= []).push(r)
+    return acc
+  }, {}), [recs])
+
   const dates = Object.keys(grouped).sort((a, b) => b.localeCompare(a))
   const completed = recs.filter(r => r.status === 'completed')
-  const rates = completed.map(r => r.final_return_rate)
-  const avgReturn = rates.length ? rates.reduce((a, b) => a + b, 0) / rates.length : 0
-  const wins = rates.filter(r => r > 0).length
+  const tracking = recs.filter(r => r.status === 'tracking')
+  const avg = (values: number[]) => values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0
+  const avgByDay = (day: 3 | 5 | 7) => avg(recs.map(r => r[`return_rate_day${day}` as ReturnField]).filter(v => typeof v === 'number' && v !== 0))
+  const finalAvg = avg(completed.map(r => r.final_return_rate))
+  const winRate = completed.length ? completed.filter(r => r.final_return_rate > 0).length / completed.length * 100 : 0
 
   return (
-    <div style={{ maxWidth: 960, margin: '0 auto', padding: '40px 20px 60px' }}>
-      {/* Header */}
-      <div style={{ textAlign: 'center', marginBottom: 32 }}>
-        <h1 style={{ fontSize: 'clamp(24px, 3.5vw, 32px)', fontWeight: 800, letterSpacing: '-.03em', color: 'var(--text-primary)', margin: '0 0 6px' }}>
-          收益<span style={{ color: 'var(--accent)' }}>跟踪</span>
-        </h1>
-        <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>历史推荐 · 三个交易日持仓收益追踪</p>
+    <div className="qf-page qf-page-wide">
+      <div className="qf-page-header">
+        <div>
+          <div className="qf-eyebrow">Return Review</div>
+          <h1 className="qf-title">收益复盘</h1>
+          <p className="qf-subtitle">按推荐日期回看 3、5、7 个交易日表现。这里用来判断策略到底有没有持续赚钱，而不是只看单日好坏。</p>
+        </div>
       </div>
 
-      {/* Stats Bar */}
-      {!loading && completed.length > 0 && (
-        <div className="card" style={{ padding: '24px 32px', marginBottom: 32, display: 'flex', justifyContent: 'space-around', flexWrap: 'wrap', gap: 16 }}>
-          {[
-            { v: recs.length, l: '总计', c: 'var(--text-primary)' },
-            { v: recs.filter(r => r.status === 'tracking').length, l: '跟踪中', c: 'var(--accent-light)' },
-            { v: wins, l: '盈利', c: 'var(--up)' },
-            { v: `${avgReturn >= 0 ? '+' : ''}${fmt(avgReturn)}%`, l: '平均收益', c: avgReturn >= 0 ? 'var(--up)' : 'var(--down)' },
-            { v: `${completed.length ? fmt(wins / completed.length * 100) : '0'}%`, l: '胜率', c: 'var(--accent)' },
-          ].map((m, i) => (
-            <div key={i} style={{ textAlign: 'center' }}>
-              <div className="mono" style={{ fontSize: 24, fontWeight: 800, color: m.c, lineHeight: 1.1 }}>{m.v}</div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{m.l}</div>
-            </div>
-          ))}
-        </div>
+      {!loading && (
+        <section className="card" style={{ padding: 18, marginBottom: 18 }}>
+          <div className="qf-stat-grid">
+            <div className="qf-stat"><div className="qf-stat-label">总推荐</div><div className="qf-stat-value">{recs.length}</div></div>
+            <div className="qf-stat"><div className="qf-stat-label">跟踪中</div><div className="qf-stat-value" style={{ color: 'var(--accent-light)' }}>{tracking.length}</div></div>
+            <div className="qf-stat"><div className="qf-stat-label">3日均收</div><div className="qf-stat-value" style={{ color: avgByDay(3) >= 0 ? 'var(--up)' : 'var(--down)' }}>{fmtRate(avgByDay(3))}</div></div>
+            <div className="qf-stat"><div className="qf-stat-label">5日均收</div><div className="qf-stat-value" style={{ color: avgByDay(5) >= 0 ? 'var(--up)' : 'var(--down)' }}>{fmtRate(avgByDay(5))}</div></div>
+            <div className="qf-stat"><div className="qf-stat-label">最终均收</div><div className="qf-stat-value" style={{ color: finalAvg >= 0 ? 'var(--up)' : 'var(--down)' }}>{fmtRate(finalAvg)}</div></div>
+            <div className="qf-stat"><div className="qf-stat-label">最终胜率</div><div className="qf-stat-value" style={{ color: 'var(--gold)' }}>{fmt(winRate, 1)}%</div></div>
+          </div>
+        </section>
       )}
 
-      {/* Loading */}
       {loading && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {[0,1,2].map(i => <div key={i} className="skeleton" style={{ height: 160, borderRadius: 20 }} />)}
+        <div style={{ display: 'grid', gap: 16 }}>
+          {[0, 1, 2].map(i => <div key={i} className="skeleton" style={{ height: 190, borderRadius: 22 }} />)}
         </div>
       )}
 
-      {/* Error */}
       {error && !loading && (
-        <div className="card" style={{ padding: 16, borderColor: 'var(--up)', background: 'var(--up-bg)', color: 'var(--up)', fontSize: 13 }}>{error}</div>
+        <div className="card" style={{ padding: 18, borderColor: 'rgba(255,90,107,.36)', color: 'var(--up)' }}>{error}</div>
       )}
 
-      {/* Empty */}
       {!loading && dates.length === 0 && !error && (
-        <div className="card" style={{ padding: '80px 40px', textAlign: 'center' }}>
-          <div style={{ fontSize: 44, marginBottom: 16, opacity: .5 }}>📈</div>
-          <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 6 }}>暂无跟踪数据</div>
-          <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>生成推荐后，系统将自动跟踪 3 个交易日收益</div>
-        </div>
+        <section className="card" style={{ padding: '72px 34px', textAlign: 'center' }}>
+          <div style={{ fontSize: 38, color: 'var(--accent-light)', marginBottom: 12 }}>⌁</div>
+          <h2 style={{ margin: 0, color: 'var(--text-primary)' }}>暂无跟踪数据</h2>
+          <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>生成推荐后，系统会自动跟踪 3/5/7 个交易日收益。</p>
+        </section>
       )}
 
-      {/* Data */}
       {!loading && dates.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+        <div style={{ display: 'grid', gap: 18 }}>
           {dates.map(date => {
-            const dayRecs = grouped[date]
-            const dayCompleted = dayRecs.filter(r => r.status === 'completed')
-            const dayAvg = dayCompleted.length ? dayCompleted.reduce((s, r) => s + r.final_return_rate, 0) / dayCompleted.length : 0
+            const dayRecs = grouped[date].sort((a, b) => (a.rank || 99) - (b.rank || 99))
+            const done = dayRecs.filter(r => r.status === 'completed')
+            const dayAvg = avg(done.map(r => r.final_return_rate))
 
             return (
-              <div key={date} className="card" style={{ overflow: 'hidden' }}>
-                {/* Date Header */}
-                <div style={{ padding: '14px 24px', borderBottom: '1px solid var(--border-default)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-elevated)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span className="mono" style={{ fontSize: 16, fontWeight: 700, color: 'var(--accent)' }}>{date}</span>
-                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{dayRecs.length} 只推荐</span>
+              <section key={date} className="card" style={{ overflow: 'hidden' }}>
+                <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-default)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+                  <div>
+                    <div className="mono" style={{ fontSize: 18, color: 'var(--accent-light)', fontWeight: 900 }}>{date}</div>
+                    <div style={{ marginTop: 3, color: 'var(--text-muted)', fontSize: 12 }}>{dayRecs.length} 只推荐 · {done.length} 只完结</div>
                   </div>
-                  {dayCompleted.length > 0 && (
-                    <span className="mono" style={{ fontSize: 14, fontWeight: 700, color: dayAvg >= 0 ? 'var(--up)' : 'var(--down)' }}>
-                      平均 {dayAvg >= 0 ? '+' : ''}{fmt(dayAvg)}%
-                    </span>
-                  )}
+                  {done.length > 0 && <div className="mono" style={{ color: dayAvg >= 0 ? 'var(--up)' : 'var(--down)', fontSize: 18, fontWeight: 900 }}>均值 {fmtRate(dayAvg)}</div>}
                 </div>
 
-                {/* Stock Rows */}
-                {dayRecs.map(rec => {
-                  const td = rec.tracking_days || 0
-                  const done = rec.status === 'completed'
-
-                  return (
-                    <div key={rec.id} style={{ padding: '16px 24px', borderBottom: '1px solid var(--border-default)' }}>
-                      {/* Top Row */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--text-primary)' }}>{rec.stock_name}</span>
-                            <span className="mono" style={{ fontSize: 11, color: 'var(--text-muted)' }}>{rec.stock_code}</span>
-                          </div>
+                <div style={{ display: 'grid' }}>
+                  {dayRecs.map(rec => (
+                    <div key={rec.id} style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1fr) 290px 150px', gap: 14, padding: '15px 20px', borderBottom: '1px solid var(--border-default)', alignItems: 'center' }}>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap' }}>
+                          <span className="mono" style={{ color: 'var(--accent-light)', fontWeight: 900 }}>#{rec.rank || '-'}</span>
+                          <strong style={{ color: 'var(--text-primary)', fontSize: 15 }}>{rec.stock_name}</strong>
+                          <span className="mono" style={{ color: 'var(--text-muted)', fontSize: 11 }}>{rec.stock_code}</span>
+                          <span className={`badge ${rec.status === 'completed' ? 'badge-down' : rec.status === 'tracking' ? 'badge-accent' : ''}`}>{rec.status === 'completed' ? '已完结' : rec.status === 'tracking' ? `${rec.tracking_days}/7天` : '待更新'}</span>
                         </div>
-                        <div style={{ textAlign: 'right' }}>
-                          <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>推荐价</div>
-                          <div className="mono" style={{ fontWeight: 700, fontSize: 15, color: 'var(--text-primary)' }}>{fmt(rec.recommend_price)}</div>
+                        <div style={{ display: 'flex', gap: 16, marginTop: 8, color: 'var(--text-muted)', fontSize: 12 }}>
+                          <span>推荐价 <strong className="mono" style={{ color: 'var(--text-primary)' }}>{fmt(rec.recommend_price)}</strong></span>
+                          <span>综合分 <strong className="mono" style={{ color: 'var(--gold)' }}>{fmt(rec.score, 1)}</strong></span>
                         </div>
-                        {done ? (
-                          <span className="badge badge-down">已完结</span>
-                        ) : td > 0 ? (
-                          <span className="badge badge-accent">{td}/3 天</span>
-                        ) : (
-                          <span className="badge">待更新</span>
-                        )}
                       </div>
 
-                      {/* Day Progress */}
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
-                        {[1, 2, 3].map(day => {
-                          const price = (rec as any)[`price_day${day}`] as number || 0
-                          const rate = (rec as any)[`return_rate_day${day}`] as number || 0
-                          const has = price > 0
-                          const active = day === td && !done
-                          return (
-                            <div key={day} style={{
-                              padding: '10px 12px', borderRadius: 12, textAlign: 'center',
-                              border: `1px solid ${active ? 'var(--border-accent)' : has ? 'var(--down)' : 'var(--border-default)'}`,
-                              background: active ? 'var(--accent-bg)' : has ? 'var(--down-bg)' : 'var(--bg-elevated)',
-                              transition: 'all .2s',
-                            }}>
-                              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>Day {day}</div>
-                              <div className="mono" style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)' }}>
-                                {has ? fmt(price) : '—'}
-                              </div>
-                              <div className="mono" style={{ fontSize: 11, fontWeight: 600, marginTop: 2, color: has ? (rate >= 0 ? 'var(--up)' : 'var(--down)') : 'var(--text-dim)' }}>
-                                {has ? fmtRate(rate) : '待更新'}
-                              </div>
-                            </div>
-                          )
-                        })}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                        <ReturnCell day={3} rec={rec} />
+                        <ReturnCell day={5} rec={rec} />
+                        <ReturnCell day={7} rec={rec} />
                       </div>
 
-                      {/* Final Result */}
-                      {done && (
-                        <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border-default)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-                          <div style={{ display: 'flex', gap: 16, fontSize: 12 }}>
-                            <span style={{ color: 'var(--text-muted)' }}>
-                              最高 <span className="mono" style={{ fontWeight: 600, color: 'var(--up)' }}>+{fmt(rec.max_gain)}%</span>
-                            </span>
-                            <span style={{ color: 'var(--text-muted)' }}>
-                              最大回撤 <span className="mono" style={{ fontWeight: 600, color: 'var(--down)' }}>{fmt(rec.max_drawdown)}%</span>
-                            </span>
-                          </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>最终收益</span>
-                            <span className="mono" style={{ fontWeight: 800, fontSize: 16, color: rec.final_return_rate >= 0 ? 'var(--up)' : 'var(--down)' }}>
-                              {fmtRate(rec.final_return_rate)}
-                            </span>
-                          </div>
-                        </div>
-                      )}
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ color: 'var(--text-muted)', fontSize: 11 }}>最终收益</div>
+                        <div className="mono" style={{ marginTop: 5, color: rec.final_return_rate >= 0 ? 'var(--up)' : 'var(--down)', fontSize: 23, fontWeight: 900 }}>{fmtRate(rec.final_return_rate)}</div>
+                        <div style={{ marginTop: 4, color: 'var(--text-dim)', fontSize: 11 }}>高点 +{fmt(rec.max_gain)}% / 回撤 {fmt(rec.max_drawdown)}%</div>
+                      </div>
                     </div>
-                  )
-                })}
-              </div>
+                  ))}
+                </div>
+              </section>
             )
           })}
         </div>

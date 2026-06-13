@@ -1,116 +1,74 @@
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 
-const NAV_ITEMS = [
-  { path: '/',            icon: '📊', label: '首页' },
-  { path: '/report',      icon: '📰', label: '市场报告' },
-  { path: '/recommend',   icon: '🎯', label: '量化推荐' },
-  { path: '/tracking',    icon: '📈', label: '收益跟踪' },
-  { path: '/analysis',    icon: '🔍', label: '数据分析' },
-  { path: '/poster',      icon: '🖼️', label: '市场海报' },
-  { path: '/settings',    icon: '⚙️', label: '设置' },
+type IconName = 'home' | 'target' | 'console' | 'trend' | 'analysis' | 'settings'
+
+const NAV_ITEMS: Array<{ path: string; icon: IconName; label: string; kicker: string }> = [
+  { path: '/', icon: 'home', label: '首页', kicker: 'Overview' },
+  { path: '/recommend', icon: 'target', label: '量化选股', kicker: 'Top Picks' },
+  { path: '/console', icon: 'console', label: '策略控制台', kicker: 'Console' },
+  { path: '/tracking', icon: 'trend', label: '收益复盘', kicker: 'Returns' },
+  { path: '/analysis', icon: 'analysis', label: '策略分析', kicker: 'Analytics' },
+  { path: '/settings', icon: 'settings', label: '数据设置', kicker: 'Data Ops' },
 ]
+
+function Icon({ name }: { name: IconName }) {
+  const common = { width: 18, height: 18, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const }
+  if (name === 'home') return <svg {...common}><path d="M4 11.5 12 4l8 7.5" /><path d="M6.5 10.5V20h11v-9.5" /><path d="M10 20v-5h4v5" /></svg>
+  if (name === 'target') return <svg {...common}><circle cx="12" cy="12" r="8.5" /><circle cx="12" cy="12" r="4.5" /><path d="M12 7v5l3.5-2" /></svg>
+  if (name === 'console') return <svg {...common}><path d="M5 7h14" /><path d="M5 12h7" /><path d="M5 17h10" /><path d="m17 13 2 2-2 2" /></svg>
+  if (name === 'trend') return <svg {...common}><path d="M4 18h16" /><path d="m5 15 4-4 3 3 6-7" /><path d="M15 7h3v3" /></svg>
+  if (name === 'analysis') return <svg {...common}><path d="M4 19V5" /><path d="M4 19h16" /><rect x="7" y="11" width="2.8" height="5" rx="1" /><rect x="12" y="7" width="2.8" height="9" rx="1" /><rect x="17" y="9" width="2.8" height="7" rx="1" /></svg>
+  return <svg {...common}><path d="M12 3v3" /><path d="M12 18v3" /><path d="m4.8 7 2.6 1.5" /><path d="m16.6 15.5 2.6 1.5" /><path d="m19.2 7-2.6 1.5" /><path d="m7.4 15.5-2.6 1.5" /><circle cx="12" cy="12" r="4" /></svg>
+}
 
 export default function Sidebar() {
   const location = useLocation()
   const { user, logout } = useAuth()
 
-  const isActive = (path: string) => {
-    if (path === '/') return location.pathname === '/'
-    return location.pathname.startsWith(path)
-  }
-
-  const linkStyle = (active: boolean): React.CSSProperties => ({
-    display: 'flex', alignItems: 'center', gap: 10,
-    padding: '10px 16px', borderRadius: 8, fontSize: 13, fontWeight: 500,
-    color: active ? 'var(--text-primary)' : 'var(--text-muted)',
-    background: active ? 'var(--accent-bg)' : 'transparent',
-    textDecoration: 'none',
-    borderLeft: active ? '3px solid var(--accent)' : '3px solid transparent',
-    transition: 'all 0.2s',
-  })
-
-  const logoutBtnStyle: React.CSSProperties = {
-    display: 'flex', alignItems: 'center', gap: 10,
-    padding: '10px 16px', borderRadius: 8, fontSize: 13, fontWeight: 500,
-    color: 'var(--text-muted)', background: 'transparent',
-    border: 'none', cursor: 'pointer', width: '100%',
-    fontFamily: 'inherit',
-  }
+  const isActive = (path: string) => path === '/' ? location.pathname === '/' : location.pathname.startsWith(path)
 
   return (
-    <aside style={{
-      position: 'fixed', top: 0, left: 0, bottom: 0, width: 220,
-      background: 'var(--bg-sidebar)',
-      backdropFilter: 'blur(40px) saturate(180%)',
-      WebkitBackdropFilter: 'blur(40px) saturate(180%)',
-      borderRight: '1px solid var(--border-default)',
-      display: 'flex', flexDirection: 'column',
-      zIndex: 50, overflowY: 'auto',
-    }}>
-      {/* Logo */}
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 10,
-        padding: '20px 16px', height: 64,
-      }}>
-        <div style={{
-          width: 32, height: 32, borderRadius: 8,
-          background: 'var(--accent)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontWeight: 800, fontSize: 16, color: '#fff',
-        }}>Q</div>
-        <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
-          QuantForge
-        </span>
-      </div>
+    <aside className="qf-sidebar">
+      <Link to="/" className="qf-brand" aria-label="QuantForge home">
+        <img src="/assets/quantforge-icon.png" alt="" className="qf-brand-icon" />
+        <div>
+          <div className="qf-brand-name">QuantForge</div>
+          <div className="qf-brand-sub">AI Quant Lab</div>
+        </div>
+      </Link>
 
-      {/* Nav */}
-      <nav style={{ flex: 1, padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 2 }}>
-        {NAV_ITEMS.map(item => (
-          <Link key={item.path} to={item.path} style={linkStyle(isActive(item.path))}>
-            <span style={{ fontSize: 16 }}>{item.icon}</span>
-            <span>{item.label}</span>
-          </Link>
-        ))}
+      <nav className="qf-nav">
+        {NAV_ITEMS.map(item => {
+          const active = isActive(item.path)
+          return (
+            <Link key={item.path} to={item.path} className={`qf-nav-item${active ? ' active' : ''}`}>
+              <span className="qf-nav-icon"><Icon name={item.icon} /></span>
+              <span className="qf-nav-copy">
+                <span className="qf-nav-label">{item.label}</span>
+                <span className="qf-nav-kicker">{item.kicker}</span>
+              </span>
+            </Link>
+          )
+        })}
       </nav>
 
-      {/* User */}
-      <div style={{ padding: '12px', borderTop: '1px solid var(--border-default)' }}>
+      <div className="qf-sidebar-footer">
         {user ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px' }}>
-              <div style={{
-                width: 28, height: 28, borderRadius: '50%',
-                background: 'var(--accent-bg)', color: 'var(--accent-light)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 12, fontWeight: 700,
-              }}>
-                {user.username.charAt(0).toUpperCase()}
-              </div>
+          <>
+            <div className="qf-user-card">
+              <div className="qf-user-avatar">{user.username.charAt(0).toUpperCase()}</div>
               <div>
-                <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>{user.username}</div>
-                <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{user.role === 'admin' ? '管理员' : '用户'}</div>
+                <div className="qf-user-name">{user.username}</div>
+                <div className="qf-user-role">{user.role === 'admin' ? '管理员权限' : '普通用户'}</div>
               </div>
             </div>
-            <button onClick={logout} style={logoutBtnStyle}>
-              <span>🚪</span> <span>退出登录</span>
-            </button>
-          </div>
+            <button onClick={logout} className="qf-ghost-button">退出登录</button>
+          </>
         ) : (
-          <div style={{ display: 'flex', gap: 8 }}>
-            <Link to="/login" style={{
-              flex: 1, textAlign: 'center', padding: '8px 0', borderRadius: 8, fontSize: 12, fontWeight: 600,
-              border: '1px solid var(--border-default)', color: 'var(--text-secondary)', textDecoration: 'none',
-              background: 'var(--bg-card)',
-            }}>
-              登录
-            </Link>
-            <Link to="/register" style={{
-              flex: 1, textAlign: 'center', padding: '8px 0', borderRadius: 8, fontSize: 12, fontWeight: 600,
-              background: 'var(--accent)', color: '#fff', textDecoration: 'none',
-            }}>
-              注册
-            </Link>
+          <div className="qf-auth-actions">
+            <Link to="/login" className="qf-ghost-button">登录</Link>
+            <Link to="/register" className="qf-primary-mini">注册</Link>
           </div>
         )}
       </div>

@@ -119,7 +119,7 @@ def get_holding_period_stats(
 ) -> dict:
     """统计不同持仓天数的收益表现
 
-    分别看第1天、第2天、第3天的收益率分布情况。
+    分别看第1/2/3/5/7个交易日的收益率分布情况。
     """
     q = _base_query(db, start_date, end_date)
     recs = q.all()
@@ -134,6 +134,8 @@ def get_holding_period_stats(
         "1天": "return_rate_day1",
         "2天": "return_rate_day2",
         "3天": "return_rate_day3",
+        "5天": "return_rate_day5",
+        "7天": "return_rate_day7",
     }
 
     data = {}
@@ -184,7 +186,7 @@ def get_return_distribution(
     """获取指定持仓天数的收益分布直方图数据
 
     Args:
-        holding_days: 持仓天数 (1, 2, 3)
+        holding_days: 持仓天数 (1, 2, 3, 5, 7)
         start_date: 起始日期
         end_date: 结束日期
 
@@ -194,8 +196,14 @@ def get_return_distribution(
     q = _base_query(db, start_date, end_date)
 
     # 根据持仓天数选择对应的收益率字段
-    field_map = {1: "return_rate_day1", 2: "return_rate_day2", 3: "final_return_rate"}
-    field = field_map.get(holding_days, "final_return_rate")
+    field_map = {
+        1: "return_rate_day1",
+        2: "return_rate_day2",
+        3: "return_rate_day3",
+        5: "return_rate_day5",
+        7: "return_rate_day7",
+    }
+    field = field_map.get(holding_days, "return_rate_day7")
     rate_col = getattr(Recommendation, field)
 
     q = q.filter(rate_col.isnot(None))
@@ -308,12 +316,12 @@ def generate_insights(
         })
 
         # 策略建议
-        if opt["days"] < 3:
+        if opt["days"] < 7:
             insights.append({
                 "type": "strategy",
                 "icon": "💡",
                 "title": "策略建议",
-                "content": f"建议将持仓周期从3天调整为{opt['days']}天，可提升整体收益",
+                "content": f"当前历史样本里 {opt['days']} 天窗口表现最好，可作为短线持仓重点观察周期。",
             })
 
     # --- 4. 收益波动 ---

@@ -7,9 +7,10 @@ from slowapi.errors import RateLimitExceeded
 
 from app.routers import stock, recommend, report, generate, schedule, analysis, auth
 from app.datasource.router import router as datasource_router
-from app.database import engine, Base, SessionLocal
+from app.database import engine, Base, SessionLocal, ensure_runtime_schema
 
 Base.metadata.create_all(bind=engine)
+ensure_runtime_schema()
 
 # 初始化默认 admin 账户
 from app.models.user import User

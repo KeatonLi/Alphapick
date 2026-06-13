@@ -8,10 +8,10 @@
 """
 
 import logging
-import requests
 from datetime import date
 from typing import Optional
 
+from app.datasource.http_client import datasource_session
 from app.datasource.providers.base import DataProvider
 
 logger = logging.getLogger(__name__)
@@ -87,7 +87,7 @@ class SinaProvider(DataProvider):
                 "Referer": "https://finance.sina.com.cn",
                 "User-Agent": "Mozilla/5.0",
             }
-            r = requests.get(url, headers=headers, timeout=10)
+            r = datasource_session.get(url, headers=headers, timeout=10)
             r.raise_for_status()
             return self._parse_sina_response(r.text, codes)
         except Exception as e:
@@ -178,7 +178,7 @@ class SinaProvider(DataProvider):
                 "Referer": "https://finance.sina.com.cn",
                 "User-Agent": "Mozilla/5.0",
             }
-            r = requests.get(url, headers=headers, timeout=10)
+            r = datasource_session.get(url, headers=headers, timeout=10)
             result = self._parse_sina_response(r.text, sina_codes)
             if not result["success"]:
                 return result

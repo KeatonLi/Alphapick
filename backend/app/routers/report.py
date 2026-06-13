@@ -39,7 +39,7 @@ async def daily(
     target_date = report_date or date.today()
     result = get_report_by_date(db, target_date)
     if not result["success"]:
-        raise HTTPException(status_code=404, detail=result["error"])
+        return {"success": False, "data": None, "error": result["error"], "date": str(target_date)}
     return result
 
 

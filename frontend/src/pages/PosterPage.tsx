@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { generateApi } from '../services/api'
+import { apiGet, generateApi } from '../services/api'
 import { useTradeDates } from '../hooks/useTradeDates'
 import TradeDatePicker from '../components/TradeDatePicker'
 
@@ -38,6 +38,11 @@ export default function PosterPage() {
     setState({ loading: true, error: '', hasReport: false })
     setPosterUrl('')
     try {
+      const report = await apiGet<{ success: boolean; data?: unknown; error?: string }>(`/report/daily?date=${d}`)
+      if (!report.success || !report.data) {
+        setState({ loading: false, error: report.error || '暂无该日期的市场报告', hasReport: false })
+        return
+      }
       const blob = await generateApi.downloadPoster(d)
       const objUrl = URL.createObjectURL(blob)
       setPosterUrl(objUrl)

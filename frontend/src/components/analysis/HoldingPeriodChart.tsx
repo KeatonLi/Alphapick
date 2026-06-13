@@ -19,7 +19,7 @@ interface HoldingPeriodChartProps {
 }
 
 export default function HoldingPeriodChart({ data, optimalDays }: HoldingPeriodChartProps) {
-  const periods = ['1天', '2天', '3天']
+  const periods = ['1天', '2天', '3天', '5天', '7天']
   const avgReturns = periods.map(d => (data[d]?.avg_return ?? 0) * 100)
   const winRates = periods.map(d => (data[d]?.win_rate ?? 0) * 100)
 

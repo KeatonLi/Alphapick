@@ -8,10 +8,10 @@
 """
 
 import logging
-import requests
 from datetime import date
 from typing import Optional
 
+from app.datasource.http_client import datasource_session
 from app.datasource.providers.base import DataProvider
 
 logger = logging.getLogger(__name__)
@@ -84,7 +84,7 @@ class TencentProvider(DataProvider):
             if code:
                 tcode = self._to_tencent_code(code)
                 url = f"https://qt.gtimg.cn/q={tcode}"
-                r = requests.get(url, headers=self._HEADERS, timeout=10)
+                r = datasource_session.get(url, headers=self._HEADERS, timeout=10)
                 r.raise_for_status()
                 return self._parse_tencent_response(r.text, [code])
             else:
@@ -115,7 +115,7 @@ class TencentProvider(DataProvider):
                 "&source=HSF10&client=PC"
             )
             try:
-                r = requests.get(url, headers=headers, timeout=15)
+                r = datasource_session.get(url, headers=headers, timeout=15)
                 r.raise_for_status()
                 em_data = r.json()
                 items = em_data.get("result", {}).get("data", [])
@@ -146,7 +146,7 @@ class TencentProvider(DataProvider):
             tencent_codes = [self._to_tencent_code(c["code"]) for c in batch]
             qt_url = f"https://qt.gtimg.cn/q={','.join(tencent_codes)}"
             try:
-                r = requests.get(qt_url, headers=self._HEADERS, timeout=10)
+                r = datasource_session.get(qt_url, headers=self._HEADERS, timeout=10)
                 result = self._parse_tencent_response(r.text, [c["code"] for c in batch])
                 if result["success"]:
                     quotes.extend(result["data"])
@@ -193,7 +193,7 @@ class TencentProvider(DataProvider):
                 change_pct = float(change_str) if change_str not in ("",) else 0
                 vol_str = parts[6] if len(parts) > 6 else "0"
                 volume = float(vol_str) if vol_str not in ("",) else 0
-                turnover_str = parts[36] if len(parts) > 36 else "0"
+                turnover_str = parts[38] if len(parts) > 38 else "0"
                 try:
                     turnover = float(turnover_str) if turnover_str not in ("", "None") else 0
                 except ValueError:
@@ -231,7 +231,7 @@ class TencentProvider(DataProvider):
             ]
             tencent_codes = [self._to_tencent_code(c) for c, _ in indices]
             url = f"https://qt.gtimg.cn/q={','.join(tencent_codes)}"
-            r = requests.get(url, headers=self._HEADERS, timeout=10)
+            r = datasource_session.get(url, headers=self._HEADERS, timeout=10)
             result = self._parse_tencent_response(r.text, [c for c, _ in indices])
             if not result["success"]:
                 return result

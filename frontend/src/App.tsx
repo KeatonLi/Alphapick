@@ -13,17 +13,18 @@ import PosterPage from './pages/PosterPage'
 import AnalysisPage from './pages/AnalysisPage'
 import SettingsPage from './pages/SettingsPage'
 import StockDailyPage from './pages/StockDailyPage'
+import StrategyConsolePage from './pages/StrategyConsolePage'
 
 export default function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
         <BrowserRouter>
-          <div style={{ background: 'var(--bg-page)', minHeight: '100vh' }}>
+          <div className="qf-app-shell">
             <div className="ambient-glow-top" />
             <div className="ambient-glow-bottom" />
             <Sidebar />
-            <main style={{ marginLeft: 220, position: 'relative', zIndex: 1 }}>
+            <main className="qf-main">
               <Routes>
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/register" element={<RegisterPage />} />
@@ -31,6 +32,7 @@ export default function App() {
                 <Route path="/report" element={<ProtectedRoute><ReportPage /></ProtectedRoute>} />
                 <Route path="/recommend" element={<ProtectedRoute><RecommendPage /></ProtectedRoute>} />
                 <Route path="/tracking" element={<ProtectedRoute><TrackingPage /></ProtectedRoute>} />
+                <Route path="/console" element={<ProtectedRoute requiredRole="admin"><StrategyConsolePage /></ProtectedRoute>} />
                 <Route path="/poster" element={<ProtectedRoute><PosterPage /></ProtectedRoute>} />
                 <Route path="/analysis" element={<ProtectedRoute><AnalysisPage /></ProtectedRoute>} />
                 <Route path="/stock-daily" element={<ProtectedRoute><StockDailyPage /></ProtectedRoute>} />

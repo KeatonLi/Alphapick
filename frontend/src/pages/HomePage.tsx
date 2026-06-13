@@ -169,8 +169,8 @@ export default function HomePage() {
             fontSize: 'clamp(14px, 1.5vw, 17px)', color: 'var(--text-secondary)',
             maxWidth: 520, margin: '0 auto', lineHeight: 1.7,
           }}>
-            不用盯盘、不用手算、不用凭感觉 —— AI 每天自动扫描全市场，
-            从 <strong style={{ color: 'var(--accent-light)' }}>500+</strong> 候选股中精选
+            不用盯盘、不用手算、不用凭感觉 —— 策略每天自动扫描候选池，
+            从 <strong style={{ color: 'var(--accent-light)' }}>50+</strong> 候选股中打分排序
             <strong style={{ color: 'var(--accent-light)' }}> 5 只</strong> 最优标的
           </p>
         </div>
@@ -182,9 +182,9 @@ export default function HomePage() {
         display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 20,
       }}>
         {[
-          { step: '01', icon: '⚡', title: '每日自动分析', sub: '收盘后 AI 自动生成<br/>市场报告 + 精选推荐', color: 'var(--accent)' },
-          { step: '02', icon: '🎯', title: '跟随 AI 下单', sub: '查看推荐理由和预期收益<br/>一键复制交易计划', color: 'var(--accent-light)' },
-          { step: '03', icon: '📈', title: '坐等收益到账', sub: '3 天持仓跟踪 + 自动结算<br/>历史胜率数据可视化', color: 'var(--down)' },
+          { step: '01', icon: '⚡', title: '每日数据快照', sub: '收盘后采集候选池<br/>行情与关键因子', color: 'var(--accent)' },
+          { step: '02', icon: '🎯', title: '量化打分排序', sub: '查看综合分、排名<br/>和入选因子解释', color: 'var(--accent-light)' },
+          { step: '03', icon: '📈', title: '收益窗口复盘', sub: '3/5/7 日持仓跟踪<br/>历史胜率数据可视化', color: 'var(--down)' },
         ].map((item, i) => {
           const { ref, visible } = useReveal(0.3)
           return (

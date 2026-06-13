@@ -1,8 +1,8 @@
 """全市场行情采集器 — EastMoney 股票列表 + 腾讯批量行情（多源互备版）"""
 
-import requests
 from datetime import date
 from app.datasource.fetchers.base import DataFetcher
+from app.datasource.http_client import datasource_session
 from app.datasource.multi_source import multi_source
 from app.utils.akshare_utils import _to_tencent_code, _from_tencent_code
 
@@ -69,7 +69,7 @@ class StockFetcher(DataFetcher):
                 f"&pageNumber={page}"
                 "&source=HSF10&client=PC"
             )
-            r = requests.get(url, headers=headers, timeout=15)
+            r = datasource_session.get(url, headers=headers, timeout=15)
             r.raise_for_status()
             em_data = r.json()
             items = em_data.get("result", {}).get("data", [])
@@ -101,7 +101,7 @@ class StockFetcher(DataFetcher):
             tencent_codes = [_to_tencent_code(c["code"]) for c in batch]
             qt_url = f"https://qt.gtimg.cn/q={','.join(tencent_codes)}"
             try:
-                r = requests.get(qt_url, headers=headers, timeout=10)
+                r = datasource_session.get(qt_url, headers=headers, timeout=10)
                 lines = r.text.strip().split("\n")
                 for line in lines:
                     if "~\"" in line:

@@ -1,13 +1,67 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { apiGet } from '../services/api'
 import { useTradeDates } from '../hooks/useTradeDates'
 import TradeDatePicker from '../components/TradeDatePicker'
 
-interface StockRec { stock_code: string; stock_name: string; recommend_price: number; reason: string }
-interface Stats { total: number; completed: number; win_count: number; win_rate: number; avg_return: number; avg_max_gain: number; avg_max_drawdown: number }
+interface StockRec {
+  stock_code: string
+  stock_name: string
+  recommend_price: number
+  reason: string
+  rank: number
+  score: number
+  strategy_version: string
+  factor_snapshot: Record<string, number>
+}
 
-function fmt(n: number, d = 2) { return n.toFixed(d) }
+interface Stats {
+  total: number
+  completed: number
+  win_count: number
+  win_rate: number
+  avg_return: number
+  avg_max_gain: number
+  avg_max_drawdown: number
+  avg_return_day3: number
+  avg_return_day5: number
+  avg_return_day7: number
+  win_rate_day3: number
+  win_rate_day5: number
+  win_rate_day7: number
+}
+
+type RecommendResponse = { success: boolean; data?: StockRec[]; error?: string }
+type StatsResponse = { success: boolean; data?: Stats; error?: string }
+
+function fmt(n?: number, d = 2) {
+  return typeof n === 'number' && Number.isFinite(n) ? n.toFixed(d) : '--'
+}
+
+function signed(n?: number) {
+  if (typeof n !== 'number' || !Number.isFinite(n)) return '--'
+  return `${n >= 0 ? '+' : ''}${n.toFixed(2)}%`
+}
+
+function FactorPill({ name, value }: { name: string; value: number }) {
+  return (
+    <span style={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: 6,
+      padding: '5px 8px',
+      borderRadius: 999,
+      background: 'rgba(255,255,255,0.06)',
+      border: '1px solid rgba(255,255,255,0.08)',
+      color: 'var(--text-secondary)',
+      fontSize: 11,
+      whiteSpace: 'nowrap',
+    }}>
+      <span>{name}</span>
+      <strong className="mono" style={{ color: value >= 0 ? 'var(--down)' : 'var(--up)' }}>{fmt(value, 1)}</strong>
+    </span>
+  )
+}
 
 export default function RecommendPage() {
   const tradeDates = useTradeDates()
@@ -19,134 +73,108 @@ export default function RecommendPage() {
 
   useEffect(() => {
     if (tradeDates.length > 0 && !date) setDate(tradeDates[0])
-  }, [tradeDates])
+  }, [tradeDates, date])
 
   const loadData = async () => {
     if (!date) return
-    setLoading(true); setError('')
+    setLoading(true)
+    setError('')
     try {
-      const [recRes, statsRes] = await Promise.all([apiGet<any>(`/recommend/daily?date=${date}`), apiGet<any>('/recommend/stats')])
+      const [recRes, statsRes] = await Promise.all([
+        apiGet<RecommendResponse>(`/recommend/daily?date=${date}`),
+        apiGet<StatsResponse>('/recommend/stats'),
+      ])
       if (recRes.success) setRecs(recRes.data || [])
       else setError(recRes.error || '暂无推荐数据')
-      if (statsRes.success) setStats(statsRes.data)
-    } catch (e: any) { setError(e.message) }
-    finally { setLoading(false) }
+      if (statsRes.success) setStats(statsRes.data || null)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => { loadData() }, [date])
 
-  return (
-    <div style={{ maxWidth: 1024, margin: '0 auto', padding: '40px 20px 60px' }}>
-      {/* Header */}
-      <div style={{ textAlign: 'center', marginBottom: 32 }}>
-        <h1 style={{ fontSize: 'clamp(24px, 3.5vw, 32px)', fontWeight: 800, letterSpacing: '-.03em', color: 'var(--text-primary)', margin: '0 0 6px' }}>
-          智能<span style={{ color: 'var(--accent)' }}>推荐</span>
-        </h1>
-        <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>THS 选股 · 热度排名 · 消息面分析 → AI 精选</p>
-      </div>
+  const bestScore = useMemo(() => recs.reduce((m, r) => Math.max(m, r.score || 0), 0), [recs])
 
-      {/* Date Picker */}
-      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 36 }}>
+  return (
+    <div className="qf-page qf-page-wide">
+      <div className="qf-page-header">
+        <div>
+          <div className="qf-eyebrow">Quant Selection</div>
+          <h1 className="qf-title">量化选股</h1>
+          <p className="qf-subtitle">候选池过滤、因子打分、Top 5 输出。这里应该像交易员早会屏幕：重点数字一眼看见，入选逻辑不用翻来翻去。</p>
+        </div>
         <TradeDatePicker value={date} onChange={setDate} tradeDates={tradeDates} />
       </div>
 
-      {/* Stats Bar */}
-      {!loading && stats && (
-        <div className="card" style={{ padding: '24px 32px', marginBottom: 28, display: 'flex', alignItems: 'center', justifyContent: 'space-around', flexWrap: 'wrap', gap: 16 }}>
-          {[
-            { v: stats.total, l: '累计推荐', c: 'var(--accent)' },
-            { v: `${stats.win_rate}%`, l: '胜率', c: 'var(--accent-light)' },
-            { v: `${stats.avg_return >= 0 ? '+' : ''}${stats.avg_return}%`, l: '平均收益', c: stats.avg_return >= 0 ? 'var(--up)' : 'var(--down)' },
-            { v: `+${stats.avg_max_gain}%`, l: '平均最高收益', c: 'var(--up)' },
-          ].map((m, i) => (
-            <div key={i} style={{ textAlign: 'center' }}>
-              <div className="mono" style={{ fontSize: 24, fontWeight: 800, color: m.c, lineHeight: 1.1 }}>{m.v}</div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{m.l}</div>
-            </div>
-          ))}
-          <div className="w-px h-10 hidden sm:block" style={{ background: 'var(--border-default)' }} />
-          <div style={{ textAlign: 'center' }}>
-            <div className="mono" style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)' }}>{stats.completed}</div>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>已完结</div>
-          </div>
+      <section className="card" style={{ padding: 18, marginBottom: 18 }}>
+        <div className="qf-stat-grid">
+          <div className="qf-stat"><div className="qf-stat-label">累计推荐</div><div className="qf-stat-value" style={{ color: 'var(--accent-light)' }}>{stats?.total ?? '--'}</div></div>
+          <div className="qf-stat"><div className="qf-stat-label">3日胜率</div><div className="qf-stat-value" style={{ color: 'var(--accent-light)' }}>{fmt(stats?.win_rate_day3 ?? stats?.win_rate, 1)}%</div></div>
+          <div className="qf-stat"><div className="qf-stat-label">3日均收</div><div className="qf-stat-value" style={{ color: (stats?.avg_return_day3 ?? 0) >= 0 ? 'var(--up)' : 'var(--down)' }}>{signed(stats?.avg_return_day3)}</div></div>
+          <div className="qf-stat"><div className="qf-stat-label">5日均收</div><div className="qf-stat-value" style={{ color: (stats?.avg_return_day5 ?? 0) >= 0 ? 'var(--up)' : 'var(--down)' }}>{signed(stats?.avg_return_day5)}</div></div>
+          <div className="qf-stat"><div className="qf-stat-label">7日均收</div><div className="qf-stat-value" style={{ color: (stats?.avg_return_day7 ?? 0) >= 0 ? 'var(--up)' : 'var(--down)' }}>{signed(stats?.avg_return_day7)}</div></div>
+          <div className="qf-stat"><div className="qf-stat-label">今日最高分</div><div className="qf-stat-value" style={{ color: 'var(--gold)' }}>{bestScore ? fmt(bestScore, 1) : '--'}</div></div>
         </div>
-      )}
+      </section>
 
-      {/* Loading */}
       {loading && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {[0,1,2,3,4].map(i => <div key={i} className="skeleton" style={{ height: 80, borderRadius: 16 }} />)}
+        <div style={{ display: 'grid', gap: 12 }}>
+          {[0, 1, 2, 3, 4].map(i => <div key={i} className="skeleton" style={{ height: 106, borderRadius: 20 }} />)}
         </div>
       )}
 
-      {/* Error */}
       {error && !loading && (
-        <div className="card" style={{ padding: 16, marginBottom: 24, borderColor: 'var(--up)', background: 'var(--up-bg)', color: 'var(--up)', fontSize: 13 }}>{error}</div>
+        <div className="card" style={{ padding: 18, marginBottom: 18, borderColor: 'rgba(255,90,107,.36)', color: 'var(--up)' }}>{error}</div>
       )}
 
-      {/* Empty */}
       {!loading && recs.length === 0 && !error && (
-        <div className="card" style={{ padding: '80px 40px', textAlign: 'center' }}>
-          <div style={{ fontSize: 44, marginBottom: 16, opacity: .5 }}>🎯</div>
-          <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 6 }}>该日期暂无推荐</div>
-          <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-            请前往 <Link to="/settings" style={{ color: 'var(--accent)', fontWeight: 600 }}>设置</Link> 页面生成推荐
+        <section className="card" style={{ padding: '72px 34px', textAlign: 'center' }}>
+          <div style={{ width: 72, height: 72, borderRadius: 24, margin: '0 auto 18px', display: 'grid', placeItems: 'center', background: 'var(--accent-bg)', color: 'var(--accent-light)' }}>
+            <span style={{ fontSize: 30 }}>◎</span>
           </div>
-        </div>
+          <h2 style={{ margin: 0, fontSize: 20, color: 'var(--text-primary)' }}>该日暂无推荐</h2>
+          <p style={{ margin: '8px auto 20px', maxWidth: 440, color: 'var(--text-muted)', fontSize: 13 }}>先在策略控制台生成这一天的 Top 5，系统会自动写入评分、排名和后续收益追踪。</p>
+          <Link to="/console" className="qf-action-button" style={{ textDecoration: 'none', display: 'inline-flex' }}>去策略控制台</Link>
+        </section>
       )}
 
-      {/* Recommendation Cards */}
       {!loading && recs.length > 0 && (
-        <>
-          <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 16 }}>
-            今日推荐 · {recs.length} 只
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 32 }}>
-            {recs.map((rec, idx) => (
-              <div key={idx} className="card" style={{ padding: '20px 24px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                  <div style={{
-                    width: 40, height: 40, borderRadius: 12, flexShrink: 0,
-                    background: 'var(--accent-bg)', color: 'var(--accent-light)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontWeight: 700, fontSize: 16, fontFamily: "'JetBrains Mono', monospace",
-                  }}>{idx + 1}</div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                      <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--text-primary)' }}>{rec.stock_name}</span>
-                      <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: "'JetBrains Mono', monospace" }}>{rec.stock_code}</span>
+        <div style={{ display: 'grid', gap: 12 }}>
+          {recs.map((rec, idx) => {
+            const factors = Object.entries(rec.factor_snapshot || {}).slice(0, 5)
+            return (
+              <article key={`${rec.stock_code}-${idx}`} className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '76px 1fr 118px 118px', gap: 0, alignItems: 'stretch' }}>
+                  <div style={{ padding: 18, borderRight: '1px solid var(--border-default)', display: 'grid', placeItems: 'center' }}>
+                    <div className="mono" style={{ fontSize: 30, fontWeight: 900, color: idx === 0 ? 'var(--gold)' : 'var(--accent-light)', letterSpacing: '-.08em' }}>#{rec.rank || idx + 1}</div>
+                  </div>
+                  <div style={{ padding: '18px 20px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 8 }}>
+                      <strong style={{ fontSize: 18, color: 'var(--text-primary)' }}>{rec.stock_name}</strong>
+                      <span className="mono" style={{ color: 'var(--text-muted)', fontSize: 12 }}>{rec.stock_code}</span>
+                      {rec.strategy_version && <span className="badge badge-accent">{rec.strategy_version}</span>}
                     </div>
-                    <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                      {rec.reason || '量化模型筛选结果'}
+                    <div style={{ color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.55, marginBottom: 12 }}>{rec.reason || '量化模型筛选结果'}</div>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      {factors.length > 0 ? factors.map(([k, v]) => <FactorPill key={k} name={k} value={Number(v)} />) : <span style={{ color: 'var(--text-dim)', fontSize: 12 }}>暂无因子快照</span>}
                     </div>
                   </div>
-                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                    <div className="mono" style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)' }}>{fmt(rec.recommend_price)}</div>
-                    <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 2 }}>推荐价</div>
+                  <div style={{ padding: 18, borderLeft: '1px solid var(--border-default)', textAlign: 'right' }}>
+                    <div className="qf-stat-label">综合分</div>
+                    <div className="mono" style={{ marginTop: 8, fontSize: 30, fontWeight: 900, color: 'var(--accent-light)' }}>{fmt(rec.score, 1)}</div>
+                  </div>
+                  <div style={{ padding: 18, borderLeft: '1px solid var(--border-default)', textAlign: 'right' }}>
+                    <div className="qf-stat-label">推荐价</div>
+                    <div className="mono" style={{ marginTop: 8, fontSize: 26, fontWeight: 900, color: 'var(--text-primary)' }}>{fmt(rec.recommend_price)}</div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Pipeline */}
-          <div className="card" style={{ padding: 28 }}>
-            <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 20 }}>筛选流程</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
-              {[
-                { step: 'STEP 1', title: '热点筛选', desc: '全市场 ~5000 只\n→ 热点板块 500 只' },
-                { step: 'STEP 2', title: '技术筛选', desc: '多头排列过滤\n→ ~50 只候选' },
-                { step: 'STEP 3', title: 'AI 精选', desc: 'LLM 综合评估\n→ 最终 5 只推荐' },
-              ].map(s => (
-                <div key={s.step} style={{ padding: 16, borderRadius: 14, background: 'var(--bg-elevated)', border: '1px solid var(--border-default)' }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', marginBottom: 6 }}>{s.step}</div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>{s.title}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{s.desc}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </>
+              </article>
+            )
+          })}
+        </div>
       )}
     </div>
   )
