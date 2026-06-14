@@ -5,7 +5,20 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
-from app.routers import stock, recommend, report, generate, schedule, analysis, auth
+from app.routers import (
+    analytics,
+    auth,
+    data_center,
+    generate,
+    ops,
+    picks,
+    recommend,
+    report,
+    review,
+    schedule,
+    stock,
+    analysis,
+)
 from app.datasource.router import router as datasource_router
 from app.database import engine, Base, SessionLocal, ensure_runtime_schema
 
@@ -63,6 +76,11 @@ app.include_router(generate.router)
 app.include_router(schedule.router)
 app.include_router(analysis.router)
 app.include_router(datasource_router)
+app.include_router(picks.router)
+app.include_router(review.router)
+app.include_router(analytics.router)
+app.include_router(data_center.router)
+app.include_router(ops.router)
 
 
 @app.on_event("startup")

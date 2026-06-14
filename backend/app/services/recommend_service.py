@@ -311,6 +311,32 @@ async def update_single_recommend_price(db: Session, rec_id: int) -> dict:
     return {"success": True, "data": {"filled": filled, "id": rec_id}}
 
 
+def batch_update_tracking_prices(db: Session, ids: list[int]) -> dict:
+    unique_ids = list(dict.fromkeys(ids))
+    results = {"updated": 0, "filled": 0, "errors": []}
+    if not unique_ids:
+        return {"success": True, "data": results}
+
+    recs = db.query(Recommendation).filter(Recommendation.id.in_(unique_ids)).all()
+    rec_by_id = {rec.id: rec for rec in recs}
+    today = date.today()
+
+    for rid in unique_ids:
+        rec = rec_by_id.get(rid)
+        if not rec:
+            results["errors"].append({"id": rid, "error": "record not found"})
+            continue
+        if rec.status == "completed" and rec.return_rate_day7 is not None:
+            results["errors"].append({"id": rid, "error": "record already completed; reset before recalculating"})
+            continue
+        filled = _fill_tracking_from_db(db, rec, today)
+        results["updated"] += 1
+        results["filled"] += filled
+
+    db.commit()
+    return {"success": True, "data": results}
+
+
 def batch_reset_tracking(db: Session, ids: list[int]) -> dict:
     results = {"reset": 0, "errors": []}
     for rid in ids:

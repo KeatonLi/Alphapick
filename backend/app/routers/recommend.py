@@ -17,6 +17,7 @@ from app.services.recommend_service import (
     delete_recommendation,
     reset_recommend_tracking,
     update_single_recommend_price,
+    batch_update_tracking_prices,
     batch_reset_tracking,
     batch_delete_recommendations,
 )
@@ -138,6 +139,13 @@ async def batch_reset(ids: list[int] = Body(...), db: Session = Depends(get_db),
     """批量重置多条推荐的收益跟踪"""
     result = batch_reset_tracking(db, ids)
     return result
+
+
+@router.post("/batch/update")
+@limiter.limit("10/minute")
+async def batch_update(request: Request, ids: list[int] = Body(...), db: Session = Depends(get_db), admin: User = Depends(require_admin)):
+    """批量更新多条推荐的收益跟踪"""
+    return batch_update_tracking_prices(db, ids)
 
 
 @router.post("/batch/delete")

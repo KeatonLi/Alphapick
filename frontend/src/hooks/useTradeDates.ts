@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { apiGet } from '../services/api'
+import { picksApi } from '../services/picksApi'
 
 // 模块级缓存，跨组件共享
 let cached: string[] | null = null
@@ -17,7 +17,7 @@ export function useTradeDates(): string[] {
       pending.then(d => setDates(d))
       return
     }
-    pending = apiGet<any>('/report/trade-dates?days=365')
+    pending = picksApi.tradeDates(365)
       .then(d => {
         const result: string[] = d.success ? (d.data || []) : []
         cached = result

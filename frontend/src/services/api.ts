@@ -9,7 +9,7 @@ async function handleResponse<T>(res: Response): Promise<T> {
   if (res.status === 401) {
     localStorage.removeItem('auth_token')
     localStorage.removeItem('auth_user')
-    // 不自动跳转，让 ProtectedRoute 或调用方处理
+    // 不自动跳转，让 ProtectedRoute 或调用方处理。
     throw new Error('请先登录')
   }
   if (!res.ok) {
@@ -55,20 +55,38 @@ export async function apiDelete<T = any>(path: string): Promise<T> {
   return handleResponse<T>(res)
 }
 
-// ─── 收益跟踪数据类型 ───────────────────────────────────────────
-
+// 收益跟踪数据类型
 export interface HistoryRec {
-  id: number; recommend_date: string; stock_code: string; stock_name: string
-  recommend_price: number; current_price: number; return_rate: number; reason: string
-  rank: number; score: number; strategy_version: string; factor_snapshot: Record<string, number>
-  tracking_days: number; status: string
-  price_day1: number; price_day2: number; price_day3: number; price_day5: number; price_day7: number
-  return_rate_day1: number; return_rate_day2: number; return_rate_day3: number; return_rate_day5: number; return_rate_day7: number
-  final_return_rate: number; max_gain: number; max_drawdown: number
+  id: number
+  recommend_date: string
+  stock_code: string
+  stock_name: string
+  recommend_price: number
+  current_price: number
+  return_rate: number
+  reason: string
+  rank: number
+  score: number
+  strategy_version: string
+  factor_snapshot: Record<string, number>
+  tracking_days: number
+  status: string
+  price_day1: number
+  price_day2: number
+  price_day3: number
+  price_day5: number
+  price_day7: number
+  return_rate_day1: number
+  return_rate_day2: number
+  return_rate_day3: number
+  return_rate_day5: number
+  return_rate_day7: number
+  final_return_rate: number
+  max_gain: number
+  max_drawdown: number
 }
 
-// ─── 数据分析 API ────────────────────────────────────────────────────────
-
+// 数据分析类型
 export interface WeekdayStat {
   count: number
   win_count: number
@@ -124,39 +142,7 @@ export interface InsightsResponse {
   generated_at: string
 }
 
-export const analysisApi = {
-  getWeekdayStats: (startDate?: string, endDate?: string) => {
-    const params = new URLSearchParams()
-    if (startDate) params.append('start_date', startDate)
-    if (endDate) params.append('end_date', endDate)
-    return apiGet<WeekdayStatsResponse>(`/analysis/weekday-stats?${params}`)
-  },
-
-  getHoldingPeriodStats: (startDate?: string, endDate?: string) => {
-    const params = new URLSearchParams()
-    if (startDate) params.append('start_date', startDate)
-    if (endDate) params.append('end_date', endDate)
-    return apiGet<HoldingPeriodStatsResponse>(`/analysis/holding-period-stats?${params}`)
-  },
-
-  getReturnDistribution: (holdingDays: number = 3, startDate?: string, endDate?: string) => {
-    const params = new URLSearchParams()
-    params.append('holding_days', String(holdingDays))
-    if (startDate) params.append('start_date', startDate)
-    if (endDate) params.append('end_date', endDate)
-    return apiGet<ReturnDistributionResponse>(`/analysis/return-distribution?${params}`)
-  },
-
-  getInsights: (startDate?: string, endDate?: string) => {
-    const params = new URLSearchParams()
-    if (startDate) params.append('start_date', startDate)
-    if (endDate) params.append('end_date', endDate)
-    return apiGet<InsightsResponse>(`/analysis/insights?${params}`)
-  },
-}
-
-// ─── 扩展分析 API ──────────────────────────────────────────────────────
-
+// 扩展分析类型
 export interface PriceRangeStat {
   count: number
   win_count: number
@@ -222,61 +208,7 @@ export interface SuccessTrendResponse {
   }
 }
 
-export const extendedAnalysisApi = {
-  getPriceRangeStats: (startDate?: string, endDate?: string) => {
-    const params = new URLSearchParams()
-    if (startDate) params.append('start_date', startDate)
-    if (endDate) params.append('end_date', endDate)
-    return apiGet<PriceRangeStatsResponse>(`/analysis/price-range-stats?${params}`)
-  },
-
-  getStockTypeStats: (startDate?: string, endDate?: string) => {
-    const params = new URLSearchParams()
-    if (startDate) params.append('start_date', startDate)
-    if (endDate) params.append('end_date', endDate)
-    return apiGet<StockTypeStatsResponse>(`/analysis/stock-type-stats?${params}`)
-  },
-
-  getVolatilityStats: (startDate?: string, endDate?: string) => {
-    const params = new URLSearchParams()
-    if (startDate) params.append('start_date', startDate)
-    if (endDate) params.append('end_date', endDate)
-    return apiGet<VolatilityStatsResponse>(`/analysis/volatility-stats?${params}`)
-  },
-
-  getSuccessTrend: (startDate?: string, endDate?: string) => {
-    const params = new URLSearchParams()
-    if (startDate) params.append('start_date', startDate)
-    if (endDate) params.append('end_date', endDate)
-    return apiGet<SuccessTrendResponse>(`/analysis/success-trend?${params}`)
-  },
-}
-
-// ─── 个股日线 ─────────────────────────────────────────────
-
-export interface StockDailyRow {
-  date: string
-  open: number
-  close: number
-  high: number
-  low: number
-  volume: number
-  change_pct: number
-}
-
-export interface StockDailyResponse {
-  success: boolean
-  data: StockDailyRow[]
-  error?: string
-}
-
-export const stockDailyApi = {
-  getDaily: (code: string, days: number = 60) =>
-    apiGet<StockDailyResponse>(`/stock/daily?code=${code}&days=${days}`),
-}
-
-// ─── 数据采集管理 ───────────────────────────────────────────
-
+// 数据采集管理类型
 export interface DatasourceStatusItem {
   data_type: string
   label: string
@@ -287,6 +219,9 @@ export interface DatasourceStatusItem {
   retry_count: number | null
   has_data: boolean
   fetched_at: string | null
+  quality_status?: string | null
+  quality_count?: number | null
+  quality_message?: string | null
 }
 
 export interface FetchLogEntry {
@@ -301,41 +236,4 @@ export interface FetchLogEntry {
   duration_ms: number
   response_size: number | null
   created_at: string
-}
-
-export const datasourceApi = {
-  getStatus: (date?: string) =>
-    apiGet<{ success: boolean; data: DatasourceStatusItem[] }>(`/datasource/status${date ? `?date=${date}` : ''}`),
-  triggerFetch: (dataType: string, date?: string) =>
-    apiPost<{ success: boolean; data: any }>(`/datasource/trigger/${dataType}${date ? `?date=${date}` : ''}`),
-  triggerAll: (date?: string) =>
-    apiPost<{ success: boolean; data: any }>(`/datasource/trigger-all${date ? `?date=${date}` : ''}`),
-  deleteRecord: (dataType: string, date?: string) =>
-    apiDelete<{ success: boolean; data: any }>(`/datasource/records/${dataType}${date ? `?date=${date}` : ''}`),
-  deleteAllRecords: (date?: string) =>
-    apiDelete<{ success: boolean; data: any }>(`/datasource/records${date ? `?date=${date}` : ''}`),
-  getDates: () =>
-    apiGet<{ success: boolean; data: Record<string, { label: string; dates: string[] }> }>('/datasource/dates'),
-  getLogs: (page: number = 1, dataType?: string, status?: string) => {
-    const params = new URLSearchParams()
-    params.append('page', String(page))
-    if (dataType) params.append('data_type', dataType)
-    if (status) params.append('status', status)
-    return apiGet<{ success: boolean; data: { total: number; logs: FetchLogEntry[] } }>(`/datasource/logs?${params}`)
-  },
-}
-
-export const generateApi = {
-  deleteReport: (date?: string) =>
-    apiDelete<{ success: boolean; data: any }>(`/generate/report${date ? `?date=${date}` : ''}`),
-  deleteRecommend: (date?: string) =>
-    apiDelete<{ success: boolean; data: any }>(`/generate/recommend${date ? `?date=${date}` : ''}`),
-  downloadPoster: async (date: string): Promise<Blob> => {
-    const API_BASE = import.meta.env.VITE_API_URL || '/api'
-    const token = localStorage.getItem('auth_token')
-    const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
-    const resp = await fetch(`${API_BASE}/report/poster?date=${date}`, { headers })
-    if (!resp.ok) throw new Error('海报生成失败')
-    return resp.blob()
-  },
 }

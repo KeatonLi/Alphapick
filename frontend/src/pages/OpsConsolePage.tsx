@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { apiPost } from '../services/api'
+import { useEffect, useMemo, useState } from 'react'
+import { opsApi } from '../services/opsApi'
 
 type RunLog = {
   id: string
@@ -62,12 +62,17 @@ function TaskButton({ children, disabled, onClick, tone = 'primary' }: {
   )
 }
 
-export default function StrategyConsolePage() {
+export default function OpsConsolePage() {
   const [startDate, setStartDate] = useState(DEFAULT_START)
   const [endDate, setEndDate] = useState(DEFAULT_END)
   const [singleDate, setSingleDate] = useState(DEFAULT_START)
   const [running, setRunning] = useState(false)
   const [logs, setLogs] = useState<RunLog[]>([])
+  const [scheduleEnabled, setScheduleEnabled] = useState(false)
+  const [scheduleTime, setScheduleTime] = useState('16:00')
+  const [scheduleReport, setScheduleReport] = useState(true)
+  const [scheduleRecommend, setScheduleRecommend] = useState(true)
+  const [scheduleUpdateReturns, setScheduleUpdateReturns] = useState(true)
 
   const plannedDates = useMemo(() => listDates(startDate, endDate), [startDate, endDate])
 
@@ -94,13 +99,26 @@ export default function StrategyConsolePage() {
   }
 
   const fetchDatasource = (date: string) =>
-    runStep(`${date} 采集全量数据源`, () => apiPost(`/datasource/trigger-all?date=${date}`))
+    runStep(`${date} 采集全量数据源`, () => opsApi.fetch(date))
 
   const generateRecommend = (date: string) =>
-    runStep(`${date} 生成量化 Top 5`, () => apiPost(`/recommend/generate?date=${date}`))
+    runStep(`${date} 生成量化 Top 5`, () => opsApi.generatePicks(date))
 
   const updateReturns = () =>
-    runStep('更新 1/2/3/5/7 日收益追踪', () => apiPost('/recommend/update-prices'))
+    runStep('更新 1/2/3/5/7 日收益追踪', () => opsApi.updateReturns())
+
+  useEffect(() => {
+    opsApi.schedule()
+      .then((res: any) => {
+        if (!res.success) return
+        setScheduleEnabled(Boolean(res.data?.enabled))
+        setScheduleTime(res.data?.run_time || '16:00')
+        setScheduleReport(Boolean(res.data?.run_report))
+        setScheduleRecommend(Boolean(res.data?.run_recommend))
+        setScheduleUpdateReturns(Boolean(res.data?.run_update_returns))
+      })
+      .catch(() => {})
+  }, [])
 
   const runSingle = async (mode: 'fetch' | 'recommend' | 'returns') => {
     setRunning(true)
@@ -113,16 +131,28 @@ export default function StrategyConsolePage() {
     }
   }
 
+  const runFullDaily = async () => {
+    setRunning(true)
+    try {
+      await runStep(`${singleDate} 完整单日闭环`, () => opsApi.runDaily(singleDate))
+    } finally {
+      setRunning(false)
+    }
+  }
+
   const runRange = async () => {
     setRunning(true)
     try {
-      pushLog('warn', `区间任务开始：${startDate} 至 ${endDate}，共 ${plannedDates.length} 个工作日`)
-      for (const d of plannedDates) {
-        await fetchDatasource(d)
-        await generateRecommend(d)
-      }
-      await updateReturns()
-      pushLog('ok', '区间任务完成：数据采集、推荐生成、收益更新已跑完')
+      await runStep(`${startDate} 至 ${endDate} 区间回测`, () => opsApi.backtest(startDate, endDate))
+    } finally {
+      setRunning(false)
+    }
+  }
+
+  const saveSchedule = async () => {
+    setRunning(true)
+    try {
+      await runStep('保存定时任务配置', () => opsApi.saveSchedule(scheduleEnabled, scheduleTime, scheduleReport, scheduleRecommend, scheduleUpdateReturns))
     } finally {
       setRunning(false)
     }
@@ -143,7 +173,7 @@ export default function StrategyConsolePage() {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '420px 1fr', gap: 18, alignItems: 'start' }}>
-        <section className="card" style={{ padding: 22 }}>
+        <section className="card" style={{ padding: 20 }}>
           <div style={{ display: 'grid', gap: 16 }}>
             <div>
               <div className="qf-eyebrow">Single Day</div>
@@ -161,6 +191,7 @@ export default function StrategyConsolePage() {
               <TaskButton disabled={running} onClick={() => runSingle('recommend')} tone="blue">生成推荐</TaskButton>
             </div>
             <TaskButton disabled={running} onClick={() => runSingle('returns')} tone="green">更新收益追踪</TaskButton>
+            <TaskButton disabled={running} onClick={runFullDaily} tone="green">运行完整单日闭环</TaskButton>
           </div>
 
           <div style={{ height: 1, background: 'var(--border-default)', margin: '24px 0' }} />
@@ -189,8 +220,45 @@ export default function StrategyConsolePage() {
             </div>
 
             <TaskButton disabled={running || plannedDates.length === 0} onClick={runRange}>
-              {running ? '任务运行中...' : '跑完整区间'}
+              {running ? '任务运行中...' : '后端区间回测'}
             </TaskButton>
+          </div>
+
+          <div style={{ height: 1, background: 'var(--border-default)', margin: '24px 0' }} />
+
+          <div style={{ display: 'grid', gap: 14 }}>
+            <div>
+              <div className="qf-eyebrow">Scheduler</div>
+              <h2 style={{ margin: '8px 0 4px', fontSize: 20, color: 'var(--text-primary)' }}>定时任务</h2>
+              <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: 12 }}>控制每日自动采集、自动生成报告和自动生成推荐。</p>
+            </div>
+
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--text-secondary)', fontSize: 13 }}>
+              <input type="checkbox" checked={scheduleEnabled} onChange={e => setScheduleEnabled(e.target.checked)} />
+              启用定时任务
+            </label>
+
+            <label style={{ display: 'grid', gap: 8, color: 'var(--text-secondary)', fontSize: 12 }}>
+              每日运行时间
+              <input type="time" value={scheduleTime} onChange={e => setScheduleTime(e.target.value)} style={inputStyle} />
+            </label>
+
+            <div style={{ display: 'grid', gap: 8 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--text-secondary)', fontSize: 13 }}>
+                <input type="checkbox" checked={scheduleReport} onChange={e => setScheduleReport(e.target.checked)} />
+                自动生成市场报告
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--text-secondary)', fontSize: 13 }}>
+                <input type="checkbox" checked={scheduleRecommend} onChange={e => setScheduleRecommend(e.target.checked)} />
+                自动生成量化推荐
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--text-secondary)', fontSize: 13 }}>
+                <input type="checkbox" checked={scheduleUpdateReturns} onChange={e => setScheduleUpdateReturns(e.target.checked)} />
+                自动更新收益跟踪
+              </label>
+            </div>
+
+            <TaskButton disabled={running} onClick={saveSchedule}>保存定时配置</TaskButton>
           </div>
         </section>
 

@@ -3,13 +3,12 @@ import { useAuth } from '../contexts/AuthContext'
 
 type IconName = 'home' | 'target' | 'console' | 'trend' | 'analysis' | 'settings'
 
-const NAV_ITEMS: Array<{ path: string; icon: IconName; label: string; kicker: string }> = [
-  { path: '/', icon: 'home', label: '首页', kicker: 'Overview' },
-  { path: '/recommend', icon: 'target', label: '量化选股', kicker: 'Top Picks' },
-  { path: '/console', icon: 'console', label: '策略控制台', kicker: 'Console' },
-  { path: '/tracking', icon: 'trend', label: '收益复盘', kicker: 'Returns' },
-  { path: '/analysis', icon: 'analysis', label: '策略分析', kicker: 'Analytics' },
-  { path: '/settings', icon: 'settings', label: '数据设置', kicker: 'Data Ops' },
+const NAV_ITEMS: Array<{ path: string; icon: IconName; label: string; kicker: string; adminOnly?: boolean }> = [
+  { path: '/picks', icon: 'target', label: '今日选股', kicker: 'Top Picks' },
+  { path: '/review', icon: 'trend', label: '策略复盘', kicker: 'Review' },
+  { path: '/analytics', icon: 'analysis', label: '策略分析', kicker: 'Analytics' },
+  { path: '/data', icon: 'settings', label: '数据中台', kicker: 'Data Center', adminOnly: true },
+  { path: '/ops', icon: 'console', label: '运行控制台', kicker: 'Ops Console', adminOnly: true },
 ]
 
 function Icon({ name }: { name: IconName }) {
@@ -39,7 +38,7 @@ export default function Sidebar() {
       </Link>
 
       <nav className="qf-nav">
-        {NAV_ITEMS.map(item => {
+        {NAV_ITEMS.filter(item => !item.adminOnly || user?.role === 'admin').map(item => {
           const active = isActive(item.path)
           return (
             <Link key={item.path} to={item.path} className={`qf-nav-item${active ? ' active' : ''}`}>

@@ -20,3 +20,13 @@ backend/.env
 frontend/.env.production
 frontend/dist/
 .codegraph/
+
+# Local runtime/test artifacts
+.claude/
+.reasonix/
+backend/*.log
+backend/logs/
+backend/*.db
+frontend/test-screenshots/
+frontend/test-screenshots-v2/
+test-screenshots-e2e/

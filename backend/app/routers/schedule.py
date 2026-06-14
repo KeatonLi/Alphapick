@@ -20,6 +20,7 @@ def get_or_create_config(db: Session) -> ScheduleConfig:
             run_time="16:00",
             run_report=True,
             run_recommend=True,
+            run_update_returns=True,
         )
         db.add(config)
         db.commit()
@@ -54,6 +55,7 @@ async def get_config(db: Session = Depends(get_db)):
             "run_time": config.run_time,
             "run_report": config.run_report,
             "run_recommend": config.run_recommend,
+            "run_update_returns": getattr(config, "run_update_returns", True),
             "last_run_at": config.last_run_at,
             "last_run_result": config.last_run_result,
             "last_run_info": last_run_info,
@@ -67,6 +69,7 @@ async def save_config(
     run_time: str = "16:00",
     run_report: bool = True,
     run_recommend: bool = True,
+    run_update_returns: bool = True,
     db: Session = Depends(get_db),
     admin: User = Depends(require_admin),
 ):
@@ -79,6 +82,7 @@ async def save_config(
     config.run_time = run_time
     config.run_report = run_report
     config.run_recommend = run_recommend
+    config.run_update_returns = run_update_returns
     db.commit()
 
     # 联动 datasource 调度器，动态更新 APScheduler
@@ -123,6 +127,12 @@ def run_scheduled_tasks():
                 import asyncio
                 result = asyncio.run(generate_recommendations(db, rec_date=today))
                 results.append(f"推荐: {'成功' if result['success'] else '失败'}")
+
+        if getattr(config, "run_update_returns", True):
+            from app.services.recommend_service import update_recommend_prices
+            import asyncio
+            result = asyncio.run(update_recommend_prices(db))
+            results.append(f"收益更新: {'成功' if result['success'] else '失败'}")
 
         config.last_run_at = now
         config.last_run_result = " | ".join(results)

@@ -1,38 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { apiGet } from '../services/api'
+import { picksApi, type PickStats, type StockRec } from '../services/picksApi'
+import { reviewApi } from '../services/reviewApi'
 import { useTradeDates } from '../hooks/useTradeDates'
 import TradeDatePicker from '../components/TradeDatePicker'
-
-interface StockRec {
-  stock_code: string
-  stock_name: string
-  recommend_price: number
-  reason: string
-  rank: number
-  score: number
-  strategy_version: string
-  factor_snapshot: Record<string, number>
-}
-
-interface Stats {
-  total: number
-  completed: number
-  win_count: number
-  win_rate: number
-  avg_return: number
-  avg_max_gain: number
-  avg_max_drawdown: number
-  avg_return_day3: number
-  avg_return_day5: number
-  avg_return_day7: number
-  win_rate_day3: number
-  win_rate_day5: number
-  win_rate_day7: number
-}
-
-type RecommendResponse = { success: boolean; data?: StockRec[]; error?: string }
-type StatsResponse = { success: boolean; data?: Stats; error?: string }
 
 function fmt(n?: number, d = 2) {
   return typeof n === 'number' && Number.isFinite(n) ? n.toFixed(d) : '--'
@@ -63,11 +34,11 @@ function FactorPill({ name, value }: { name: string; value: number }) {
   )
 }
 
-export default function RecommendPage() {
+export default function PicksPage() {
   const tradeDates = useTradeDates()
   const [date, setDate] = useState('')
   const [recs, setRecs] = useState<StockRec[]>([])
-  const [stats, setStats] = useState<Stats | null>(null)
+  const [stats, setStats] = useState<PickStats | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -81,8 +52,8 @@ export default function RecommendPage() {
     setError('')
     try {
       const [recRes, statsRes] = await Promise.all([
-        apiGet<RecommendResponse>(`/recommend/daily?date=${date}`),
-        apiGet<StatsResponse>('/recommend/stats'),
+        picksApi.daily(date),
+        reviewApi.summary(),
       ])
       if (recRes.success) setRecs(recRes.data || [])
       else setError(recRes.error || '暂无推荐数据')
@@ -109,7 +80,7 @@ export default function RecommendPage() {
         <TradeDatePicker value={date} onChange={setDate} tradeDates={tradeDates} />
       </div>
 
-      <section className="card" style={{ padding: 18, marginBottom: 18 }}>
+      <section className="card" style={{ padding: 20, marginBottom: 18 }}>
         <div className="qf-stat-grid">
           <div className="qf-stat"><div className="qf-stat-label">累计推荐</div><div className="qf-stat-value" style={{ color: 'var(--accent-light)' }}>{stats?.total ?? '--'}</div></div>
           <div className="qf-stat"><div className="qf-stat-label">3日胜率</div><div className="qf-stat-value" style={{ color: 'var(--accent-light)' }}>{fmt(stats?.win_rate_day3 ?? stats?.win_rate, 1)}%</div></div>
@@ -127,7 +98,7 @@ export default function RecommendPage() {
       )}
 
       {error && !loading && (
-        <div className="card" style={{ padding: 18, marginBottom: 18, borderColor: 'rgba(255,90,107,.36)', color: 'var(--up)' }}>{error}</div>
+        <div className="card" style={{ padding: 20, marginBottom: 18, borderColor: 'rgba(255,90,107,.36)', color: 'var(--up)' }}>{error}</div>
       )}
 
       {!loading && recs.length === 0 && !error && (
@@ -137,12 +108,12 @@ export default function RecommendPage() {
           </div>
           <h2 style={{ margin: 0, fontSize: 20, color: 'var(--text-primary)' }}>该日暂无推荐</h2>
           <p style={{ margin: '8px auto 20px', maxWidth: 440, color: 'var(--text-muted)', fontSize: 13 }}>先在策略控制台生成这一天的 Top 5，系统会自动写入评分、排名和后续收益追踪。</p>
-          <Link to="/console" className="qf-action-button" style={{ textDecoration: 'none', display: 'inline-flex' }}>去策略控制台</Link>
+          <Link to="/ops" className="qf-action-button" style={{ textDecoration: 'none', display: 'inline-flex' }}>去运行控制台</Link>
         </section>
       )}
 
       {!loading && recs.length > 0 && (
-        <div style={{ display: 'grid', gap: 12 }}>
+        <div style={{ display: 'grid', gap: 18 }}>
           {recs.map((rec, idx) => {
             const factors = Object.entries(rec.factor_snapshot || {}).slice(0, 5)
             return (

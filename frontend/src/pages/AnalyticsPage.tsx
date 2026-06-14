@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { analysisApi, extendedAnalysisApi } from '../services/api'
+import { analyticsApi } from '../services/analyticsApi'
 import { useTradeDates } from '../hooks/useTradeDates'
 import TradeDatePicker from '../components/TradeDatePicker'
 import type {
@@ -18,7 +18,7 @@ import SuccessTrendChart from '../components/analysis/SuccessTrendChart'
 
 type TabKey = 'basic' | 'extended'
 
-export default function AnalysisPage() {
+export default function AnalyticsPage() {
   const [tab, setTab] = useState<TabKey>('basic')
   const [weekday, setWeekday] = useState<WeekdayStatsResponse | null>(null)
   const [holding, setHolding] = useState<HoldingPeriodStatsResponse | null>(null)
@@ -37,8 +37,8 @@ export default function AnalysisPage() {
 
   useEffect(() => {
     if (tradeDates.length > 0) {
-      if (!startDate) setStartDate(tradeDates[tradeDates.length - 1]) // oldest
-      if (!endDate) setEndDate(tradeDates[0]) // newest
+      if (!startDate) setStartDate(tradeDates[tradeDates.length - 1])
+      if (!endDate) setEndDate(tradeDates[0])
     }
   }, [tradeDates])
 
@@ -48,14 +48,14 @@ export default function AnalysisPage() {
       const sd = startDate || undefined; const ed = endDate || undefined
       if (tab === 'basic') {
         const [w, h, d, i] = await Promise.all([
-          analysisApi.getWeekdayStats(sd, ed), analysisApi.getHoldingPeriodStats(sd, ed),
-          analysisApi.getReturnDistribution(3, sd, ed), analysisApi.getInsights(sd, ed),
+          analyticsApi.getWeekdayStats(sd, ed), analyticsApi.getHoldingPeriodStats(sd, ed),
+          analyticsApi.getReturnDistribution(3, sd, ed), analyticsApi.getInsights(sd, ed),
         ])
         setWeekday(w); setHolding(h); setDist(d); setInsights(i)
       } else {
         const [p, s, v, t] = await Promise.all([
-          extendedAnalysisApi.getPriceRangeStats(sd, ed), extendedAnalysisApi.getStockTypeStats(sd, ed),
-          extendedAnalysisApi.getVolatilityStats(sd, ed), extendedAnalysisApi.getSuccessTrend(sd, ed),
+          analyticsApi.getPriceRangeStats(sd, ed), analyticsApi.getStockTypeStats(sd, ed),
+          analyticsApi.getVolatilityStats(sd, ed), analyticsApi.getSuccessTrend(sd, ed),
         ])
         setPriceRange(p); setStockType(s); setVolatility(v); setTrend(t)
       }
@@ -66,33 +66,29 @@ export default function AnalysisPage() {
   useEffect(() => { load() }, [tab, startDate, endDate])
 
   return (
-    <div style={{ maxWidth: 1100, margin: '0 auto', padding: '40px 20px 60px' }}>
+    <div className="qf-page qf-page-wide">
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28, flexWrap: 'wrap', gap: 16 }}>
+      <div className="qf-page-header">
         <div>
-          <h1 style={{ fontSize: 'clamp(24px, 3.5vw, 32px)', fontWeight: 800, letterSpacing: '-.03em', color: 'var(--text-primary)', margin: '0 0 4px' }}>
-            数据<span style={{ color: 'var(--accent)' }}>分析</span>
-          </h1>
-          <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>量化推荐多维统计 · 历史表现洞察</p>
+          <div className="qf-eyebrow">Strategy Analytics</div>
+          <h1 className="qf-title">策略分析</h1>
+          <p className="qf-subtitle">量化推荐多维统计 · 历史表现洞察。分析策略在不同市场环境下的表现特征。</p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>起始</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <TradeDatePicker value={startDate} onChange={setStartDate} tradeDates={tradeDates} />
-          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>结束</span>
+          <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>—</span>
           <TradeDatePicker value={endDate} onChange={setEndDate} tradeDates={tradeDates} />
         </div>
       </div>
 
       {/* Tabs */}
-      <div style={{ marginBottom: 32 }}>
-        <div className="nav-pills" style={{ display: 'inline-flex' }}>
-          {(['basic', 'extended'] as TabKey[]).map(k => (
-            <a key={k} href="#" onClick={e => { e.preventDefault(); setTab(k) }} className={tab === k ? 'active' : ''}>
-              {k === 'basic' ? '基础分析' : '扩展分析'}
-            </a>
-          ))}
-        </div>
-      </div>
+      <nav className="nav-pills" style={{ marginBottom: 24 }}>
+        {(['basic', 'extended'] as TabKey[]).map(k => (
+          <a key={k} href="#" onClick={e => { e.preventDefault(); setTab(k) }} className={tab === k ? 'active' : ''}>
+            {k === 'basic' ? '基础分析' : '扩展分析'}
+          </a>
+        ))}
+      </nav>
 
       {loading && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -114,9 +110,9 @@ export default function AnalysisPage() {
             <>
               {/* Insights */}
               {insights && insights.insights.length > 0 && (
-                <div style={{ marginBottom: 32 }}>
-                  <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 16 }}>
-                    关键洞察
+                <div style={{ marginBottom: 24 }}>
+                  <div className="section-header" style={{ marginBottom: 14 }}>
+                    <h3>关键洞察</h3>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
                     {insights.insights.map((item, i) => <InsightCard key={i} {...item} />)}
@@ -125,21 +121,25 @@ export default function AnalysisPage() {
               )}
 
               {/* Charts Row 1 */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20, marginBottom: 24 }}>
-                <div className="card" style={{ padding: 24 }}>{weekday && <WeekdayChart data={weekday.data} />}</div>
-                <div className="card" style={{ padding: 24 }}>{holding && <HoldingPeriodChart data={holding.data} optimalDays={holding.optimal_period.days} />}</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 18, marginBottom: 18 }}>
+                <section className="card" style={{ padding: 20 }}>
+                  {weekday && <WeekdayChart data={weekday.data} />}
+                </section>
+                <section className="card" style={{ padding: 20 }}>
+                  {holding && <HoldingPeriodChart data={holding.data} optimalDays={holding.optimal_period.days} />}
+                </section>
               </div>
 
               {/* Distribution */}
               {dist && (
-                <div className="card" style={{ padding: 24, marginBottom: 24 }}>
+                <section className="card" style={{ padding: 20, marginBottom: 18 }}>
                   <ReturnDistribution data={dist} />
-                </div>
+                </section>
               )}
 
               {/* Summary */}
               {weekday && (
-                <div className="card" style={{ padding: '16px 24px', fontSize: 13, color: 'var(--text-secondary)' }}>
+                <div className="card" style={{ padding: '14px 20px', fontSize: 13, color: 'var(--text-secondary)' }}>
                   共分析 <strong style={{ color: 'var(--text-primary)' }}>{weekday.summary.total_recommendations}</strong> 条历史推荐 ·
                   最佳日 <strong style={{ color: 'var(--up)' }}>{weekday.summary.best_weekday}</strong> ·
                   最差日 <strong style={{ color: 'var(--down)' }}>{weekday.summary.worst_weekday}</strong>
@@ -152,9 +152,9 @@ export default function AnalysisPage() {
             <>
               {/* Volatility Insights */}
               {volatility && volatility.summary && (
-                <div style={{ marginBottom: 32 }}>
-                  <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 16 }}>
-                    波动性洞察
+                <div style={{ marginBottom: 24 }}>
+                  <div className="section-header" style={{ marginBottom: 14 }}>
+                    <h3>波动性洞察</h3>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12 }}>
                     <InsightCard icon="📊" title="风险等级" content={volatility.summary.volatility_assessment as string} />
@@ -166,8 +166,11 @@ export default function AnalysisPage() {
 
               {/* Trend Insights */}
               {trend && (
-                <div style={{ marginBottom: 32 }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12, marginBottom: 24 }}>
+                <div style={{ marginBottom: 24 }}>
+                  <div className="section-header" style={{ marginBottom: 14 }}>
+                    <h3>趋势洞察</h3>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12 }}>
                     <InsightCard icon="📈" title="整体趋势" content={trend.summary.trend_direction as string} />
                     <InsightCard icon="📅" title="月度表现" content={`最佳 ${trend.summary.best_month} · 最差 ${trend.summary.worst_month}`} />
                   </div>
@@ -175,13 +178,13 @@ export default function AnalysisPage() {
               )}
 
               {/* Charts */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20, marginBottom: 24 }}>
-                <div className="card" style={{ padding: 24 }}>{priceRange && <PriceRangeChart data={priceRange.data} />}</div>
-                <div className="card" style={{ padding: 24 }}>{stockType && <StockTypeChart data={stockType.data} />}</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 18, marginBottom: 18 }}>
+                <section className="card" style={{ padding: 20 }}>{priceRange && <PriceRangeChart data={priceRange.data} />}</section>
+                <section className="card" style={{ padding: 20 }}>{stockType && <StockTypeChart data={stockType.data} />}</section>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>
-                <div className="card" style={{ padding: 24 }}>{volatility && <VolatilityChart data={volatility.data} />}</div>
-                <div className="card" style={{ padding: 24 }}>{trend && <SuccessTrendChart data={trend.data} trend={trend.summary.trend_direction as string} />}</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 18 }}>
+                <section className="card" style={{ padding: 20 }}>{volatility && <VolatilityChart data={volatility.data} />}</section>
+                <section className="card" style={{ padding: 20 }}>{trend && <SuccessTrendChart data={trend.data} trend={trend.summary.trend_direction as string} />}</section>
               </div>
             </>
           )}
