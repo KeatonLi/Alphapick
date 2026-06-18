@@ -42,7 +42,7 @@ def holding_period_stats(
 
 @router.get("/return-distribution")
 def return_distribution(
-    holding_days: int = Query(3, ge=1, le=3),
+    holding_days: int = Query(3, ge=1, le=7),
     start_date: Optional[date] = Query(None),
     end_date: Optional[date] = Query(None),
     db: Session = Depends(get_db),

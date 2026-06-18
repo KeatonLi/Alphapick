@@ -1,10 +1,19 @@
 # backend/app/utils/akshare_utils.py
 """
-AKShare 统一数据源封装
-替代原有的腾讯财经 + EastMoney 手拼方案
+AKShare 统一数据源封装 — 已升级为多源互备架构
+
+底层通过 MultiSourceManager 按优先级轮询多个数据源：
+  1. AKShare（主源，数据最全）
+  2. 腾讯证券（备1，实时行情快）
+  3. 新浪财经（备2，极简稳定）
+
+对外接口完全保持向后兼容，调用方无需任何修改。
 """
 
 import asyncio
+import time
+import json
+import logging
 
 import akshare as ak
 import numpy as np
@@ -12,8 +21,12 @@ import pandas as pd
 from datetime import date, timedelta
 from typing import Optional
 
+from app.datasource.multi_source import multi_source
 
-# ─── 代码格式转换 ────────────────────────────────────────────────────────
+logger = logging.getLogger(__name__)
+
+
+# ─── 代码格式转换（保持向后兼容）───────────────────────────────────────────
 
 def _to_sina_code(code: str) -> str:
     """Convert stock code to sina format: sh600519 / sz000001"""
@@ -51,16 +64,19 @@ def _from_tencent_code(code: str) -> str:
     return code
 
 
-# ─── 指数行情 ────────────────────────────────────────────────────────────
+# ─── 指数行情（多源互备）──────────────────────────────────────────────────
 
 async def _fetch_index(idx_code: str, name: str) -> Optional[dict]:
-    """获取单个指数数据"""
+    """获取单个指数数据（通过多源管理器）"""
     try:
-        df = ak.stock_zh_index_daily(symbol=idx_code)
-        if df is None or len(df) < 2:
+        result = multi_source.get_index_daily(idx_code)
+        if not result["success"]:
             return None
-        latest = df.tail(1).iloc[0]
-        prev = df.tail(2).iloc[0]
+        data = result["data"]
+        if len(data) < 2:
+            return None
+        latest = data[-1]
+        prev = data[-2]
         prev_close = float(prev["close"])
         if prev_close == 0:
             return None
@@ -77,8 +93,17 @@ async def _fetch_index(idx_code: str, name: str) -> Optional[dict]:
 
 
 async def get_market_index() -> dict:
-    """获取主要指数行情（上证/深证/创业板）"""
+    """获取主要指数行情（上证/深证/创业板）— 多源互备"""
     try:
+        # 优先尝试多源管理器（可能走 AKShare/腾讯/新浪）
+        result = multi_source.get_market_index()
+        if result["success"]:
+            # 添加来源标记到日志
+            source = result.get("_source", "unknown")
+            logger.info(f"[get_market_index] 数据源: {source}")
+            return result
+
+        # 多源全部失败，fallback 到并行获取单个指数
         indices = [
             ("sh000001", "上证指数"),
             ("sz399001", "深证成指"),
@@ -96,98 +121,57 @@ async def get_market_index() -> dict:
         return {"success": False, "error": str(e)}
 
 
-# ─── 板块行情 ────────────────────────────────────────────────────────────
+# ─── 板块行情（多源互备）─────────────────────────────────────────────────
 
 async def get_hot_sectors(top_n: int = 10) -> dict:
-    """获取热门板块（行业板块），按涨跌幅排序
-    数据来源：同花顺行业板块
-    """
-    try:
-        df = ak.stock_board_industry_summary_ths()
-        if df is None or df.empty:
-            return {"success": False, "error": "板块数据为空"}
-        df = df.sort_values("涨跌幅", ascending=False).head(top_n)
-        data = []
-        for _, row in df.iterrows():
-            try:
-                change_str = str(row.get("涨跌幅", "0"))
-                change_pct = float(change_str) if change_str not in ("", "None") else 0
-                leading = str(row.get("领涨股", ""))
-                data.append({
-                    "name": str(row.get("板块", "")),
-                    "change_pct": round(change_pct, 2),
-                    "leading_stock": leading,
-                    "driver": "",
-                })
-            except (ValueError, TypeError):
-                continue
-        if not data:
-            return {"success": False, "error": "板块数据解析失败"}
-        return {"success": True, "data": data}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
+    """获取热门板块（行业板块），按涨跌幅排序 — 多源互备"""
+    result = multi_source.get_hot_sectors(top_n)
+    if result["success"]:
+        source = result.get("_source", "unknown")
+        logger.info(f"[get_hot_sectors] 数据源: {source}")
+    return result
 
 
-# ─── 个股行情 ────────────────────────────────────────────────────────────
+# ─── 个股行情（多源互备）─────────────────────────────────────────────────
 
 async def get_stock_info(code: str) -> dict:
-    """获取股票基本信息"""
-    try:
-        df = ak.stock_zh_a_spot()
-        sina_code = _to_sina_code(code)
-        stock_row = df[df["代码"] == sina_code]
-        if stock_row.empty:
-            stock_row = df[df["代码"] == code]
-        if stock_row.empty:
-            return {"success": False, "error": f"未找到股票代码 {code}"}
-        row = stock_row.iloc[0]
-        info = {
-            "股票代码": code,
-            "股票简称": str(row.get("名称", "")),
-            "最新价": str(row.get("最新价", "")),
-            "涨跌幅": f"{row.get('涨跌幅', '')}%",
-            "昨收": str(row.get("昨收", "")),
-            "今开": str(row.get("今开", "")),
-            "最高": str(row.get("最高", "")),
-            "最低": str(row.get("最低", "")),
-            "成交量": str(row.get("成交量", "")),
-            "成交额": str(row.get("成交额", "")),
-        }
-        return {"success": True, "data": info}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
+    """获取股票基本信息 — 多源互备"""
+    result = multi_source.get_stock_info(code)
+    if result["success"]:
+        source = result.get("_source", "unknown")
+        logger.info(f"[get_stock_info] 数据源: {source}")
+    return result
 
 
 async def get_stock_daily(code: str, days: int = 60) -> dict:
-    """获取个股日线行情（复权）"""
-    try:
-        sina_code = _to_sina_code(code)
-        df = ak.stock_zh_a_daily(symbol=sina_code, adjust="qfq")
-        if df is None or df.empty:
-            return {"success": False, "error": "无日线数据"}
-        df = df.fillna(0).replace([np.inf, -np.inf], 0)
-        df = df.tail(days)
-        df["change_pct"] = df["close"].pct_change().fillna(0).replace([np.inf, -np.inf], 0) * 100
-        data = []
-        for _, row in df.iterrows():
-            data.append({
-                "日期": str(row["date"]),
-                "开盘": float(row["open"]),
-                "收盘": float(row["close"]),
-                "最高": float(row["high"]),
-                "最低": float(row["low"]),
-                "成交量": int(row["volume"]),
-                "涨跌幅": round(float(row["change_pct"]), 2),
+    """获取个股日线行情（复权）— 多源互备
+
+    注意：腾讯和新浪不支持历史日线，所以此接口实际上主要依赖 AKShare。
+    如果 AKShare 失败，会返回错误（历史数据没有备用源）。
+    未来可接入 Baostock 或麦蕊数据作为历史数据备用源。
+    """
+    result = multi_source.get_stock_daily(code, days, adjust="qfq")
+    if result["success"]:
+        source = result.get("_source", "unknown")
+        logger.info(f"[get_stock_daily] 数据源: {source}")
+        # 统一字段名（兼容旧格式）
+        data = result["data"]
+        unified = []
+        for row in data:
+            unified.append({
+                "日期": row.get("日期", row.get("date", "")),
+                "开盘": row.get("开盘", row.get("open", 0)),
+                "收盘": row.get("收盘", row.get("close", 0)),
+                "最高": row.get("最高", row.get("high", 0)),
+                "最低": row.get("最低", row.get("low", 0)),
+                "成交量": row.get("成交量", row.get("volume", 0)),
+                "涨跌幅": row.get("涨跌幅", row.get("change_pct", 0)),
             })
-        return {"success": True, "data": data}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
+        return {"success": True, "data": unified}
+    return result
 
 
-# ─── 全市场行情（用于候选池）────────────────────────────────────────────
-
-import time
-import json
+# ─── 全市场行情（多源互备 + 缓存）────────────────────────────────────────
 
 _stock_list_cache = {
     "data": None,
@@ -195,13 +179,11 @@ _stock_list_cache = {
     "cache_key": "",
 }
 
-_CACHE_TTL = 300  # 5分钟内存缓存，避免重复抓取全市场数据
+_CACHE_TTL = 300  # 5分钟内存缓存
 
 
 async def get_stock_list(force_refresh: bool = False) -> dict:
-    """获取A股全市场实时行情列表（带5分钟内存缓存）
-    数据来源：EastMoney数据中心获取股票列表 + 腾讯批量接口获取实时行情
-    """
+    """获取A股全市场实时行情列表（带5分钟内存缓存）— 多源互备"""
     now = time.time()
     cache_valid = (
         _stock_list_cache["data"] is not None
@@ -211,6 +193,17 @@ async def get_stock_list(force_refresh: bool = False) -> dict:
     if cache_valid:
         return _stock_list_cache["data"]
 
+    # 优先使用多源管理器（AKShare → 腾讯）
+    result = multi_source.get_stock_spot()
+    if result["success"]:
+        source = result.get("_source", "unknown")
+        logger.info(f"[get_stock_list] 数据源: {source}")
+        _stock_list_cache["data"] = result
+        _stock_list_cache["timestamp"] = now
+        return result
+
+    # 多源全部失败，fallback 到原生的 EastMoney + 腾讯组合
+    logger.warning("[get_stock_list] 多源管理器全部失败，fallback 到原生组合")
     result = await _fetch_stock_list_raw()
     if result["success"]:
         _stock_list_cache["data"] = result
@@ -219,9 +212,7 @@ async def get_stock_list(force_refresh: bool = False) -> dict:
 
 
 async def _fetch_stock_list_raw() -> dict:
-    """获取A股全市场实时行情列表
-    数据来源：EastMoney数据中心获取股票列表 + 腾讯批量接口获取实时行情
-    """
+    """原生 EastMoney + 腾讯组合（作为最终 fallback）"""
     import requests
 
     try:
@@ -254,7 +245,7 @@ async def _fetch_stock_list_raw() -> dict:
                         "name": str(item.get("SECURITY_NAME_ABBR", "")),
                     })
             total_pages = em_data.get("result", {}).get("pages", 1)
-            if page >= total_pages or page >= 50:  # 最多50页（约25000条）
+            if page >= total_pages or page >= 50:
                 break
             page += 1
 
@@ -324,38 +315,41 @@ async def _fetch_stock_list_raw() -> dict:
         return {"success": False, "error": str(e)}
 
 
-# ─── 交易日 ───────────────────────────────────────────────────────────────
+# ─── 交易日（多源互备）────────────────────────────────────────────────────
 
 def is_trade_date(d: date) -> bool:
-    """判断指定日期是否为 A 股交易日"""
+    """判断指定日期是否为 A 股交易日 — 多源互备"""
     # 周末直接返回 False
     if d.weekday() >= 5:
         return False
     try:
-        df = ak.tool_trade_date_hsiec()
-        if df is None or df.empty:
-            return False
-        date_col = df.columns[0]
-        df[date_col] = pd.to_datetime(df[date_col])
-        target = pd.Timestamp(d)
-        return ((df[date_col].dt.date == target.date()).any())
+        result = multi_source.get_trade_calendar()
+        if not result["success"]:
+            raise ValueError("交易日历获取失败")
+        dates = result["data"]
+        return d.strftime("%Y-%m-%d") in dates
     except Exception:
         # fallback: 周末判断 + 简单规则
         return d.weekday() < 5
 
 
 def get_trade_days_after(from_date: date, n: int) -> list[date]:
-    """获取 from_date 之后的第 1 到第 n 个交易日（按升序返回）"""
+    """获取 from_date 之后的第 1 到第 n 个交易日（按升序返回）— 多源互备"""
     try:
-        df = ak.tool_trade_date_hsiec()
-        if df is None or df.empty:
-            raise ValueError("交易日历为空")
-        date_col = df.columns[0]
-        df[date_col] = pd.to_datetime(df[date_col])
-        after = df[df[date_col] > pd.Timestamp(from_date)] \
-                  .sort_values(date_col) \
-                  .head(n)
-        return [row[date_col].date() for _, row in after.iterrows()]
+        result = multi_source.get_trade_calendar()
+        if not result["success"]:
+            raise ValueError("交易日历获取失败")
+        dates = result["data"]
+        # 转为 date 对象并筛选
+        trade_dates = []
+        for ds in dates:
+            try:
+                trade_dates.append(date.fromisoformat(ds))
+            except ValueError:
+                continue
+        trade_dates.sort()
+        after = [d for d in trade_dates if d > from_date]
+        return after[:n]
     except Exception:
         # fallback: 按工作日推算
         result = []
@@ -368,18 +362,26 @@ def get_trade_days_after(from_date: date, n: int) -> list[date]:
 
 
 def get_trade_dates(days: int = 30) -> list[str]:
-    """获取最近N个交易日"""
+    """获取最近N个交易日 — 多源互备"""
     today = date.today()
     since = today - timedelta(days=days)
     try:
-        df = ak.tool_trade_date_hsiec()
-        if df is None or df.empty:
-            raise ValueError("交易日历为空")
-        date_col = df.columns[0]
-        df[date_col] = pd.to_datetime(df[date_col])
-        mask = (df[date_col] >= pd.Timestamp(since)) & (df[date_col] <= pd.Timestamp(today))
-        dates = df.loc[mask, date_col].sort_values(ascending=False).dt.strftime("%Y-%m-%d").tolist()
-        return dates
+        result = multi_source.get_trade_calendar()
+        if not result["success"]:
+            raise ValueError("交易日历获取失败")
+        all_dates = result["data"]
+        # 筛选最近 days 个
+        filtered = []
+        for ds in reversed(all_dates):
+            try:
+                d = date.fromisoformat(ds)
+                if d <= today and d >= since:
+                    filtered.append(ds)
+                if len(filtered) >= days:
+                    break
+            except ValueError:
+                continue
+        return filtered
     except Exception:
         # fallback: 按工作日过滤
         result = []
@@ -392,9 +394,71 @@ def get_trade_dates(days: int = 30) -> list[str]:
 
 
 def get_trade_dates_for_frontend(days: int = 365) -> dict:
-    """获取前端可用的交易日列表（用于日期选择器）"""
+    """获取前端可用的交易日列表（用于日期选择器）— 多源互备"""
     try:
         dates = get_trade_dates(days)
         return {"success": True, "data": dates}
     except Exception as e:
         return {"success": False, "error": str(e)}
+
+
+# ─── 沪深港通资金流（多源互备）────────────────────────────────────────────
+
+async def get_hsgt_flow() -> dict:
+    """获取沪深港通（北向）资金流数据 — 多源互备"""
+    result = multi_source.get_hsgt_flow()
+    if result["success"]:
+        source = result.get("_source", "unknown")
+        logger.info(f"[get_hsgt_flow] 数据源: {source}")
+        return result
+
+    # fallback 到原生 AKShare 直接调用
+    logger.warning("[get_hsgt_flow] 多源管理器失败，fallback 到原生 AKShare")
+    try:
+        loop = asyncio.get_event_loop()
+        sh_df = await loop.run_in_executor(
+            None, lambda: ak.stock_hsgt_hist_em(symbol="沪股通")
+        )
+        sz_df = await loop.run_in_executor(
+            None, lambda: ak.stock_hsgt_hist_em(symbol="深股通")
+        )
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+    if sh_df is None or sh_df.empty or sz_df is None or sz_df.empty:
+        return {"success": False, "error": "沪深港通数据为空"}
+
+    sh_latest = sh_df.tail(1).iloc[0]
+    sz_latest = sz_df.tail(1).iloc[0]
+
+    today_flow = {
+        "date": str(sh_latest["日期"]),
+        "sh_net_buy": round(float(sh_latest["当日成交净买额"]), 2),
+        "sh_total_inflow": round(float(sh_latest["当日资金流入"]), 2),
+        "sh_cumulative": round(float(sh_latest["历史累计净买额"]), 2),
+        "sz_net_buy": round(float(sz_latest["当日成交净买额"]), 2),
+        "sz_total_inflow": round(float(sz_latest["当日资金流入"]), 2),
+        "sz_cumulative": round(float(sz_latest["历史累计净买额"]), 2),
+        "total_net_buy": round(float(sh_latest["当日成交净买额"]) + float(sz_latest["当日成交净买额"]), 2),
+    }
+
+    sh_hist = sh_df.tail(30)
+    sz_hist = sz_df.tail(30)
+    history = []
+    for i in range(len(sh_hist)):
+        sh_row = sh_hist.iloc[i]
+        sz_row = sz_hist.iloc[i] if i < len(sz_hist) else None
+        entry = {
+            "date": str(sh_row["日期"]),
+            "sh_net_buy": round(float(sh_row["当日成交净买额"]), 2),
+            "sz_net_buy": round(float(sz_row["当日成交净买额"]), 2) if sz_row is not None else 0,
+        }
+        history.append(entry)
+
+    return {
+        "success": True,
+        "data": {
+            "today": today_flow,
+            "history": history,
+        }
+    }

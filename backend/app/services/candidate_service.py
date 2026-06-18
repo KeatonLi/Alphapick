@@ -1,20 +1,24 @@
 # backend/app/services/candidate_service.py
 """
 量化推荐候选池服务
-数据来源：同花顺服务端选股池 + 东方财富热度排名
+数据来源：同花顺服务端选股池 + 腾讯批量行情
 流程：
   1. THS 选股池（lxsz + cxg，~500只）
-  2. 东方财富热度排名前 50
-  3. 取交集 + 过滤主板
+  2. 腾讯批量行情获取实时价格
+  3. 过滤主板 + 排序取 TOP N
   4. 并发获取每只的消息面（新闻标题）
   5. 送 AI 精选
 """
 
 import asyncio
 import json
+import logging
 import requests
 
 import akshare as ak
+
+logger = logging.getLogger(__name__)
+
 
 # ─── 主板过滤 ────────────────────────────────────────────────────────────
 # 沪主板: 600/601/603  深主板: 000/001/002
@@ -121,77 +125,47 @@ def get_ths_candidates() -> dict:
         'from_cxg': len([c for c in candidates if c['source'] == 'cxg']),
     }
 
+# ─── 腾讯批量行情 ──────────────────────────────────────────────────────
 
-# ─── 东方财富热度排名 ──────────────────────────────────────────────────
+def _fetch_tencent_prices(codes: list) -> dict:
+    """用腾讯 qt.gtimg.cn 批量获取行情，返回 {code: {price, change_pct, volume, turnover}}"""
+    from app.utils.akshare_utils import _to_tencent_code, _from_tencent_code
 
-_HOT_RANK_CACHE = {"data": None, "timestamp": 0}
-_HOT_CACHE_TTL = 300
-
-
-def _fetch_hot_rank() -> dict:
-    """获取热度排名前 100，带 5 分钟缓存。
-    优先用东方财富（stock_hot_rank_em），被封时自动降级到雪球热度（stock_hot_deal_xq）。
-    """
-    import time
-    now = time.time()
-    if (_HOT_RANK_CACHE["data"] is not None
-            and now - _HOT_RANK_CACHE["timestamp"] < _HOT_CACHE_TTL):
-        return _HOT_RANK_CACHE["data"]
-
-    # --- 数据源 1: 东方财富 ---
-    try:
-        df = ak.stock_hot_rank_em()
-        if df is not None and not df.empty:
-            result = []
-            for i, (_, row) in enumerate(df.iterrows()):
-                code = str(row.get('股票代码', ''))
-                if not code:
+    result = {}
+    batch_size = 80
+    logger.info("Fetching Tencent prices for %d codes in batches of %d", len(codes), batch_size)
+    for i in range(0, len(codes), batch_size):
+        batch = codes[i:i + batch_size]
+        tencent_codes = [_to_tencent_code(c) for c in batch]
+        try:
+            r = requests.get(
+                f"https://qt.gtimg.cn/q={','.join(tencent_codes)}",
+                headers={"Referer": "https://finance.qq.com", "User-Agent": "Mozilla/5.0"},
+                timeout=10,
+            )
+            for line in r.text.strip().split("\n"):
+                if "~\"" not in line:
                     continue
-                if len(code) > 6:
-                    code = code[-6:]
-                result.append({
-                    'code': code,
-                    'name': row.get('股票名称', ''),
-                    'hot_score': 0,
-                    'hot_rank': i + 1,
-                    'price': 0,
-                    'change_pct': 0,
-                })
-            output = {'success': True, 'data': result}
-            _HOT_RANK_CACHE["data"] = output
-            _HOT_RANK_CACHE["timestamp"] = now
-            return output
-    except Exception:
-        pass  # 降级到雪球
-
-    # --- 数据源 2: 雪球热度（降级方案） ---
-    try:
-        df = ak.stock_hot_deal_xq()
-        if df is None or df.empty:
-            raise Exception("雪球热度返回空数据")
-
-        df_sorted = df.sort_values('关注', ascending=False).head(100)
-        result = []
-        for i, (_, row) in enumerate(df_sorted.iterrows()):
-            code = str(row.get('股票代码', ''))
-            if not code:
-                continue
-            if len(code) > 6:
-                code = code[-6:]
-            result.append({
-                'code': code,
-                'name': row.get('股票简称', ''),
-                'hot_score': int(row.get('关注', 0)),
-                'hot_rank': i + 1,
-                'price': float(row.get('最新价', 0) or 0),
-                'change_pct': 0,
-            })
-        output = {'success': True, 'data': result}
-        _HOT_RANK_CACHE["data"] = output
-        _HOT_RANK_CACHE["timestamp"] = now
-        return output
-    except Exception as e:
-        return {'success': False, 'error': str(e)}
+                parts = line.split("~")
+                if len(parts) < 35:
+                    continue
+                raw_code = parts[2] if len(parts) > 2 else ""
+                clean_code = _from_tencent_code(raw_code)
+                if clean_code not in codes:
+                    continue
+                price = float(parts[3]) if parts[3] not in ("", "0") else 0
+                change_pct = float(parts[32]) if parts[32] not in ("",) else 0
+                volume = float(parts[6]) if parts[6] not in ("",) else 0
+                turnover = float(parts[36]) if len(parts) > 36 and parts[36] not in ("", "None") else 0
+                result[clean_code] = {
+                    "price": price, "change_pct": change_pct,
+                    "volume": volume, "turnover": turnover,
+                }
+        except Exception:
+            logger.warning("Failed to fetch Tencent prices batch %d-%d", i, i + len(batch))
+            continue
+    logger.info("Fetched Tencent prices: %d/%d codes", len(result), len(codes))
+    return result
 
 
 # ─── 个股新闻 ────────────────────────────────────────────────────────────
@@ -257,64 +231,74 @@ async def _batch_fetch_news(codes: list, limit: int = 3) -> dict:
 # ─── 主流程 ──────────────────────────────────────────────────────────────
 
 async def get_ma_filtered_candidates(top_n: int = 50) -> dict:
-    """
-    获取候选池：THS 选股池 ∩ 东方财富热度前 N → 过滤主板 → 补充消息面
+    """获取候选池：THS 选股池 → 腾讯行情 → 主板过滤 → 新闻
+    不再依赖东方财富热度排名（push2 已封）。
 
-    返回候选数据（含 hot_rank、news 等字段）。
-    top_n 控制取热度排名前多少名做交集（默认 50）。
+    返回候选数据（含 news 等字段）。
+    top_n 控制最终返回多少只（默认 50）。
     """
     # Step 1: THS 池
     ths_result = get_ths_candidates()
     if not ths_result['success']:
         return ths_result
-    # THS code 带 sh/sz 前缀，用裸 code（去掉前缀）做匹配 key
-    ths_pool = {}
-    for s in ths_result['data']:
-        raw = s['code']
-        for prefix in ('sh', 'sz', 'bj'):
-            if raw.startswith(prefix):
-                raw = raw[len(prefix):]
-                break
-        ths_pool[raw] = s
 
-    if not ths_pool:
+    candidates = ths_result['data']
+    if not candidates:
         return {'success': False, 'error': 'THS 选股池返回为空'}
 
-    # Step 2: 热度排名
-    hot_result = _fetch_hot_rank()
-    if not hot_result['success']:
-        return {'success': False, 'error': f"热度排名获取失败: {hot_result['error']}"}
+    # Step 2: 腾讯批量获取实时行情
+    code_to_bare = {}
+    for s in candidates:
+        bare = s['code']
+        for prefix in ('sh', 'sz', 'bj'):
+            if bare.startswith(prefix):
+                bare = bare[len(prefix):]
+                break
+        code_to_bare[s['code']] = bare
 
-    hot_top = hot_result['data'][:top_n]
+    price_map = _fetch_tencent_prices(list(code_to_bare.values()))
 
-    # Step 3: 取交集 + 过滤主板
-    candidates = []
-    for item in hot_top:
-        code = item['code']
-        ths_info = ths_pool.get(code)
-        if ths_info is None:
-            continue  # 不在 THS 池，跳过
-        if not _is_zhuban(code):
-            continue  # 非主板，跳过
+    # Step 3: 合并行情数据 + 过滤主板 + 排序
+    merged = []
+    for s in candidates:
+        bare = code_to_bare[s['code']]
+        if bare not in price_map:
+            continue
+        if not _is_zhuban(bare):
+            continue
 
-        candidates.append({
-            **ths_info,
-            'hot_rank': item['hot_rank'],
-            'hot_score': item['hot_score'],
+        qt = price_map[bare]
+        merged.append({
+            **s,
+            'price': qt['price'],
+            'change_pct': qt['change_pct'],
+            'volume': qt['volume'],
+            'turnover': qt.get('turnover', s.get('turnover', 0)),
         })
 
-    # Step 4: 并发获取消息面
-    news_map = await _batch_fetch_news([s['code'] for s in candidates], limit=3)
+    # 按连续上涨天数 + 换手率排序（lxsz 优先于 cxg）
+    merged.sort(key=lambda x: (
+        0 if x.get('source') == 'lxsz' else 1,
+        -x.get('continuous_days', 0),
+        -x.get('turnover', 0),
+    ))
 
-    for s in candidates:
+    # 取 TOP N
+    merged = merged[:top_n]
+
+    # Step 4: 并发获取消息面
+    news_map = await _batch_fetch_news(
+        [s['code'] for s in merged], limit=3
+    )
+    for idx, s in enumerate(merged):
         s['news'] = news_map.get(s['code'], [])
+        s['hot_rank'] = idx + 1
 
     return {
         'success': True,
-        'data': candidates,
+        'data': merged,
         'total_ths': ths_result['total'],
-        'hot_top_n': len(hot_top),
-        'after_filter': len(candidates),
+        'after_filter': len(merged),
     }
 
 
@@ -329,7 +313,7 @@ def format_candidates_for_ai(candidates: list) -> str:
             f"现价:{s['price']} 涨幅:{s.get('change_pct', 0):.2f}% "
             f"换手:{s.get('turnover', 0):.2f}% 连涨:{s.get('continuous_days', 0)}天 "
             f"板块:{s.get('sector', '')} "
-            f"热度:#{s.get('hot_rank', '?')} "
+            f"排序:#{s.get('hot_rank', '?')} "
             f"消息面:{news_str}"
         )
     return '\n'.join(lines)

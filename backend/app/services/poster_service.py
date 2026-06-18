@@ -298,6 +298,86 @@ def _draw_sectors_section(draw: ImageDraw.Draw, width: int, margin: int, y: int,
     return y + card_h + 28
 
 
+def _draw_limit_up_section(draw: ImageDraw.Draw, width: int, margin: int, y: int,
+                           limit_up_data: List[dict], yesterday_perf, fonts: dict) -> int:
+    """涨停板分析（紧凑版）"""
+    if not limit_up_data:
+        return y
+
+    _draw_section_icon(draw, margin, y, "涨", STOCK_UP)
+    draw.text((margin + 40, y + 2), "涨停板分析", font=fonts["heading"], fill=TEXT_WHITE)
+    y += 48
+
+    total = len(limit_up_data)
+    yizi = sum(1 for s in limit_up_data if s.get("board_type") == "一字板")
+    multi = sum(1 for s in limit_up_data if s.get("consecutive_days", 0) >= 2)
+    max_consec = max((s.get("consecutive_days", 1) for s in limit_up_data), default=1)
+
+    # 顶行指标
+    stats = [
+        (f"{total}", "涨停数"),
+        (f"{yizi}", "一字板"),
+        (f"{multi}", "连板≥2"),
+        (f"{max_consec}板", "最高连板"),
+    ]
+    stat_w = (width - margin * 2 - 12) // 4
+    stat_card_h = 68
+    for i, (val, label) in enumerate(stats):
+        sx = margin + i * (stat_w + 4)
+        draw.rounded_rectangle([sx, y, sx + stat_w, y + stat_card_h], radius=10, fill=CARD_BG)
+        vw = _text_width(draw, val, fonts["number_sm"])
+        draw.text((sx + (stat_w - vw) // 2, y + 10), val, font=fonts["number_sm"], fill=STOCK_UP)
+        lw = _text_width(draw, label, fonts["tiny"])
+        draw.text((sx + (stat_w - lw) // 2, y + 40), label, font=fonts["tiny"], fill=TEXT_MUTED)
+    y += stat_card_h + 8
+
+    # 昨日涨停表现
+    if yesterday_perf is not None:
+        perf_color = STOCK_UP if yesterday_perf >= 0 else STOCK_DOWN
+        perf_text = f"昨日涨停股今日平均涨幅：{'+' if yesterday_perf >= 0 else ''}{yesterday_perf:.2f}%"
+        perf_w = _text_width(draw, perf_text, fonts["small"])
+        draw.rounded_rectangle([margin, y, width - margin, y + 34], radius=10,
+                               fill=(255, 255, 255, 30))
+        draw.text((margin + 14, y + 7), perf_text, font=fonts["small"], fill=perf_color)
+        y += 44
+
+    # 连板龙头紧凑展示
+    multi_day = sorted(
+        [s for s in limit_up_data if s.get("consecutive_days", 0) >= 2],
+        key=lambda x: -x["consecutive_days"]
+    )[:6]
+    if multi_day:
+        row_h = 42
+        visible = min(len(multi_day), 5)
+        card_h = visible * row_h + 12
+        draw.rounded_rectangle([margin, y, width - margin, y + card_h], radius=14, fill=CARD_BG)
+        row_y = y + 6
+        for i, s in enumerate(multi_day[:visible]):
+            # 名次
+            rank_text = f"#{i + 1}"
+            draw.text((margin + 14, row_y + 9), rank_text, font=fonts["small_bold"],
+                     fill=ACCENT_GOLD if i < 3 else TEXT_MUTED)
+            # 名称
+            draw.text((margin + 56, row_y + 9), s.get("name", ""), font=fonts["body"], fill=TEXT_DARK)
+            # 连板
+            conseq_text = f"{s.get('consecutive_days', 0)}连板 · {s.get('board_type', '')}"
+            draw.text((margin + 56, row_y + 28), conseq_text, font=fonts["tiny"], fill=TEXT_MUTED)
+            # 封单
+            sealed = s.get("sealed_amount", 0)
+            if sealed > 0:
+                sealed_str = f"封{sealed:.0f}万" if sealed < 10000 else f"封{sealed/10000:.1f}亿"
+                sw = _text_width(draw, sealed_str, fonts["tiny"])
+                draw.text((width - margin - sw - 14, row_y + 9), sealed_str, font=fonts["tiny"], fill=TEXT_SECONDARY)
+
+            if i < visible - 1:
+                draw.line([(margin + 14, row_y + row_h - 1), (width - margin - 14, row_y + row_h - 1)],
+                         fill=DIVIDER, width=1)
+            row_y += row_h
+        y += card_h + 20
+
+    return y
+
+
 def _draw_ai_section(draw: ImageDraw.Draw, width: int, margin: int, y: int,
                      ai_report: str, fonts: dict, poster_bottom: int) -> int:
     """AI 市场洞察"""
@@ -356,6 +436,8 @@ def generate_poster(
     index_data: List[dict],
     hot_sectors: List[dict],
     ai_report: str,
+    limit_up_data: Optional[List[dict]] = None,
+    yesterday_limit_up_perf: Optional[float] = None,
 ) -> Optional[bytes]:
     """生成市场日报海报图片，返回 PNG bytes"""
     if not PILLOW_AVAILABLE:
@@ -382,16 +464,20 @@ def generate_poster(
     if index_data:
         y = _draw_index_section(draw, width, margin, y, index_data, fonts)
 
-    # 4. 热门板块
+    # 4. 涨停板分析（放置于指数和板块之间，位置靠前）
+    if limit_up_data:
+        y = _draw_limit_up_section(draw, width, margin, y, limit_up_data, yesterday_limit_up_perf, fonts)
+
+    # 5. 热门板块
     if hot_sectors:
         y = _draw_sectors_section(draw, width, margin, y, hot_sectors, fonts)
 
-    # 5. AI 分析（动态填充到接近底部）
+    # 6. AI 分析（动态填充到接近底部）
     footer_reserved = 80  # 底部预留空间
     if ai_report:
         y = _draw_ai_section(draw, width, margin, y, ai_report, fonts, height - footer_reserved)
 
-    # 6. 底部（固定位置）
+    # 7. 底部（固定位置）
     _draw_footer(draw, width, margin, height - footer_reserved, fonts)
 
     # 转换为 RGB 后导出 PNG
@@ -410,9 +496,12 @@ def generate_poster_base64(
     index_data: List[dict],
     hot_sectors: List[dict],
     ai_report: str,
+    limit_up_data: Optional[List[dict]] = None,
+    yesterday_limit_up_perf: Optional[float] = None,
 ) -> Optional[str]:
     """生成海报并返回 Base64 编码"""
-    png_bytes = generate_poster(report_date, market_summary, index_data, hot_sectors, ai_report)
+    png_bytes = generate_poster(report_date, market_summary, index_data, hot_sectors,
+                                ai_report, limit_up_data, yesterday_limit_up_perf)
     if png_bytes:
         return base64.b64encode(png_bytes).decode("utf-8")
     return None

@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 import json
 import os
 from typing import Optional
@@ -42,7 +42,7 @@ async def daily(
     target_date = report_date or date.today()
     result = get_report_by_date(db, target_date)
     if not result["success"]:
-        raise HTTPException(status_code=404, detail=result["error"])
+        return {"success": False, "data": None, "error": result["error"], "date": str(target_date)}
     return result
 
 
@@ -65,6 +65,49 @@ async def trade_dates(days: int = Query(365)):
     """获取交易日列表（用于日期选择器）"""
     from app.utils.akshare_utils import get_trade_dates_for_frontend
     return get_trade_dates_for_frontend(days=days)
+
+
+@router.get("/hsgt-history")
+async def hsgt_history(days: int = Query(60, description="历史天数"), db: Session = Depends(get_db)):
+    """获取沪深港通历史趋势数据"""
+    from app.utils.akshare_utils import get_hsgt_flow
+
+    # 实时拉取
+    result = await get_hsgt_flow()
+    if result["success"]:
+        return {
+            "success": True,
+            "data": result["data"],
+        }
+
+    # fallback: 从 MarketReport 缓存读取
+    since = date.today() - timedelta(days=days)
+    reports = (
+        db.query(MarketReport.report_date, MarketReport.hsgt_flow)
+        .filter(MarketReport.report_date >= since, MarketReport.hsgt_flow.isnot(None))
+        .order_by(MarketReport.report_date.desc())
+        .all()
+    )
+
+    history = []
+    for r in reports:
+        try:
+            flow = json.loads(r.hsgt_flow)
+            if flow and "today" in flow:
+                history.append({
+                    "date": str(r.report_date),
+                    **flow["today"],
+                })
+        except (json.JSONDecodeError, TypeError):
+            continue
+
+    return {
+        "success": True,
+        "data": {
+            "today": history[0] if history else None,
+            "history": history,
+        },
+    }
 
 
 # ─── 调外部 API（AKShare / AI），限流 ─────────────────────────────────────
@@ -197,6 +240,8 @@ async def poster_image(
         index_data=index_data,
         hot_sectors=hot_sectors,
         ai_report=data.get("ai_report", ""),
+        limit_up_data=data.get("today_limit_up", []),
+        yesterday_limit_up_perf=data.get("yesterday_limit_ups_performance"),
     )
     if not png_bytes:
         raise HTTPException(status_code=500, detail="海报生成失败，请检查 Pillow 是否安装")
@@ -240,6 +285,8 @@ async def poster_base64(
         index_data=index_data,
         hot_sectors=hot_sectors,
         ai_report=data.get("ai_report", ""),
+        limit_up_data=data.get("today_limit_up", []),
+        yesterday_limit_up_perf=data.get("yesterday_limit_ups_performance"),
     )
     if not b64:
         raise HTTPException(status_code=500, detail="海报生成失败")

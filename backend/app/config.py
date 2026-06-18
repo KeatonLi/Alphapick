@@ -22,15 +22,19 @@ class Settings:
     QUANTFORGE_DB_NAME: str = os.getenv("QUANTFORGE_DB_NAME", "quantforge")
 
     # AI API 配置
-    ANTHROPIC_AUTH_TOKEN: str = os.getenv("ANTHROPIC_AUTH_TOKEN", "")
-    ANTHROPIC_BASE_URL: str = os.getenv("ANTHROPIC_BASE_URL", "https://api.minimaxi.com/anthropic")
-    ANTHROPIC_MODEL: str = os.getenv("ANTHROPIC_MODEL", "MiniMax-M2.7-highspeed")
+    LLM_AUTH_TOKEN: str = os.getenv("LLM_AUTH_TOKEN") or os.getenv("DEEPSEEK_API_KEY", "")
+    LLM_BASE_URL: str = os.getenv("LLM_BASE_URL") or os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
+    LLM_MODEL: str = os.getenv("LLM_MODEL") or os.getenv("DEEPSEEK_MODEL", "DeepSeek-V4-Flash")
 
     @property
     def database_url(self) -> str:
+        env_url = os.getenv("DATABASE_URL", "")
+        if env_url:
+            return env_url
         return (
             f"mysql+pymysql://{self.QUANTFORGE_DB_USER}:{self.QUANTFORGE_DB_PASSWORD}"
             f"@{self.QUANTFORGE_DB_HOST}:{self.QUANTFORGE_DB_PORT}/{self.QUANTFORGE_DB_NAME}"
+            f"?charset=utf8mb4"
         )
 
 

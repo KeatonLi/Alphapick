@@ -4,7 +4,7 @@
  */
 import { createServer } from 'http';
 import { readFileSync, existsSync, statSync } from 'fs';
-import { join, extname } from 'path';
+import { join, extname, resolve, normalize } from 'path';
 
 const PORT = parseInt(process.env.PORT || '3002', 10);
 const DIST = process.cwd();
@@ -59,8 +59,15 @@ function serveSPA(res) {
 
 const server = createServer((req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`).pathname;
-  const safePath = url.replace(/^\/+/, '').replace(/\.\./g, '');
-  const filePath = safePath ? join(DIST, safePath) : join(DIST, 'index.html');
+  const requested = url.replace(/^\/+/, '');
+  const filePath = requested ? resolve(join(DIST, requested)) : join(DIST, 'index.html');
+
+  // Prevent path traversal outside DIST
+  if (!filePath.startsWith(resolve(DIST))) {
+    res.writeHead(403);
+    res.end('Forbidden');
+    return;
+  }
 
   if (existsSync(filePath) && statSync(filePath).isFile()) {
     serveFile(res, filePath);

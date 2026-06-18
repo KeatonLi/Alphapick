@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { HistoryRec } from '../../services/api'
 
 function fmt(n: number, d = 2) { return n.toFixed(d) }
@@ -33,45 +34,35 @@ export default function DetailedTable({
   const allSelected = recs.length > 0 && selectedIds.size === recs.length
   const someSelected = selectedIds.size > 0 && selectedIds.size < recs.length
 
+  const rateColor = (v: number) => v > 0 ? 'var(--up)' : v < 0 ? 'var(--down)' : ''
+
   return (
     <div className="stock-card overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-xs border-collapse">
           {/* ─── THEAD ─── */}
           <thead>
-            <tr className="bg-blue-50/80 border-b border-border-default">
+            <tr className="border-b border-border-default" style={{ backgroundColor: 'var(--accent-bg)' }}>
               <th className="w-8 px-2 py-2 text-left">
                 <input
                   type="checkbox"
                   checked={allSelected}
                   ref={el => { if (el) el.indeterminate = someSelected }}
                   onChange={onSelectAll}
-                  className="w-3.5 h-3.5 rounded border-border-default text-blue-600 focus:ring-blue-300"
+                  className="w-3.5 h-3.5 rounded border-border-default focus:ring-blue-300"
+                  style={{ color: 'var(--accent)' }}
                 />
               </th>
               {SORTABLE_COLS.map(col => {
                 const active = sortBy.startsWith(col.key.replace('-desc', '').replace('-asc', ''))
                 return (
-                  <th
+                  <SortHeader
                     key={col.key}
-                    onClick={() => {
-                      if (sortBy === col.key) {
-                        onSortByChange(col.key.replace('-desc', '-asc'))
-                      } else if (sortBy === col.key.replace('-desc', '-asc')) {
-                        onSortByChange(col.key)
-                      } else {
-                        onSortByChange(col.key)
-                      }
-                    }}
-                    className={`px-2 py-2 text-left font-semibold text-text-muted cursor-pointer hover:text-blue-600 select-none whitespace-nowrap ${
-                      active ? 'text-blue-600' : ''
-                    }`}
-                  >
-                    {col.label}
-                    {active && (
-                      <span className="ml-1">{sortBy.includes('asc') ? '↑' : '↓'}</span>
-                    )}
-                  </th>
+                    col={col}
+                    sortBy={sortBy}
+                    onSortByChange={onSortByChange}
+                    active={active}
+                  />
                 )
               })}
               <th className="px-2 py-2 text-right font-semibold text-text-muted whitespace-nowrap">推荐价</th>
@@ -98,17 +89,35 @@ export default function DetailedTable({
               const hasDay = (day: number) => dayPrice(day) > 0
 
               const cellClass = 'px-2 py-2.5 whitespace-nowrap'
-              const rateColor = (v: number) => v > 0 ? 'text-red-500' : v < 0 ? 'text-green-600' : ''
+
+              const rowBg = selected
+                ? 'var(--accent-bg)'
+                : completed
+                  ? 'var(--down-bg)'
+                  : undefined
 
               return (
-                <tr key={rec.id} className={`transition-colors ${
-                  selected ? 'bg-blue-50/70' : completed ? 'bg-green-50/20' : 'hover:bg-blue-50/40'
-                }`}>
+                <tr
+                  key={rec.id}
+                  className="transition-colors"
+                  style={rowBg ? { backgroundColor: rowBg } : undefined}
+                  onMouseEnter={e => {
+                    if (!selected && !completed) {
+                      (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--bg-card-hover)'
+                    }
+                  }}
+                  onMouseLeave={e => {
+                    if (!selected && !completed) {
+                      (e.currentTarget as HTMLElement).style.backgroundColor = ''
+                    }
+                  }}
+                >
                   {/* Checkbox */}
                   <td className="px-2 py-2.5">
                     <input type="checkbox" checked={selected}
                       onChange={e => onSelect(rec.id, e.target.checked)}
-                      className="w-3.5 h-3.5 rounded border-border-default text-blue-600 focus:ring-blue-300"
+                      className="w-3.5 h-3.5 rounded border-border-default focus:ring-blue-300"
+                      style={{ color: 'var(--accent)' }}
                     />
                   </td>
 
@@ -119,7 +128,7 @@ export default function DetailedTable({
                   <td className={`${cellClass} font-mono text-text-muted`}>{rec.stock_code}</td>
 
                   {/* 名称 */}
-                  <td className={`${cellClass} font-semibold text-blue-800`}>{rec.stock_name}</td>
+                  <td className={`${cellClass} font-semibold`} style={{ color: 'var(--text-primary)' }}>{rec.stock_name}</td>
 
                   {/* 推荐价 */}
                   <td className={`${cellClass} font-mono text-right`}>{fmt(rec.recommend_price)}</td>
@@ -127,26 +136,26 @@ export default function DetailedTable({
                   {/* Day1 */}
                   <td className={`${cellClass} text-right`}>
                     {hasDay(1) ? (
-                      <><span className="font-mono">{fmt(dayPrice(1))}</span> <span className={`font-mono text-[10px] ${rateColor(dayRate(1))}`}>{fmtRate(dayRate(1), false)}</span></>
+                      <><span className="font-mono">{fmt(dayPrice(1))}</span> <span className="font-mono text-[10px]" style={{ color: rateColor(dayRate(1)) }}>{fmtRate(dayRate(1), false)}</span></>
                     ) : <span className="text-text-muted">—</span>}
                   </td>
 
                   {/* Day2 */}
                   <td className={`${cellClass} text-right`}>
                     {hasDay(2) ? (
-                      <><span className="font-mono">{fmt(dayPrice(2))}</span> <span className={`font-mono text-[10px] ${rateColor(dayRate(2))}`}>{fmtRate(dayRate(2), false)}</span></>
+                      <><span className="font-mono">{fmt(dayPrice(2))}</span> <span className="font-mono text-[10px]" style={{ color: rateColor(dayRate(2)) }}>{fmtRate(dayRate(2), false)}</span></>
                     ) : <span className="text-text-muted">—</span>}
                   </td>
 
                   {/* Day3 */}
                   <td className={`${cellClass} text-right`}>
                     {hasDay(3) ? (
-                      <><span className="font-mono">{fmt(dayPrice(3))}</span> <span className={`font-mono text-[10px] ${rateColor(dayRate(3))}`}>{fmtRate(dayRate(3), false)}</span></>
+                      <><span className="font-mono">{fmt(dayPrice(3))}</span> <span className="font-mono text-[10px]" style={{ color: rateColor(dayRate(3)) }}>{fmtRate(dayRate(3), false)}</span></>
                     ) : <span className="text-text-muted">—</span>}
                   </td>
 
                   {/* 最终收益 */}
-                  <td className={`${cellClass} font-mono font-bold text-right ${rateColor(rec.final_return_rate)}`}>
+                  <td className={`${cellClass} font-mono font-bold text-right`} style={{ color: rateColor(rec.final_return_rate) }}>
                     {completed ? fmtRate(rec.final_return_rate) : '—'}
                   </td>
 
@@ -154,8 +163,8 @@ export default function DetailedTable({
                   <td className={`${cellClass} text-[10px] text-right`}>
                     {completed ? (
                       <span className="text-text-muted">
-                        <span className="text-red-500">+{fmt(rec.max_gain)}</span>
-                        /<span className="text-green-600">{fmt(rec.max_drawdown)}</span>
+                        <span style={{ color: 'var(--up)' }}>+{fmt(rec.max_gain)}</span>
+                        /<span style={{ color: 'var(--down)' }}>{fmt(rec.max_drawdown)}</span>
                       </span>
                     ) : '—'}
                   </td>
@@ -163,17 +172,27 @@ export default function DetailedTable({
                   {/* 状态 */}
                   <td className={`${cellClass} text-center`}>
                     {completed ? (
-                      <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${
-                        rec.final_return_rate >= 0 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
-                      }`}>
+                      <span
+                        className="inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold"
+                        style={rec.final_return_rate >= 0
+                          ? { backgroundColor: 'var(--up-bg)', color: 'var(--up)' }
+                          : { backgroundColor: 'var(--down-bg)', color: 'var(--down)' }
+                        }
+                      >
                         {fmtRate(rec.final_return_rate)}
                       </span>
                     ) : td > 0 ? (
-                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 text-[10px] font-semibold">
+                      <span
+                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold"
+                        style={{ backgroundColor: 'var(--accent-bg)', color: 'var(--accent)' }}
+                      >
                         {td}/3
                       </span>
                     ) : (
-                      <span className="inline-block px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 text-[10px] font-semibold">
+                      <span
+                        className="inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold"
+                        style={{ backgroundColor: 'var(--bg-tag)', color: 'var(--text-muted)' }}
+                      >
                         待更新
                       </span>
                     )}
@@ -183,19 +202,10 @@ export default function DetailedTable({
                   <td className={`${cellClass} text-center`}>
                     <div className="flex items-center justify-center gap-1">
                       {!completed && (
-                        <button onClick={() => onUpdate(rec.id)} disabled={busy}
-                          className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-100 text-blue-700 hover:bg-blue-200 disabled:opacity-40 transition-all">
-                          {busy ? '…' : '更新'}
-                        </button>
+                        <ActionButton label={busy ? '…' : '更新'} onClick={() => onUpdate(rec.id)} disabled={busy} variant="primary" />
                       )}
-                      <button onClick={() => onReset(rec)} disabled={busy}
-                        className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-700 hover:bg-amber-200 disabled:opacity-40 transition-all">
-                        {busy ? '…' : '重置'}
-                      </button>
-                      <button onClick={() => onDelete(rec)} disabled={busy}
-                        className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-100 text-red-700 hover:bg-red-200 disabled:opacity-40 transition-all">
-                        {busy ? '…' : '删除'}
-                      </button>
+                      <ActionButton label={busy ? '…' : '重置'} onClick={() => onReset(rec)} disabled={busy} variant="warning" />
+                      <ActionButton label={busy ? '…' : '删除'} onClick={() => onDelete(rec)} disabled={busy} variant="danger" />
                     </div>
                   </td>
                 </tr>
@@ -210,5 +220,73 @@ export default function DetailedTable({
         <div className="py-8 text-center text-sm text-text-muted">无匹配数据</div>
       )}
     </div>
+  )
+}
+
+function SortHeader({
+  col,
+  sortBy,
+  onSortByChange,
+  active,
+}: {
+  col: { key: string; label: string }
+  sortBy: string
+  onSortByChange: (v: string) => void
+  active: boolean
+}) {
+  const [hover, setHover] = useState(false)
+  return (
+    <th
+      onClick={() => {
+        if (sortBy === col.key) {
+          onSortByChange(col.key.replace('-desc', '-asc'))
+        } else if (sortBy === col.key.replace('-desc', '-asc')) {
+          onSortByChange(col.key)
+        } else {
+          onSortByChange(col.key)
+        }
+      }}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      className="px-2 py-2 text-left font-semibold text-text-muted cursor-pointer select-none whitespace-nowrap"
+      style={{ color: active || hover ? 'var(--accent)' : undefined }}
+    >
+      {col.label}
+      {active && (
+        <span className="ml-1">{sortBy.includes('asc') ? '↑' : '↓'}</span>
+      )}
+    </th>
+  )
+}
+
+function ActionButton({
+  label,
+  onClick,
+  disabled,
+  variant,
+}: {
+  label: string
+  onClick: () => void
+  disabled: boolean
+  variant: 'primary' | 'warning' | 'danger'
+}) {
+  const [hover, setHover] = useState(false)
+  const colors = {
+    primary: { fg: 'var(--accent)', bg: 'var(--accent-bg)', bgHover: 'rgba(99,102,241,.22)' },
+    warning: { fg: 'var(--blue)', bg: 'var(--blue-bg)', bgHover: 'rgba(59,130,246,.18)' },
+    danger:  { fg: 'var(--up)',   bg: 'var(--up-bg)',   bgHover: 'rgba(248,113,113,.18)' },
+  }
+  const c = colors[variant]
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      className="px-1.5 py-0.5 rounded text-[10px] font-semibold disabled:opacity-40 transition-all"
+      style={{ backgroundColor: hover ? c.bgHover : c.bg, color: c.fg }}
+    >
+      {label}
+    </button>
   )
 }

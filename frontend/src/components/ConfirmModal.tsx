@@ -26,32 +26,36 @@ export default function ConfirmModal({
   if (!open) return null
 
   const btnColor = variant === 'danger'
-    ? 'bg-red-500 hover:bg-red-600 focus:ring-red-200'
-    : 'bg-amber-500 hover:bg-amber-600 focus:ring-amber-200'
+    ? 'bg-[#ef4444] hover:bg-[#dc2626]'
+    : 'bg-[#f59e0b] hover:bg-[#d97706]'
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm transition-opacity"
+      style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,.4)', backdropFilter: 'blur(8px)' }}
       onClick={onCancel}
     >
       <div
-        className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm mx-4 animate-in fade-in zoom-in-95 transition-all"
+        className="card"
+        style={{ padding: 24, width: '100%', maxWidth: 360, margin: '0 16px' }}
         onClick={e => e.stopPropagation()}
       >
-        <h3 className="text-base font-bold text-slate-800 mb-2">{title}</h3>
-        <div className="text-sm text-text-secondary mb-5 leading-relaxed">{message}</div>
+        <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>{title}</h3>
+        <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 20, lineHeight: 1.6 }}>{message}</div>
         <div className="flex justify-end gap-2.5">
           <button
             onClick={onCancel}
             disabled={loading}
-            className="px-4 py-2 rounded-xl text-sm font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50 transition-all"
+            style={{ padding: '8px 16px', borderRadius: 12, fontSize: 14, fontWeight: 600, background: 'var(--bg-tag)', color: 'var(--text-secondary)', border: 'none', cursor: 'pointer', transition: 'all .2s', opacity: loading ? 0.5 : 1 }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-badge)' }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-tag)' }}
           >
             {cancelLabel}
           </button>
           <button
             onClick={onConfirm}
             disabled={loading}
-            className={`px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all focus:ring-2 focus:outline-none disabled:opacity-50 ${btnColor}`}
+            className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all focus:outline-none disabled:opacity-50 ${btnColor}`}
+            style={{ color: '#fff', border: 'none', cursor: 'pointer' }}
           >
             {loading ? '处理中...' : confirmLabel}
           </button>

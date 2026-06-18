@@ -1,131 +1,146 @@
-# backend/app/services/recommend_service.py
 import json
 from datetime import date, timedelta
 from typing import Optional
 
-import pandas as pd
+from sqlalchemy import Numeric, cast, func, or_
 from sqlalchemy.orm import Session
-from sqlalchemy import func, cast, Numeric
 
-from app.utils.akshare_utils import get_trade_dates_for_frontend
-from app.services.candidate_service import get_ma_filtered_candidates, format_candidates_for_ai
-from app.utils.ai_client import chat
+from app.datasource.warehouse import get_candidates_from_db, get_daily_close_rows
 from app.models import Recommendation
-from app.prompts import RECOMMEND_SYSTEM_PROMPT, RECOMMEND_OUTPUT_FORMAT
+from app.services.strategy_service import rank_candidates
+
+
+TRACKING_MILESTONES = (1, 2, 3, 5, 7)
 
 
 async def get_recommend_by_date(db: Session, rec_date: date) -> dict:
-    """获取指定日期的推荐股票（只读，不自动生成）"""
-    recs = db.query(Recommendation).filter(
-        Recommendation.recommend_date == rec_date
-    ).all()
-    if recs:
-        return {
-            "success": True,
-            "data": [
-                {
-                    "stock_code": r.stock_code,
-                    "stock_name": r.stock_name,
-                    "recommend_price": float(r.recommend_price),
-                    "reason": r.reason,
-                } for r in recs
-            ],
-            "from_cache": True,
-            "date": str(rec_date),
-        }
-    return {"success": True, "data": [], "from_cache": False, "date": str(rec_date)}
+    recs = db.query(Recommendation).filter(Recommendation.recommend_date == rec_date).all()
+    if not recs:
+        return {"success": True, "data": [], "from_cache": False, "date": str(rec_date)}
+
+    return {
+        "success": True,
+        "data": [
+            {
+                "stock_code": r.stock_code,
+                "stock_name": r.stock_name,
+                "recommend_price": float(r.recommend_price),
+                "rank": r.rec_rank or 0,
+                "score": float(r.score) if r.score is not None else 0,
+                "strategy_version": r.strategy_version or "",
+                "factor_snapshot": json.loads(r.factor_snapshot) if r.factor_snapshot else {},
+                "reason": r.reason,
+            }
+            for r in recs
+        ],
+        "from_cache": True,
+        "date": str(rec_date),
+    }
 
 
 async def generate_recommendations(db: Session, rec_date: Optional[date] = None) -> dict:
-    """为指定日期生成量化推荐（THS 候选池 + AI 精选）"""
+    """Generate quant recommendations from normalized DB snapshots only."""
     target = rec_date or date.today()
-
-    # 检查是否已有推荐
-    existing = db.query(Recommendation).filter(
-        Recommendation.recommend_date == target
-    ).first()
+    existing = db.query(Recommendation).filter(Recommendation.recommend_date == target).first()
     if existing:
-        return {"success": True, "data": {}, "message": f"今日推荐已存在，跳过生成"}
+        return {"success": True, "data": {}, "message": f"{target} recommendations already exist"}
 
-    # 获取候选池（THS ∩ 热度排名 → 主板 → 消息面）
-    candidate_result = await get_ma_filtered_candidates(top_n=50)
+    candidate_result = get_candidates_from_db(db, target, top_n=50)
     if not candidate_result["success"]:
-        return {"success": False, "error": f"候选池筛选失败: {candidate_result['error']}"}
+        return {"success": False, "error": f"candidate pool unavailable: {candidate_result['error']}"}
 
     candidates = candidate_result["data"]
-
     if not candidates:
-        return {"success": True, "data": {"count": 0}, "message": "无候选股票，跳过AI精选"}
+        return {"success": True, "data": {"count": 0}, "message": "no DB candidates"}
 
-    user_message = f"""候选股票数据：
-
-{format_candidates_for_ai(candidates)}
-
-{RECOMMEND_OUTPUT_FORMAT}"""
-    ai_response = await chat([
-        {"role": "system", "content": RECOMMEND_SYSTEM_PROMPT},
-        {"role": "user", "content": user_message},
-    ])
-
-    try:
-        recommendations = json.loads(
-            ai_response.strip().lstrip("```json").rstrip("```").strip()
-        )
-    except json.JSONDecodeError:
-        return {"success": False, "error": "AI 返回格式解析失败"}
+    recommendations = rank_candidates(candidates, top_n=5)
+    if not recommendations:
+        return {"success": True, "data": {"count": 0}, "message": "no qualified strategy candidates"}
 
     for rec in recommendations:
-        db_rec = Recommendation(
+        db.add(Recommendation(
             recommend_date=target,
             stock_code=rec["code"],
             stock_name=rec["name"],
             recommend_price=rec["price"],
+            rec_rank=rec.get("rank"),
+            score=rec.get("score"),
+            strategy_version=rec.get("strategy_version"),
+            factor_snapshot=json.dumps(rec.get("factor_snapshot", {}), ensure_ascii=False),
             reason=rec.get("reason", ""),
-        )
-        db.add(db_rec)
+        ))
     db.commit()
 
-    return {"success": True, "data": {"count": len(recommendations)}, "message": f"推荐生成成功"}
+    return {"success": True, "data": {"count": len(recommendations)}, "message": "recommendations generated"}
 
 
 def get_available_recommend_dates(db: Session, days: int = 30) -> dict:
-    """获取有推荐记录的日期列表"""
     since = date.today() - timedelta(days=days)
-    dates = (
+    rows = (
         db.query(Recommendation.recommend_date)
         .filter(Recommendation.recommend_date >= since)
         .distinct()
         .order_by(Recommendation.recommend_date.desc())
         .all()
     )
-    return {"success": True, "data": [str(d[0]) for d in dates]}
+    return {"success": True, "data": [str(row[0]) for row in rows]}
 
 
 async def get_recommend_stats(db: Session) -> dict:
+    empty = {
+        "total": 0,
+        "completed": 0,
+        "win_count": 0,
+        "win_rate": 0,
+        "avg_return": 0,
+        "avg_max_gain": 0,
+        "avg_max_drawdown": 0,
+        "avg_return_day3": 0,
+        "avg_return_day5": 0,
+        "avg_return_day7": 0,
+        "win_rate_day3": 0,
+        "win_rate_day5": 0,
+        "win_rate_day7": 0,
+    }
     total = db.query(func.count(Recommendation.id)).scalar() or 0
     if total == 0:
-        return {"success": True, "data": {"total": 0, "completed": 0, "win_count": 0, "win_rate": 0, "avg_return": 0, "avg_max_gain": 0, "avg_max_drawdown": 0}}
+        return {"success": True, "data": empty}
 
-    completed = db.query(func.count(Recommendation.id)).filter(
-        Recommendation.status == "completed"
-    ).scalar() or 0
-
+    completed = db.query(func.count(Recommendation.id)).filter(Recommendation.status == "completed").scalar() or 0
     if completed == 0:
-        return {"success": True, "data": {"total": total, "completed": 0, "win_count": 0, "win_rate": 0, "avg_return": 0, "avg_max_gain": 0, "avg_max_drawdown": 0}}
+        return {"success": True, "data": {**empty, "total": total}}
 
-    win_count = db.query(func.count(Recommendation.id)).filter(
-        Recommendation.status == "completed",
-        cast(Recommendation.final_return_rate, Numeric) > 0
-    ).scalar() or 0
-    avg_return = db.query(func.avg(Recommendation.final_return_rate)).filter(
-        Recommendation.status == "completed"
-    ).scalar() or 0
-    avg_max_gain = db.query(func.avg(Recommendation.max_gain)).filter(
-        Recommendation.status == "completed"
-    ).scalar() or 0
-    avg_max_drawdown = db.query(func.avg(Recommendation.max_drawdown)).filter(
-        Recommendation.status == "completed"
-    ).scalar() or 0
+    win_count = (
+        db.query(func.count(Recommendation.id))
+        .filter(Recommendation.status == "completed", cast(Recommendation.final_return_rate, Numeric) > 0)
+        .scalar()
+        or 0
+    )
+    avg_return = db.query(func.avg(Recommendation.final_return_rate)).filter(Recommendation.status == "completed").scalar() or 0
+    avg_max_gain = db.query(func.avg(Recommendation.max_gain)).filter(Recommendation.status == "completed").scalar() or 0
+    avg_max_drawdown = db.query(func.avg(Recommendation.max_drawdown)).filter(Recommendation.status == "completed").scalar() or 0
+
+    period_stats = {}
+    for days, field in [
+        (3, Recommendation.return_rate_day3),
+        (5, Recommendation.return_rate_day5),
+        (7, Recommendation.return_rate_day7),
+    ]:
+        count = (
+            db.query(func.count(Recommendation.id))
+            .filter(Recommendation.status == "completed", field.isnot(None))
+            .scalar()
+            or 0
+        )
+        wins = (
+            db.query(func.count(Recommendation.id))
+            .filter(Recommendation.status == "completed", cast(field, Numeric) > 0)
+            .scalar()
+            or 0
+        )
+        avg = db.query(func.avg(field)).filter(Recommendation.status == "completed", field.isnot(None)).scalar() or 0
+        period_stats[f"avg_return_day{days}"] = round(float(avg) * 100, 2)
+        period_stats[f"win_rate_day{days}"] = round(wins / count * 100, 2) if count else 0
 
     return {
         "success": True,
@@ -133,16 +148,16 @@ async def get_recommend_stats(db: Session) -> dict:
             "total": total,
             "completed": completed,
             "win_count": win_count,
-            "win_rate": round(win_count / completed * 100, 2) if completed > 0 else 0,
+            "win_rate": round(win_count / completed * 100, 2) if completed else 0,
             "avg_return": round(float(avg_return) * 100, 2),
             "avg_max_gain": round(float(avg_max_gain) * 100, 2),
             "avg_max_drawdown": round(float(avg_max_drawdown) * 100, 2),
+            **period_stats,
         },
     }
 
 
 def get_all_recommendations(db: Session) -> dict:
-    """获取所有历史推荐"""
     recs = (
         db.query(Recommendation)
         .order_by(Recommendation.recommend_date.desc(), Recommendation.id)
@@ -157,6 +172,10 @@ def get_all_recommendations(db: Session) -> dict:
                 "stock_code": r.stock_code,
                 "stock_name": r.stock_name,
                 "recommend_price": float(r.recommend_price) if r.recommend_price else 0,
+                "rank": r.rec_rank or 0,
+                "score": float(r.score) if r.score is not None else 0,
+                "strategy_version": r.strategy_version or "",
+                "factor_snapshot": json.loads(r.factor_snapshot) if r.factor_snapshot else {},
                 "current_price": float(r.current_price) if r.current_price else 0,
                 "return_rate": float(r.return_rate) * 100 if r.return_rate else 0,
                 "reason": r.reason or "",
@@ -165,9 +184,13 @@ def get_all_recommendations(db: Session) -> dict:
                 "price_day1": float(r.price_day1) if r.price_day1 else 0,
                 "price_day2": float(r.price_day2) if r.price_day2 else 0,
                 "price_day3": float(r.price_day3) if r.price_day3 else 0,
+                "price_day5": float(r.price_day5) if r.price_day5 else 0,
+                "price_day7": float(r.price_day7) if r.price_day7 else 0,
                 "return_rate_day1": float(r.return_rate_day1) * 100 if r.return_rate_day1 else 0,
                 "return_rate_day2": float(r.return_rate_day2) * 100 if r.return_rate_day2 else 0,
                 "return_rate_day3": float(r.return_rate_day3) * 100 if r.return_rate_day3 else 0,
+                "return_rate_day5": float(r.return_rate_day5) * 100 if r.return_rate_day5 else 0,
+                "return_rate_day7": float(r.return_rate_day7) * 100 if r.return_rate_day7 else 0,
                 "final_return_rate": float(r.final_return_rate) * 100 if r.final_return_rate else 0,
                 "max_gain": float(r.max_gain) * 100 if r.max_gain else 0,
                 "max_drawdown": float(r.max_drawdown) * 100 if r.max_drawdown else 0,
@@ -177,130 +200,73 @@ def get_all_recommendations(db: Session) -> dict:
     }
 
 
+def _fill_tracking_from_db(db: Session, rec: Recommendation, today: date) -> int:
+    from app.display.data_reader import read_trade_days_after
+
+    base = float(rec.recommend_price)
+    if base <= 0 or rec.recommend_date >= today:
+        return 0
+
+    trade_days = read_trade_days_after(db, rec.recommend_date, max(TRACKING_MILESTONES))
+    day_map = {}
+    needed_dates = []
+    for i, d in enumerate(trade_days):
+        if d > today:
+            break
+        day_idx = i + 1
+        if day_idx not in TRACKING_MILESTONES:
+            continue
+        price_attr = f"price_day{day_idx}"
+        if getattr(rec, price_attr) is not None:
+            continue
+        needed_dates.append(d)
+        day_map[d] = (day_idx, price_attr, f"return_rate_day{day_idx}")
+
+    close_map = get_daily_close_rows(db, rec.stock_code, needed_dates)
+    filled = 0
+    for row_date, close_price in close_map.items():
+        if row_date not in day_map or close_price <= 0:
+            continue
+        day_idx, price_attr, rate_attr = day_map[row_date]
+        day_return = (close_price - base) / base
+        setattr(rec, price_attr, close_price)
+        setattr(rec, rate_attr, day_return)
+        rec.current_price = close_price
+        rec.return_rate = day_return
+        if day_idx == max(TRACKING_MILESTONES):
+            rec.status = "completed"
+            rec.final_return_rate = day_return
+        filled += 1
+
+    all_prices = [base]
+    tracking_days = 0
+    latest_return = None
+    for i in TRACKING_MILESTONES:
+        price = getattr(rec, f"price_day{i}", None)
+        if price is not None:
+            tracking_days = i
+            all_prices.append(float(price))
+            latest_return = getattr(rec, f"return_rate_day{i}", None)
+    rec.tracking_days = tracking_days
+    if latest_return is not None:
+        rec.final_return_rate = latest_return
+    if tracking_days > 0:
+        rec.max_gain = (max(all_prices) - base) / base
+        rec.max_drawdown = (min(all_prices) - base) / base
+    if filled:
+        rec.price_updated_date = today
+    return filled
+
+
 async def update_recommend_prices(db: Session) -> dict:
-    """基于交易日回溯填充推荐股票收盘价
-
-    对每条 tracking 状态的记录，计算 recommend_date 之后的第1/2/3个交易日，
-    如果该交易日 ≤ today 且数据未填，则拉取当日收盘价回填。
-    幂等：已有数据不重复覆盖。
-    纯按钮触发，无自动调度。
-    """
-    import asyncio
-    import akshare as ak
-    from app.utils.akshare_utils import _to_sina_code, get_trade_days_after
-
     today = date.today()
-
     recs = db.query(Recommendation).filter(
-        Recommendation.status == "tracking"
+        or_(Recommendation.status == "tracking", Recommendation.return_rate_day7.is_(None))
     ).all()
     if not recs:
-        return {"success": True, "data": {"updated": 0, "message": "没有 tracking 状态的记录"}}
+        return {"success": True, "data": {"updated": 0, "message": "no tracking records"}}
 
-    updated = 0
-
-    for rec in recs:
-        base = float(rec.recommend_price)
-        if base <= 0:
-            continue
-
-        rec_date = rec.recommend_date
-        # 推荐当天或更晚 → 还没到第一个交易日，跳过
-        if rec_date >= today:
-            continue
-
-        # 获取 T 之后第 1..3 个交易日
-        trade_days = get_trade_days_after(rec_date, 3)
-        if not trade_days:
-            continue
-
-        # 确定哪些天需要补填
-        needs_fetch = []
-        day_map = {}  # date -> (day_index, price_attr, rate_attr)
-        for i, d in enumerate(trade_days):
-            if d > today:
-                break
-            day_idx = i + 1
-            price_attr = f"price_day{day_idx}"
-            rate_attr = f"return_rate_day{day_idx}"
-            if getattr(rec, price_attr) is not None:
-                continue  # 已有数据不覆盖
-            needs_fetch.append(d)
-            day_map[d] = (day_idx, price_attr, rate_attr)
-
-        if not needs_fetch:
-            continue
-
-        # 拉取历史日线数据
-        sina_code = _to_sina_code(rec.stock_code)
-        try:
-            loop = asyncio.get_event_loop()
-            df = await loop.run_in_executor(
-                None,
-                lambda: ak.stock_zh_a_daily(
-                    symbol=sina_code,
-                    start_date=needs_fetch[0].strftime("%Y%m%d"),
-                    end_date=needs_fetch[-1].strftime("%Y%m%d"),
-                    adjust="qfq",
-                ),
-            )
-        except Exception:
-            # 单只股票失败不影响其他
-            continue
-
-        if df is None or df.empty:
-            continue
-
-        # 从日线数据提取指定日期的收盘价
-        for _, row in df.iterrows():
-            raw_date = row["date"]
-            if isinstance(raw_date, pd.Timestamp):
-                row_date = raw_date.date()
-            else:
-                row_date = pd.Timestamp(str(raw_date)).date()
-
-            if row_date not in day_map:
-                continue
-
-            close_price = float(row["close"])
-            if close_price <= 0:
-                continue
-
-            day_idx, price_attr, rate_attr = day_map[row_date]
-            day_return = (close_price - base) / base
-
-            setattr(rec, price_attr, close_price)
-            setattr(rec, rate_attr, day_return)
-
-            # 如果是第3天 → 完结
-            if day_idx == 3:
-                rec.status = "completed"
-                rec.final_return_rate = day_return
-
-            # 更新 current_price / return_rate 为最新一天的数据
-            rec.current_price = close_price
-            rec.return_rate = day_return
-
-            updated += 1
-
-        # 全部填完后统一算 tracking_days 和衍生指标
-        all_prices = [base]
-        td = 0
-        for i in range(1, 4):
-            p = getattr(rec, f"price_day{i}", None)
-            if p is not None:
-                td = i
-                all_prices.append(float(p))
-        rec.tracking_days = td
-
-        if td > 0:
-            max_p = max(all_prices)
-            min_p = min(all_prices)
-            rec.max_gain = (max_p - base) / base
-            rec.max_drawdown = (min_p - base) / base
-
-        rec.price_updated_date = today
-
+    updated = sum(_fill_tracking_from_db(db, rec, today) for rec in recs)
     db.commit()
     return {"success": True, "data": {"updated": updated}}
 
@@ -348,28 +314,23 @@ def delete_day_recommendations(db: Session, rec_date: date) -> dict:
 
 
 def delete_recommendation(db: Session, rec_id: int) -> dict:
-    """删除一条推荐记录"""
     rec = db.query(Recommendation).filter(Recommendation.id == rec_id).first()
     if not rec:
-        return {"success": False, "error": "记录不存在"}
+        return {"success": False, "error": "record not found"}
     db.delete(rec)
     db.commit()
     return {"success": True, "data": {"id": rec_id}}
 
 
 def reset_recommend_tracking(db: Session, rec_id: int) -> dict:
-    """重置一条推荐的收益跟踪数据"""
     rec = db.query(Recommendation).filter(Recommendation.id == rec_id).first()
     if not rec:
-        return {"success": False, "error": "记录不存在"}
+        return {"success": False, "error": "record not found"}
     rec.tracking_days = 0
     rec.status = "tracking"
-    rec.price_day1 = None
-    rec.price_day2 = None
-    rec.price_day3 = None
-    rec.return_rate_day1 = None
-    rec.return_rate_day2 = None
-    rec.return_rate_day3 = None
+    for days in TRACKING_MILESTONES:
+        setattr(rec, f"price_day{days}", None)
+        setattr(rec, f"return_rate_day{days}", None)
     rec.final_return_rate = None
     rec.max_gain = None
     rec.max_drawdown = None
@@ -381,114 +342,44 @@ def reset_recommend_tracking(db: Session, rec_id: int) -> dict:
 
 
 async def update_single_recommend_price(db: Session, rec_id: int) -> dict:
-    """单独更新一条推荐的收益跟踪价格"""
     rec = db.query(Recommendation).filter(Recommendation.id == rec_id).first()
     if not rec:
-        return {"success": False, "error": "记录不存在"}
-    if rec.status == "completed":
-        return {"success": False, "error": "该记录已完结，如需重新跟踪请先重置"}
-
-    import asyncio
-    import akshare as ak
-    from app.utils.akshare_utils import _to_sina_code, get_trade_days_after
-
-    today = date.today()
-    rec_date = rec.recommend_date
-    if rec_date >= today:
-        return {"success": True, "data": {"message": "推荐当天尚未开始跟踪"}}
-
-    base = float(rec.recommend_price)
-    if base <= 0:
-        return {"success": False, "error": "推荐价格异常"}
-
-    trade_days = get_trade_days_after(rec_date, 3)
-    if not trade_days:
-        return {"success": False, "error": "无法获取交易日"}
-
-    needs_fetch = []
-    day_map = {}
-    for i, d in enumerate(trade_days):
-        if d > today:
-            break
-        day_idx = i + 1
-        price_attr = f"price_day{day_idx}"
-        rate_attr = f"return_rate_day{day_idx}"
-        if getattr(rec, price_attr) is not None:
-            continue
-        needs_fetch.append(d)
-        day_map[d] = (day_idx, price_attr, rate_attr)
-
-    if not needs_fetch:
-        return {"success": True, "data": {"message": "所有交易日数据已存在，无需更新"}}
-
-    sina_code = _to_sina_code(rec.stock_code)
-    try:
-        loop = asyncio.get_event_loop()
-        df = await loop.run_in_executor(
-            None,
-            lambda: ak.stock_zh_a_daily(
-                symbol=sina_code,
-                start_date=needs_fetch[0].strftime("%Y%m%d"),
-                end_date=needs_fetch[-1].strftime("%Y%m%d"),
-                adjust="qfq",
-            ),
-        )
-    except Exception as e:
-        return {"success": False, "error": f"获取行情失败: {str(e)}"}
-
-    if df is None or df.empty:
-        return {"success": False, "error": "行情数据为空"}
-
-    filled = 0
-    for _, row in df.iterrows():
-        raw_date = row["date"]
-        if isinstance(raw_date, pd.Timestamp):
-            row_date = raw_date.date()
-        else:
-            row_date = pd.Timestamp(str(raw_date)).date()
-
-        if row_date not in day_map:
-            continue
-        close_price = float(row["close"])
-        if close_price <= 0:
-            continue
-
-        day_idx, price_attr, rate_attr = day_map[row_date]
-        day_return = (close_price - base) / base
-
-        setattr(rec, price_attr, close_price)
-        setattr(rec, rate_attr, day_return)
-        filled += 1
-
-        if day_idx == 3:
-            rec.status = "completed"
-            rec.final_return_rate = day_return
-
-        rec.current_price = close_price
-        rec.return_rate = day_return
-
+        return {"success": False, "error": "record not found"}
+    if rec.status == "completed" and rec.return_rate_day7 is not None:
+        return {"success": False, "error": "record already completed; reset before recalculating"}
+    filled = _fill_tracking_from_db(db, rec, date.today())
     if filled:
-        all_prices = [base]
-        td = 0
-        for i in range(1, 4):
-            p = getattr(rec, f"price_day{i}", None)
-            if p is not None:
-                td = i
-                all_prices.append(float(p))
-        rec.tracking_days = td
-
-        if td > 0:
-            rec.max_gain = (max(all_prices) - base) / base
-            rec.max_drawdown = (min(all_prices) - base) / base
-
-        rec.price_updated_date = today
         db.commit()
-
     return {"success": True, "data": {"filled": filled, "id": rec_id}}
 
 
+def batch_update_tracking_prices(db: Session, ids: list[int]) -> dict:
+    unique_ids = list(dict.fromkeys(ids))
+    results = {"updated": 0, "filled": 0, "errors": []}
+    if not unique_ids:
+        return {"success": True, "data": results}
+
+    recs = db.query(Recommendation).filter(Recommendation.id.in_(unique_ids)).all()
+    rec_by_id = {rec.id: rec for rec in recs}
+    today = date.today()
+
+    for rid in unique_ids:
+        rec = rec_by_id.get(rid)
+        if not rec:
+            results["errors"].append({"id": rid, "error": "record not found"})
+            continue
+        if rec.status == "completed" and rec.return_rate_day7 is not None:
+            results["errors"].append({"id": rid, "error": "record already completed; reset before recalculating"})
+            continue
+        filled = _fill_tracking_from_db(db, rec, today)
+        results["updated"] += 1
+        results["filled"] += filled
+
+    db.commit()
+    return {"success": True, "data": results}
+
+
 def batch_reset_tracking(db: Session, ids: list[int]) -> dict:
-    """批量重置多条推荐的收益跟踪数据"""
     results = {"reset": 0, "errors": []}
     for rid in ids:
         result = reset_recommend_tracking(db, rid)
@@ -500,7 +391,6 @@ def batch_reset_tracking(db: Session, ids: list[int]) -> dict:
 
 
 def batch_delete_recommendations(db: Session, ids: list[int]) -> dict:
-    """批量删除多条推荐记录"""
     results = {"deleted": 0, "errors": []}
     for rid in ids:
         result = delete_recommendation(db, rid)
