@@ -258,8 +258,8 @@ def _fill_tracking_from_db(db: Session, rec: Recommendation, today: date) -> int
     return filled
 
 
-async def update_recommend_prices(db: Session) -> dict:
-    today = date.today()
+async def update_recommend_prices(db: Session, as_of: date | None = None) -> dict:
+    today = as_of or date.today()
     recs = db.query(Recommendation).filter(
         or_(Recommendation.status == "tracking", Recommendation.return_rate_day7.is_(None))
     ).all()
