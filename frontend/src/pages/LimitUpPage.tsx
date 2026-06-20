@@ -1,38 +1,85 @@
-const limitRows = [
-  { code: '002151', name: '北斗科技', boards: 4, theme: '卫星互联网', seal: 92, time: '09:36', turnover: '8.4亿' },
-  { code: '300782', name: '卓胜微', boards: 2, theme: '半导体', seal: 86, time: '10:14', turnover: '12.7亿' },
-  { code: '603019', name: '中科曙光', boards: 1, theme: '算力', seal: 79, time: '13:07', turnover: '21.3亿' },
-  { code: '000977', name: '浪潮信息', boards: 1, theme: 'AI服务器', seal: 74, time: '14:22', turnover: '18.9亿' },
-]
+import { useEffect, useMemo, useState } from 'react'
+import { limitUpApi, type LimitUpOverview } from '../services/limitUpApi'
 
-const themes = [
-  { name: '卫星互联网', count: 9, strength: 91, leader: '北斗科技' },
-  { name: '半导体', count: 7, strength: 84, leader: '卓胜微' },
-  { name: '算力', count: 6, strength: 78, leader: '中科曙光' },
-  { name: '机器人', count: 5, strength: 71, leader: '鸣志电器' },
-]
+function moneyYi(value?: number | null) {
+  if (!value) return '--'
+  return `${(value / 100000000).toFixed(2)}亿`
+}
+
+function pct(value?: number | null) {
+  if (value === null || value === undefined || Number.isNaN(value)) return '--'
+  return `${value.toFixed(2)}%`
+}
+
+function buildReview(data: LimitUpOverview | null) {
+  if (!data || !data.summary.total) return '暂无涨停池数据。请先在管理后台采集 limit_up_pool，页面会自动展示真实涨停股票、连板高度和题材热度。'
+  const top = data.industries[0]
+  const highBoards = data.items.filter(item => item.board_count >= 2).length
+  return `今日涨停池共 ${data.summary.total} 只，最高 ${data.summary.max_board_count} 连板，连板股 ${highBoards} 只。主线集中在 ${top?.industry || data.summary.top_industry || '未分类'}，龙头为 ${top?.leader_name || '--'}。炸板率 ${pct(data.summary.break_rate)}，平均封板强度 ${pct(data.summary.avg_seal_strength)}，短线情绪以真实采集数据为准。`
+}
 
 export default function LimitUpPage() {
+  const [overview, setOverview] = useState<LimitUpOverview | null>(null)
+  const [dates, setDates] = useState<string[]>([])
+  const [selectedDate, setSelectedDate] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let alive = true
+    Promise.all([
+      limitUpApi.overview(),
+      limitUpApi.dates().catch(() => ({ success: false, data: [] })),
+    ])
+      .then(([overviewRes, datesRes]) => {
+        if (!alive) return
+        setOverview(overviewRes.data)
+        setSelectedDate(overviewRes.data.date)
+        if (datesRes.success) setDates(datesRes.data)
+      })
+      .catch(err => alive && setError(err instanceof Error ? err.message : String(err)))
+      .finally(() => alive && setLoading(false))
+    return () => { alive = false }
+  }, [])
+
+  useEffect(() => {
+    if (!selectedDate) return
+    let alive = true
+    setLoading(true)
+    limitUpApi.overview(selectedDate)
+      .then(res => alive && setOverview(res.data))
+      .catch(err => alive && setError(err instanceof Error ? err.message : String(err)))
+      .finally(() => alive && setLoading(false))
+    return () => { alive = false }
+  }, [selectedDate])
+
+  const summary = overview?.summary
+  const items = overview?.items || []
+  const industries = overview?.industries || []
+  const reviewText = useMemo(() => buildReview(overview), [overview])
+
   return (
     <div className="qv4-page">
       <section className="qv4-hero compact">
         <div className="qv4-hero-main">
           <div className="qv4-kicker">Limit-up Analysis</div>
           <h1>涨停板股票分析</h1>
-          <p>围绕每日涨停股票，观察连板高度、题材扩散、封单强度和炸板风险。这里先完成前端主框架，后续接入真实涨停池接口。</p>
+          <p>围绕每日真实涨停池，观察连板高度、题材扩散、封单强度和炸板风险。数据来自后端 `limit_up_pool` 采集结果。</p>
         </div>
         <div className="qv4-date-card">
-          <span>今日涨停</span>
-          <strong>43</strong>
-          <small>连板 11，只首板 32</small>
+          <span>涨停池日期</span>
+          <strong>{overview?.date || '--'}</strong>
+          <small>{overview?.source ? `来源 ${overview.source}` : '等待数据源'}</small>
         </div>
       </section>
 
+      {error && <div className="qv4-inline-note">{error}</div>}
+
       <section className="qv4-status-grid">
-        <div className="qv4-status-card good"><span>涨停数量</span><strong>43</strong><small>较昨日 +8</small></div>
-        <div className="qv4-status-card"><span>最高连板</span><strong>4板</strong><small>卫星互联网</small></div>
-        <div className="qv4-status-card"><span>炸板率</span><strong>18.6%</strong><small>风险可控</small></div>
-        <div className="qv4-status-card"><span>市场热度</span><strong>82</strong><small>短线情绪偏强</small></div>
+        <div className="qv4-status-card good"><span>涨停数量</span><strong>{summary?.total ?? 0}</strong><small>真实涨停池</small></div>
+        <div className="qv4-status-card"><span>最高连板</span><strong>{summary?.max_board_count ?? 0}板</strong><small>{summary?.top_industry || '--'}</small></div>
+        <div className="qv4-status-card"><span>炸板率</span><strong>{pct(summary?.break_rate)}</strong><small>炸板次数大于 0</small></div>
+        <div className="qv4-status-card"><span>封板资金</span><strong>{moneyYi(summary?.total_seal_amount)}</strong><small>全池合计</small></div>
       </section>
 
       <div className="qv4-workspace">
@@ -42,43 +89,57 @@ export default function LimitUpPage() {
               <span>Limit-up Pool</span>
               <h2>涨停股票池</h2>
             </div>
-            <button className="qv4-secondary">刷新涨停池</button>
+            <select value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="qv4-select">
+              {[selectedDate, ...dates].filter(Boolean).filter((date, index, arr) => arr.indexOf(date) === index).map(date => (
+                <option key={date} value={date}>{date}</option>
+              ))}
+            </select>
           </header>
-          <div className="qv4-limit-table">
-            <div className="qv4-limit-head">
-              <span>股票</span><span>连板</span><span>题材</span><span>封板强度</span><span>封板时间</span><span>成交额</span>
+          {loading ? (
+            <div className="qv4-empty">正在读取真实涨停池...</div>
+          ) : items.length ? (
+            <div className="qv4-limit-table">
+              <div className="qv4-limit-head">
+                <span>股票</span><span>连板</span><span>行业</span><span>封板强度</span><span>封板时间</span><span>成交额</span>
+              </div>
+              {items.map(row => (
+                <article key={`${row.stock_code}-${row.rank}`} className="qv4-limit-row">
+                  <div><strong>{row.stock_name}</strong><small>{row.stock_code}</small></div>
+                  <b>{row.board_count}板</b>
+                  <span>{row.industry}</span>
+                  <div className="qv4-seal"><i style={{ width: `${Math.min(row.seal_strength, 100)}%` }} /><em>{pct(row.seal_strength)}</em></div>
+                  <span className="mono">{row.first_limit_time || '--'}</span>
+                  <span>{moneyYi(row.amount)}</span>
+                </article>
+              ))}
             </div>
-            {limitRows.map(row => (
-              <article key={row.code} className="qv4-limit-row">
-                <div><strong>{row.name}</strong><small>{row.code}</small></div>
-                <b>{row.boards}板</b>
-                <span>{row.theme}</span>
-                <div className="qv4-seal"><i style={{ width: `${row.seal}%` }} /><em>{row.seal}</em></div>
-                <span className="mono">{row.time}</span>
-                <span>{row.turnover}</span>
-              </article>
-            ))}
-          </div>
+          ) : (
+            <div className="qv4-empty">这一天没有涨停池数据。请在管理后台采集 `limit_up_pool`。</div>
+          )}
         </section>
 
         <aside className="qv4-panel">
           <header className="qv4-panel-head">
             <div>
               <span>Theme Heat</span>
-              <h2>题材热度</h2>
+              <h2>行业热度</h2>
             </div>
           </header>
-          <div className="qv4-theme-list">
-            {themes.map(theme => (
-              <div key={theme.name} className="qv4-theme-card">
-                <div>
-                  <strong>{theme.name}</strong>
-                  <span>{theme.count} 只涨停，龙头 {theme.leader}</span>
+          {industries.length ? (
+            <div className="qv4-theme-list">
+              {industries.slice(0, 8).map(theme => (
+                <div key={theme.industry} className="qv4-theme-card">
+                  <div>
+                    <strong>{theme.industry}</strong>
+                    <span>{theme.count} 只涨停，龙头 {theme.leader_name}</span>
+                  </div>
+                  <b>{theme.max_board_count}板</b>
                 </div>
-                <b>{theme.strength}</b>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="qv4-empty">暂无行业热度数据。</div>
+          )}
         </aside>
       </div>
 
@@ -89,9 +150,7 @@ export default function LimitUpPage() {
             <h2>涨停复盘摘要</h2>
           </div>
         </header>
-        <div className="qv4-review-text">
-          今日短线情绪主要集中在卫星互联网和半导体方向，高度板仍在抬升，但下午炸板率略有增加。明日重点观察高位连板是否继续晋级，以及首板题材能否扩散形成新的主线。
-        </div>
+        <div className="qv4-review-text">{reviewText}</div>
       </section>
     </div>
   )

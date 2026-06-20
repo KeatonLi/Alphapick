@@ -11,6 +11,7 @@ from app.routers import (
     dashboard,
     data_center,
     generate,
+    limit_up,
     ops,
     picks,
     recommend,
@@ -80,6 +81,7 @@ app.include_router(generate.router)
 app.include_router(schedule.router)
 app.include_router(analysis.router)
 app.include_router(datasource_router)
+app.include_router(limit_up.router)
 app.include_router(picks.router)
 app.include_router(review.router)
 app.include_router(analytics.router)
