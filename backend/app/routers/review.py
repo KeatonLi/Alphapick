@@ -24,20 +24,6 @@ router = APIRouter(prefix="/api/review", tags=["review"], dependencies=[Depends(
 limiter = Limiter(key_func=get_remote_address)
 
 
-def _filter_history(rows: list[dict], start_date: Optional[date], end_date: Optional[date], status: Optional[str]) -> list[dict]:
-    result = []
-    for row in rows:
-        rec_date = date.fromisoformat(row["recommend_date"])
-        if start_date and rec_date < start_date:
-            continue
-        if end_date and rec_date > end_date:
-            continue
-        if status and status != "all" and row.get("status") != status:
-            continue
-        result.append(row)
-    return result
-
-
 def _avg(values: list[float]) -> float:
     return round(sum(values) / len(values), 4) if values else 0
 
@@ -74,8 +60,8 @@ def review_history(
     status: Optional[str] = Query(None),
     db: Session = Depends(get_db),
 ):
-    result = get_all_recommendations(db)
-    rows = _filter_history(result.get("data", []), start_date, end_date, status)
+    result = get_all_recommendations(db, start_date=start_date, end_date=end_date, status=status)
+    rows = result.get("data", [])
     return {"success": True, "data": rows, "summary": _summary(rows)}
 
 
@@ -88,7 +74,7 @@ async def review_summary(
     if not start_date and not end_date:
         stats = await get_recommend_stats(db)
         return stats
-    rows = _filter_history(get_all_recommendations(db).get("data", []), start_date, end_date, None)
+    rows = get_all_recommendations(db, start_date=start_date, end_date=end_date).get("data", [])
     return {"success": True, "data": _summary(rows)}
 
 

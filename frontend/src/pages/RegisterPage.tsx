@@ -51,9 +51,9 @@ export default function RegisterPage() {
         <Link to="/register" className="active">注册</Link>
       </nav>
       <section className="qv4-auth-copy">
-        <img src="/assets/quantforge-icon.png" alt="" />
+        <img src="/assets/quantforge-icon.png?v=20260620" alt="" />
         <div className="qv4-kicker">QuantForge</div>
-        <h1>创建量化工作台账号</h1>
+        <h1>创建工作台账号</h1>
         <p>保存你的推荐批次、收益跟踪和策略复盘结果，让每一次推荐都能被验证。</p>
         <div className="qv4-auth-points">
           <span>交易日推荐</span>
@@ -68,9 +68,9 @@ export default function RegisterPage() {
           <h2>注册</h2>
         </header>
         <form onSubmit={handleSubmit} className="qv4-form">
-          <label>用户名<input type="text" value={username} onChange={e => setUsername(e.target.value)} placeholder="2-50 个字符" autoFocus /></label>
-          <label>密码<input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="至少 6 位" /></label>
-          <label>确认密码<input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="再次输入密码" /></label>
+          <label>用户名<input type="text" value={username} onChange={e => setUsername(e.target.value)} placeholder="2-50 个字符" autoComplete="username" autoFocus /></label>
+          <label>密码<input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="至少 6 位" autoComplete="new-password" /></label>
+          <label>确认密码<input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="再次输入密码" autoComplete="new-password" /></label>
           {error && <div className="qv4-error">{error}</div>}
           <button className="primary" type="submit" disabled={loading || guestLoading}>{loading ? '注册中...' : '注册并进入'}</button>
           <button type="button" disabled={loading || guestLoading} onClick={handleGuestLogin}>{guestLoading ? '进入中...' : '先以游客身份体验'}</button>

@@ -61,16 +61,17 @@ function formatReason(reason?: string) {
   if (!reason) return '暂无推荐理由'
   const match = reason.match(/Momentum\s+([\d.%-]+),\s*trend\s+([\d.]+)\s*day\(s\),\s*turnover\s+([\d.%-]+),\s*sector\s+(.+?)\.\s*Score\s+([\d.]+)/i)
   if (match) {
-    const sector = match[4] === 'Unclassified' ? '未分类' : match[4]
-    return `动量 ${match[1]}，趋势延续 ${match[2]} 天，换手率 ${match[3]}，行业 ${sector}，综合评分 ${match[5]}。`
+    const sector = match[4] === 'Unclassified' ? '' : `，行业 ${match[4]}`
+    return `动量 ${match[1]}，趋势延续 ${match[2]} 天，换手率 ${match[3]}${sector}，综合评分 ${match[5]}。`
   }
   return reason
     .replaceAll('Momentum', '动量')
     .replaceAll('trend', '趋势')
     .replaceAll('turnover', '换手率')
+    .replaceAll(/,\s*sector\s+Unclassified/gi, '')
     .replaceAll('sector', '行业')
     .replaceAll('Score', '评分')
-    .replaceAll('Unclassified', '未分类')
+    .replaceAll('Unclassified', '')
 }
 
 function dateOptions(selectedDate: string, dates: string[]) {
@@ -78,11 +79,25 @@ function dateOptions(selectedDate: string, dates: string[]) {
 }
 
 function returnRateByDay(item: HistoryRec, day: number) {
-  if (day === 1) return item.return_rate_day1
-  if (day === 2) return item.return_rate_day2
-  if (day === 3) return item.return_rate_day3
-  if (day === 5) return item.return_rate_day5
-  if (day === 7) return item.return_rate_day7
+  if (day === 1) return item.price_day1 > 0 ? item.return_rate_day1 : null
+  if (day === 2) return item.price_day2 > 0 ? item.return_rate_day2 : null
+  if (day === 3) return item.price_day3 > 0 ? item.return_rate_day3 : null
+  if (day === 5) return item.price_day5 > 0 ? item.return_rate_day5 : null
+  if (day === 7) return item.price_day7 > 0 ? item.return_rate_day7 : null
+  return null
+}
+
+function currentPriceLabel(item: HistoryRec) {
+  return item.current_price > 0 ? money(item.current_price) : '待更新'
+}
+
+function trackingLabel(item: HistoryRec) {
+  return item.tracking_days > 0 ? `已跟踪 ${item.tracking_days} 天` : '等待首个交易日收盘'
+}
+
+function finalReturnValue(item: HistoryRec) {
+  if (item.final_return_rate) return item.final_return_rate
+  if (item.return_rate && item.current_price > 0) return item.return_rate
   return null
 }
 
@@ -217,10 +232,22 @@ export default function RecommendLoopPage() {
       </section>
 
       <section className="qv4-status-grid">
-        <div className="qv4-status-card good"><span>行情样本</span><strong>{dashboard?.pipeline.snapshot_count ?? 0}</strong><small>{dashboard?.pipeline.data_status || '等待检查'}</small></div>
-        <div className="qv4-status-card good"><span>当日推荐</span><strong>{picks.length}</strong><small>{selectedDate || '--'}</small></div>
-        <div className="qv4-status-card"><span>跟踪样本</span><strong>{summary?.total ?? history.length}</strong><small>统计 3 / 5 / 7 日收益</small></div>
-        <div className="qv4-status-card"><span>策略胜率</span><strong>{pct(summary?.win_rate)}</strong><small>历史完成样本</small></div>
+        {initialLoading ? (
+          Array.from({ length: 4 }).map((_, index) => (
+            <div className="qv4-status-card loading" key={index}>
+              <span className="qv4-status-skeleton label" />
+              <strong className="qv4-status-skeleton value" />
+              <small className="qv4-status-skeleton note" />
+            </div>
+          ))
+        ) : (
+          <>
+            <div className="qv4-status-card good"><span>行情样本</span><strong>{dashboard?.pipeline.snapshot_count ?? 0}</strong><small>{dashboard?.pipeline.data_status || '等待检查'}</small></div>
+            <div className="qv4-status-card good"><span>当日推荐</span><strong>{picks.length}</strong><small>{selectedDate || '--'}</small></div>
+            <div className="qv4-status-card"><span>跟踪样本</span><strong>{summary?.total ?? history.length}</strong><small>统计 3 / 5 / 7 日收益</small></div>
+            <div className="qv4-status-card"><span>策略胜率</span><strong>{pct(summary?.win_rate)}</strong><small>历史完成样本</small></div>
+          </>
+        )}
       </section>
 
       {message && <div className="qv4-inline-note">{message}</div>}
@@ -239,6 +266,11 @@ export default function RecommendLoopPage() {
             <div className="qv4-loading-block">
               <i />
               <span>{initialLoading ? '正在加载推荐闭环数据...' : '正在切换交易日...'}</span>
+              <div className="qv4-skeleton-list" aria-hidden="true">
+                <b />
+                <b />
+                <b />
+              </div>
             </div>
           ) : picks.length ? (
             <div className="qv4-pick-table">
@@ -278,6 +310,11 @@ export default function RecommendLoopPage() {
             <strong>{review?.verdict || '等待更多样本'}</strong>
             <p>{review?.summary || '系统会基于所有收益跟踪样本，重新生成对当前策略的复盘判断。'}</p>
           </div>
+          <div className="qv4-action-advice">
+            <strong>{review?.tone === 'caution' ? '建议观望 3 日' : '下一步建议'}</strong>
+            <span>{review?.tone === 'caution' ? '先降低新仓试错，优先查看失败样本和 3 日收益分布。' : '继续跟踪最近批次，重点观察 3 / 5 / 7 日收益是否同步改善。'}</span>
+            <button type="button" onClick={() => document.getElementById('tracking-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>查看收益样本</button>
+          </div>
           <div className="qv4-mini-stats">
             <div><span>3日均收益</span><strong className={toneBy(summary?.avg_return_day3)}>{pct(summary?.avg_return_day3)}</strong></div>
             <div><span>5日均收益</span><strong className={toneBy(summary?.avg_return_day5)}>{pct(summary?.avg_return_day5)}</strong></div>
@@ -294,7 +331,7 @@ export default function RecommendLoopPage() {
         </aside>
       </div>
 
-      <section className="qv4-panel qv4-reveal">
+      <section className="qv4-panel qv4-reveal" id="tracking-section">
         <header className="qv4-panel-head">
           <div>
             <span>收益跟踪</span>
@@ -312,7 +349,7 @@ export default function RecommendLoopPage() {
                     <span>{item.stock_code}</span>
                     <em>{statusLabel(item.status)}</em>
                   </div>
-                  <p>推荐价 {money(item.recommend_price)}，当前价 {money(item.current_price)}，已跟踪 {item.tracking_days || 0} 天</p>
+                  <p>推荐价 {money(item.recommend_price)}，当前价{currentPriceLabel(item)}，{trackingLabel(item)}</p>
                 </div>
                 <div className="qv4-return-strip">
                   {[1, 2, 3, 4, 5, 6, 7].map(day => {
@@ -327,7 +364,7 @@ export default function RecommendLoopPage() {
                 </div>
                 <div className="qv4-final">
                   <span>最终收益</span>
-                  <strong className={toneBy(item.final_return_rate || item.return_rate)}>{pct(item.final_return_rate || item.return_rate)}</strong>
+                  <strong className={toneBy(finalReturnValue(item))}>{pct(finalReturnValue(item))}</strong>
                 </div>
               </article>
             ))}

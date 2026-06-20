@@ -2,7 +2,7 @@ import json
 from datetime import date, timedelta
 from typing import Optional
 
-from sqlalchemy import Numeric, cast, func, or_
+from sqlalchemy import Numeric, and_, case, cast, func, or_
 from sqlalchemy.orm import Session
 
 from app.datasource.warehouse import get_candidates_from_db, get_daily_close_rows
@@ -106,39 +106,38 @@ async def get_recommend_stats(db: Session) -> dict:
     if total == 0:
         return {"success": True, "data": empty}
 
-    completed = db.query(func.count(Recommendation.id)).filter(Recommendation.status == "completed").scalar() or 0
+    completed_metrics = db.query(
+        func.count(Recommendation.id),
+        func.sum(case((cast(Recommendation.final_return_rate, Numeric) > 0, 1), else_=0)),
+        func.avg(Recommendation.final_return_rate),
+        func.avg(Recommendation.max_gain),
+        func.avg(Recommendation.max_drawdown),
+    ).filter(Recommendation.status == "completed").one()
+    completed = completed_metrics[0] or 0
     if completed == 0:
         return {"success": True, "data": {**empty, "total": total}}
 
-    win_count = (
-        db.query(func.count(Recommendation.id))
-        .filter(Recommendation.status == "completed", cast(Recommendation.final_return_rate, Numeric) > 0)
-        .scalar()
-        or 0
-    )
-    avg_return = db.query(func.avg(Recommendation.final_return_rate)).filter(Recommendation.status == "completed").scalar() or 0
-    avg_max_gain = db.query(func.avg(Recommendation.max_gain)).filter(Recommendation.status == "completed").scalar() or 0
-    avg_max_drawdown = db.query(func.avg(Recommendation.max_drawdown)).filter(Recommendation.status == "completed").scalar() or 0
+    win_count = completed_metrics[1] or 0
+    avg_return = completed_metrics[2] or 0
+    avg_max_gain = completed_metrics[3] or 0
+    avg_max_drawdown = completed_metrics[4] or 0
 
     period_stats = {}
-    for days, field in [
-        (3, Recommendation.return_rate_day3),
-        (5, Recommendation.return_rate_day5),
-        (7, Recommendation.return_rate_day7),
-    ]:
-        count = (
-            db.query(func.count(Recommendation.id))
-            .filter(Recommendation.status == "completed", field.isnot(None))
-            .scalar()
-            or 0
-        )
-        wins = (
-            db.query(func.count(Recommendation.id))
-            .filter(Recommendation.status == "completed", cast(field, Numeric) > 0)
-            .scalar()
-            or 0
-        )
-        avg = db.query(func.avg(field)).filter(Recommendation.status == "completed", field.isnot(None)).scalar() or 0
+    period_rows = db.query(
+        func.count(Recommendation.return_rate_day3),
+        func.sum(case((and_(Recommendation.return_rate_day3.isnot(None), cast(Recommendation.return_rate_day3, Numeric) > 0), 1), else_=0)),
+        func.avg(Recommendation.return_rate_day3),
+        func.count(Recommendation.return_rate_day5),
+        func.sum(case((and_(Recommendation.return_rate_day5.isnot(None), cast(Recommendation.return_rate_day5, Numeric) > 0), 1), else_=0)),
+        func.avg(Recommendation.return_rate_day5),
+        func.count(Recommendation.return_rate_day7),
+        func.sum(case((and_(Recommendation.return_rate_day7.isnot(None), cast(Recommendation.return_rate_day7, Numeric) > 0), 1), else_=0)),
+        func.avg(Recommendation.return_rate_day7),
+    ).filter(Recommendation.status == "completed").one()
+    for offset, days in enumerate((3, 5, 7)):
+        count = period_rows[offset * 3] or 0
+        wins = period_rows[offset * 3 + 1] or 0
+        avg = period_rows[offset * 3 + 2] or 0
         period_stats[f"avg_return_day{days}"] = round(float(avg) * 100, 2)
         period_stats[f"win_rate_day{days}"] = round(wins / count * 100, 2) if count else 0
 
@@ -157,12 +156,21 @@ async def get_recommend_stats(db: Session) -> dict:
     }
 
 
-def get_all_recommendations(db: Session) -> dict:
-    recs = (
-        db.query(Recommendation)
-        .order_by(Recommendation.recommend_date.desc(), Recommendation.id)
-        .all()
-    )
+def get_all_recommendations(
+    db: Session,
+    start_date: date | None = None,
+    end_date: date | None = None,
+    status: str | None = None,
+) -> dict:
+    query = db.query(Recommendation)
+    if start_date:
+        query = query.filter(Recommendation.recommend_date >= start_date)
+    if end_date:
+        query = query.filter(Recommendation.recommend_date <= end_date)
+    if status and status != "all":
+        query = query.filter(Recommendation.status == status)
+
+    recs = query.order_by(Recommendation.recommend_date.desc(), Recommendation.id).all()
     return {
         "success": True,
         "data": [

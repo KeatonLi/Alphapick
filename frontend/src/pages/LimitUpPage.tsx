@@ -131,10 +131,22 @@ export default function LimitUpPage() {
       {error && <div className="qv4-inline-note">{error}</div>}
 
       <section className="qv4-status-grid">
-        <div className="qv4-status-card good"><span>涨停数量</span><strong>{summary?.total ?? 0}</strong><small>真实涨停池</small></div>
-        <div className="qv4-status-card"><span>最高连板</span><strong>{summary?.max_board_count ?? 0}板</strong><small>{summary?.top_industry || '--'}</small></div>
-        <div className="qv4-status-card"><span>炸板率</span><strong>{pct(summary?.break_rate)}</strong><small>炸板次数大于 0</small></div>
-        <div className="qv4-status-card"><span>封板资金</span><strong>{moneyYi(summary?.total_seal_amount)}</strong><small>全池合计</small></div>
+        {loading ? (
+          Array.from({ length: 4 }).map((_, index) => (
+            <div className="qv4-status-card loading" key={index}>
+              <span className="qv4-status-skeleton label" />
+              <strong className="qv4-status-skeleton value" />
+              <small className="qv4-status-skeleton note" />
+            </div>
+          ))
+        ) : (
+          <>
+            <div className="qv4-status-card good"><span>涨停数量</span><strong>{summary?.total ?? 0}</strong><small>真实涨停池</small></div>
+            <div className="qv4-status-card"><span>最高连板</span><strong>{summary?.max_board_count ?? 0}板</strong><small>{summary?.top_industry || '--'}</small></div>
+            <div className="qv4-status-card"><span>炸板率</span><strong>{pct(summary?.break_rate)}</strong><small>炸板次数大于 0</small></div>
+            <div className="qv4-status-card"><span>封板资金</span><strong>{moneyYi(summary?.total_seal_amount)}</strong><small>全池合计</small></div>
+          </>
+        )}
       </section>
 
       <div className="qv4-workspace">
@@ -150,6 +162,16 @@ export default function LimitUpPage() {
             <div className="qv4-loading-block">
               <i />
               <span>正在读取真实涨停池...</span>
+              <div className="qv4-board-skeleton-grid" aria-hidden="true">
+                {Array.from({ length: 4 }).map((_, index) => (
+                  <div className="qv4-board-skeleton-card" key={index}>
+                    <b className="qv4-board-skeleton head" />
+                    <b className="qv4-board-skeleton row" />
+                    <b className="qv4-board-skeleton row" />
+                    <b className="qv4-board-skeleton row" />
+                  </div>
+                ))}
+              </div>
             </div>
           ) : items.length ? (
             <div className="qv4-board-grid">

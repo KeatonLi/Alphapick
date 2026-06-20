@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 
 function membershipFor(user: { username: string; role: string } | null) {
@@ -40,6 +41,7 @@ function membershipFor(user: { username: string; role: string } | null) {
 
 export default function AccountPage() {
   const { user } = useAuth()
+  const [showContact, setShowContact] = useState(false)
   const membership = membershipFor(user)
   const joinedAt = user?.created_at || '--'
 
@@ -69,9 +71,16 @@ export default function AccountPage() {
           </header>
           <p>{membership.description}</p>
           <div className="qv4-membership-actions">
-            <a className="qv4-primary" href="mailto:admin@quantforge.local?subject=开通 QuantForge 会员">联系管理员开通会员</a>
+            <button className="qv4-primary" type="button" onClick={() => setShowContact(true)}>联系管理员开通会员</button>
             <Link className="qv4-secondary" to="/recommend">返回推荐工作台</Link>
           </div>
+          {showContact && (
+            <div className="qv4-contact-panel" role="status">
+              <strong>管理员联系方式</strong>
+              <span>请联系系统管理员开通会员。当前可发送邮件到 admin@quantforge.local，并附上用户名：{user?.username || '--'}。</span>
+              <a href={`mailto:admin@quantforge.local?subject=${encodeURIComponent('开通 QuantForge 会员')}&body=${encodeURIComponent(`用户名：${user?.username || ''}\n请帮我开通 QuantForge 会员。`)}`}>发送开通邮件</a>
+            </div>
+          )}
         </section>
 
         <section className="qv4-panel qv4-reveal">

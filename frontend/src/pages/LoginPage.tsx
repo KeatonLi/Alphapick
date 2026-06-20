@@ -47,7 +47,7 @@ export default function LoginPage() {
         <Link to="/register">注册</Link>
       </nav>
       <section className="qv4-auth-copy">
-        <img src="/assets/quantforge-icon.png" alt="" />
+        <img src="/assets/quantforge-icon.png?v=20260620" alt="" />
         <div className="qv4-kicker">QuantForge</div>
         <h1>进入推荐收益闭环</h1>
         <p>打开后先看今天推荐什么，再看之前推荐赚没赚，最后判断这套策略是否可信。</p>
@@ -64,8 +64,9 @@ export default function LoginPage() {
           <h2>登录</h2>
         </header>
         <form onSubmit={handleSubmit} className="qv4-form">
-          <label>用户名<input type="text" value={username} onChange={e => setUsername(e.target.value)} placeholder="admin" autoFocus /></label>
-          <label>密码<input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="请输入密码" /></label>
+          <label>用户名<input type="text" value={username} onChange={e => setUsername(e.target.value)} placeholder="请输入用户名" autoComplete="username" autoFocus /></label>
+          <label>密码<input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="请输入密码" autoComplete="current-password" /></label>
+          <div className="qv4-form-hint">管理员账号请手动输入；只想体验可直接使用游客入口。</div>
           {error && <div className="qv4-error">{error}</div>}
           <button className="primary" type="submit" disabled={loading || guestLoading}>{loading ? '登录中...' : '账号登录'}</button>
           <button type="button" disabled={loading || guestLoading} onClick={handleGuestLogin}>{guestLoading ? '进入中...' : '游客直接进入'}</button>

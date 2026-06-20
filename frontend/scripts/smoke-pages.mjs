@@ -1,4 +1,5 @@
 import { spawn, execFileSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 import { setTimeout as delay } from 'node:timers/promises'
 import { chromium } from 'playwright'
 
@@ -29,7 +30,8 @@ async function waitForServer() {
   throw new Error('Vite smoke server did not start')
 }
 
-async function fulfillJson(route, body) {
+async function fulfillJson(route, body, waitMs = 0) {
+  if (waitMs) await delay(waitMs)
   await route.fulfill({
     status: 200,
     contentType: 'application/json',
@@ -74,13 +76,13 @@ async function mockApis(page) {
         win_rate_day7: 65,
       },
       strategy_review: {
-        verdict: '策略表现稳定',
-        tone: 'positive',
-        summary: '近期推荐批次收益表现稳定。',
+        verdict: '策略需要降温观察',
+        tone: 'caution',
+        summary: '短周期收益或胜率偏弱。',
         tracking_count: 10,
       },
     },
-  }))
+  }, 1200))
   await page.route('**/api/picks/trade-dates?**', route => fulfillJson(route, { success: true, data: ['2026-06-18', '2026-06-17'] }))
   await page.route('**/api/picks/daily?**', route => fulfillJson(route, {
     success: true,
@@ -97,10 +99,43 @@ async function mockApis(page) {
       },
     ],
   }))
-  await page.route('**/api/review/history', route => fulfillJson(route, { success: true, data: [] }))
+  await page.route('**/api/review/history', route => fulfillJson(route, {
+    success: true,
+    data: [
+      {
+        id: 101,
+        recommend_date: '2026-06-18',
+        stock_code: '600667',
+        stock_name: '太极实业',
+        recommend_price: 20.92,
+        current_price: 0,
+        return_rate: 0,
+        reason: 'Momentum 9.99%, trend 1 day(s), turnover 17.67%, sector Unclassified. Score 64.8.',
+        rank: 1,
+        score: 64.8,
+        strategy_version: 'qf-db-strength-v2',
+        factor_snapshot: { momentum: 100, trend: 18, liquidity: 100 },
+        tracking_days: 0,
+        status: 'tracking',
+        price_day1: 0,
+        price_day2: 0,
+        price_day3: 0,
+        price_day5: 0,
+        price_day7: 0,
+        return_rate_day1: 0,
+        return_rate_day2: 0,
+        return_rate_day3: 0,
+        return_rate_day5: 0,
+        return_rate_day7: 0,
+        final_return_rate: 0,
+        max_gain: 0,
+        max_drawdown: 0,
+      },
+    ],
+  }))
   await page.route('**/api/limit-up/dates?**', route => fulfillJson(route, { success: true, data: ['2026-06-19', '2026-06-18'] }))
-  await page.route('**/api/limit-up?**', route => fulfillJson(route, limitUpPayload()))
-  await page.route('**/api/limit-up', route => fulfillJson(route, limitUpPayload()))
+  await page.route('**/api/limit-up?**', route => fulfillJson(route, limitUpPayload(), 1200))
+  await page.route('**/api/limit-up', route => fulfillJson(route, limitUpPayload(), 1200))
 }
 
 function limitUpPayload() {
@@ -218,6 +253,14 @@ function assertText(value, expected, label) {
 }
 
 async function run() {
+  const css = readFileSync(new URL('../src/index.css', import.meta.url), 'utf8')
+  if (css.includes('\n.card:hover')) {
+    throw new Error('legacy .card:hover must be scoped away from the light qv4 app')
+  }
+  if (!css.includes('button:focus-visible')) {
+    throw new Error('buttons need visible keyboard focus styles')
+  }
+
   const vite = startVite()
   try {
     await waitForServer()
@@ -225,13 +268,31 @@ async function run() {
     const page = await browser.newPage({ viewport: { width: 1366, height: 900 } })
     await mockApis(page)
 
-    await page.goto(`${BASE_URL}/login`, { waitUntil: 'networkidle' })
-    assertText(await page.locator('h1').first().textContent(), '进入推荐收益闭环', 'login page')
+  await page.goto(`${BASE_URL}/login`, { waitUntil: 'networkidle' })
+  assertText(await page.locator('h1').first().textContent(), '进入推荐收益闭环', 'login page')
+    await page.getByRole('button', { name: '账号登录' }).focus()
+    const focusOutline = await page.getByRole('button', { name: '账号登录' }).evaluate(el => getComputedStyle(el).outlineStyle)
+    if (focusOutline === 'none') {
+      throw new Error('focused buttons must show a visible outline')
+    }
+    if (await page.locator('input[type="password"]').count() !== 1) {
+      throw new Error('login password input must be masked')
+    }
     await page.getByRole('button', { name: '游客直接进入' }).click()
     await page.waitForURL('**/recommend')
+    await page.waitForSelector('.qv4-status-skeleton')
     await page.waitForSelector('.qv4-pick-row')
     assertText(await page.locator('h1').first().textContent(), '推荐工作台', 'recommend page')
     assertText(await page.locator('.qv4-chip-row span').first().textContent(), '动量', 'factor label')
+    const recommendText = await page.locator('.qv4-page').textContent()
+    if (recommendText?.includes('行业 未分类')) {
+      throw new Error('recommendation card should hide unclassified industry text')
+    }
+    assertText(recommendText, '建议观望 3 日', 'actionable strategy advice')
+    assertText(recommendText, '当前价待更新', 'pending tracking price')
+    if (recommendText?.includes('当前价 0.00')) {
+      throw new Error('tracking card should not display zero price as real market data')
+    }
     if (await page.getByText('立即更新收益跟踪').count()) {
       throw new Error('ordinary user should not see manual returns update button')
     }
@@ -247,8 +308,16 @@ async function run() {
     assertText(await page.locator('h1').first().textContent(), '用户中心', 'account page')
     assertText(await page.locator('.qv4-membership-card').textContent(), '会员状态', 'membership card')
     assertText(await page.locator('.qv4-membership-card').textContent(), '联系管理员开通会员', 'membership upgrade')
+    await page.getByRole('button', { name: '联系管理员开通会员' }).click()
+    assertText(await page.locator('.qv4-contact-panel').textContent(), '管理员联系方式', 'membership contact feedback')
 
-    await page.goto(`${BASE_URL}/limit-up`, { waitUntil: 'networkidle' })
+    await page.goto(`${BASE_URL}/register`, { waitUntil: 'networkidle' })
+    if (await page.locator('input[type="password"]').count() !== 2) {
+      throw new Error('register password inputs must be masked')
+    }
+
+    await page.goto(`${BASE_URL}/limit-up`, { waitUntil: 'domcontentloaded' })
+    await page.waitForSelector('.qv4-board-skeleton')
     await page.waitForSelector('.qv4-board-table-row')
     assertText(await page.locator('h1').first().textContent(), '涨停板分析', 'limit-up page')
     for (const label of ['4板', '3板', '2板', '首板']) {

@@ -22,7 +22,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
     <div className="qv4-shell">
       <header className="qv4-topbar">
         <Link className="qv4-brand" to="/recommend" aria-label="QuantForge">
-          <img src="/assets/quantforge-icon.png" alt="" />
+          <img src="/assets/quantforge-icon.png?v=20260620" alt="" />
           <div>
             <strong>QuantForge</strong>
             <span>量化推荐工作台</span>

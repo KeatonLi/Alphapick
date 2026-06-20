@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 from collections import defaultdict
+from copy import deepcopy
 from datetime import date
+from time import monotonic
 from typing import Any
 
 from sqlalchemy import desc, func
@@ -13,6 +15,14 @@ from app.display.data_reader import read_is_trade_date, read_trade_dates
 from app.models import Recommendation
 from app.models.schedule_config import ScheduleConfig
 from app.services.recommend_service import get_recommend_stats
+
+
+DASHBOARD_CACHE_TTL_SECONDS = 30
+_dashboard_cache: dict[str, tuple[float, dict[str, Any]]] = {}
+
+
+def clear_dashboard_cache() -> None:
+    _dashboard_cache.clear()
 
 
 def _safe_float(value: Any) -> float:
@@ -155,8 +165,17 @@ def _strategy_review(stats: dict[str, Any], total_tracking: int) -> dict[str, An
 
 
 async def build_dashboard_async(db: Session, today: date | None = None) -> dict[str, Any]:
+    current = today or date.today()
+    cache_key = current.isoformat()
+    cached = _dashboard_cache.get(cache_key)
+    now = monotonic()
+    if cached and now - cached[0] < DASHBOARD_CACHE_TTL_SECONDS:
+        return deepcopy(cached[1])
+
     stats_payload = (await get_recommend_stats(db)).get("data", {})
-    return build_dashboard(db, today=today, stats=stats_payload)
+    payload = build_dashboard(db, today=current, stats=stats_payload)
+    _dashboard_cache[cache_key] = (now, deepcopy(payload))
+    return payload
 
 
 def build_dashboard(db: Session, today: date | None = None, stats: dict[str, Any] | None = None) -> dict[str, Any]:

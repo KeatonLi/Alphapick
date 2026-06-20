@@ -1,6 +1,7 @@
 import json
 import unittest
 from datetime import date
+from unittest.mock import patch
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -75,6 +76,63 @@ class DashboardServiceTests(unittest.TestCase):
             self.assertIn("verdict", result["data"]["strategy_review"])
         finally:
             db.close()
+
+class DashboardCacheTests(unittest.IsolatedAsyncioTestCase):
+    def _make_db(self):
+        from app.database import Base
+
+        engine = create_engine("sqlite:///:memory:")
+        Base.metadata.create_all(bind=engine)
+        Session = sessionmaker(bind=engine)
+        return Session()
+
+    async def test_dashboard_async_reuses_short_lived_payload(self):
+        from app.datasource.models import RawDataRecord
+        from app.models import Recommendation
+        from app.services import dashboard_service
+
+        dashboard_service.clear_dashboard_cache()
+        db = self._make_db()
+        calls = 0
+
+        async def fake_stats(_db):
+            nonlocal calls
+            calls += 1
+            return {
+                "success": True,
+                "data": {
+                    "avg_return_day3": 1.2,
+                    "win_rate_day3": 60,
+                },
+            }
+
+        try:
+            db.add(RawDataRecord(
+                source_name="test",
+                data_type="trade_calendar",
+                target_date=date(2026, 6, 18),
+                raw_json=json.dumps({"data": ["2026-06-18"]}),
+            ))
+            db.add(Recommendation(
+                recommend_date=date(2026, 6, 18),
+                stock_code="000001",
+                stock_name="Alpha",
+                recommend_price=10,
+                rec_rank=1,
+                score=90,
+            ))
+            db.commit()
+
+            with patch.object(dashboard_service, "get_recommend_stats", side_effect=fake_stats):
+                first = await dashboard_service.build_dashboard_async(db, today=date(2026, 6, 18))
+                second = await dashboard_service.build_dashboard_async(db, today=date(2026, 6, 18))
+
+            self.assertTrue(first["success"])
+            self.assertEqual(second["data"]["today_picks"][0]["stock_code"], "000001")
+            self.assertEqual(calls, 1)
+        finally:
+            db.close()
+            dashboard_service.clear_dashboard_cache()
 
 
 if __name__ == "__main__":
