@@ -3,8 +3,9 @@ import type { ReactNode } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 
 const navItems = [
-  { to: '/recommend', label: '推荐收益闭环', meta: 'Recommend' },
-  { to: '/limit-up', label: '涨停板分析', meta: 'Limit-up' },
+  { to: '/recommend', label: '推荐工作台', meta: '推荐 / 跟踪 / 复盘' },
+  { to: '/limit-up', label: '涨停分析', meta: '涨停池 / 连板 / 行业' },
+  { to: '/account', label: '用户中心', meta: '会员 / 账号 / 权限' },
 ]
 
 export default function AppShell({ children }: { children: ReactNode }) {
@@ -24,7 +25,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
           <img src="/assets/quantforge-icon.png" alt="" />
           <div>
             <strong>QuantForge</strong>
-            <span>AI stock decision loop</span>
+            <span>量化推荐工作台</span>
           </div>
         </Link>
 
@@ -37,8 +38,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
           ))}
           {isAdmin && (
             <NavLink to="/console" className={({ isActive }) => isActive ? 'active' : ''}>
-              <span>管理后台</span>
-              <small>Admin</small>
+              <span>管理控制台</span>
+              <small>任务 / 数据 / 调度</small>
             </NavLink>
           )}
         </nav>
@@ -46,11 +47,13 @@ export default function AppShell({ children }: { children: ReactNode }) {
         <div className="qv4-account">
           {user ? (
             <>
-              <div className="qv4-avatar">{user.username.slice(0, 1).toUpperCase()}</div>
-              <div className="qv4-user">
-                <strong>{user.username}</strong>
-                <span>{user.role === 'admin' ? '管理员' : user.role === 'guest' ? '游客' : '用户'}</span>
-              </div>
+              <Link className="qv4-account-link" to="/account" aria-label="进入用户中心">
+                <div className="qv4-avatar">{user.username.slice(0, 1).toUpperCase()}</div>
+                <div className="qv4-user">
+                  <strong>{user.username}</strong>
+                  <span>{user.role === 'admin' ? '管理员会员' : '普通用户'}</span>
+                </div>
+              </Link>
               <button type="button" onClick={handleLogout}>退出</button>
             </>
           ) : (

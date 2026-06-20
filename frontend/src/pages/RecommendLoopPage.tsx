@@ -1,8 +1,31 @@
+import { Link } from 'react-router-dom'
 import { useEffect, useMemo, useState } from 'react'
 import { dashboardApi, type DashboardData } from '../services/dashboardApi'
 import { picksApi, type StockRec } from '../services/picksApi'
 import { reviewApi } from '../services/reviewApi'
 import type { HistoryRec } from '../services/api'
+import { useAuth } from '../contexts/AuthContext'
+import TradeDatePicker from '../components/TradeDatePicker'
+import { useTradeDates } from '../hooks/useTradeDates'
+
+const FACTOR_LABELS: Record<string, string> = {
+  momentum: '动量',
+  trend: '趋势',
+  liquidity: '流动性',
+  source_quality: '数据质量',
+  risk_penalty: '风险扣分',
+  total: '综合',
+  quality: '质量',
+  volume: '成交量',
+  value: '估值',
+  theme: '题材',
+  inflow: '资金流入',
+  risk: '风险',
+}
+
+const picksCache = new Map<string, StockRec[]>()
+let dashboardCache: DashboardData | null = null
+let historyCache: HistoryRec[] | null = null
 
 function pct(value?: number | null) {
   if (value === null || value === undefined || Number.isNaN(value)) return '--'
@@ -20,56 +43,114 @@ function toneBy(value?: number | null) {
   return value >= 0 ? 'rise' : 'fall'
 }
 
+function statusLabel(status?: string) {
+  if (status === 'completed') return '已完成'
+  if (status === 'tracking') return '跟踪中'
+  return status || '跟踪中'
+}
+
 function factorEntries(snapshot?: Record<string, number>) {
-  return Object.entries(snapshot || {}).slice(0, 3)
+  return Object.entries(snapshot || {}).slice(0, 4)
+}
+
+function factorLabel(key: string) {
+  return FACTOR_LABELS[key] || key
+}
+
+function formatReason(reason?: string) {
+  if (!reason) return '暂无推荐理由'
+  const match = reason.match(/Momentum\s+([\d.%-]+),\s*trend\s+([\d.]+)\s*day\(s\),\s*turnover\s+([\d.%-]+),\s*sector\s+(.+?)\.\s*Score\s+([\d.]+)/i)
+  if (match) {
+    const sector = match[4] === 'Unclassified' ? '未分类' : match[4]
+    return `动量 ${match[1]}，趋势延续 ${match[2]} 天，换手率 ${match[3]}，行业 ${sector}，综合评分 ${match[5]}。`
+  }
+  return reason
+    .replaceAll('Momentum', '动量')
+    .replaceAll('trend', '趋势')
+    .replaceAll('turnover', '换手率')
+    .replaceAll('sector', '行业')
+    .replaceAll('Score', '评分')
+    .replaceAll('Unclassified', '未分类')
+}
+
+function dateOptions(selectedDate: string, dates: string[]) {
+  return [selectedDate, ...dates].filter(Boolean).filter((date, index, arr) => arr.indexOf(date) === index)
+}
+
+function returnRateByDay(item: HistoryRec, day: number) {
+  if (day === 1) return item.return_rate_day1
+  if (day === 2) return item.return_rate_day2
+  if (day === 3) return item.return_rate_day3
+  if (day === 5) return item.return_rate_day5
+  if (day === 7) return item.return_rate_day7
+  return null
 }
 
 export default function RecommendLoopPage() {
-  const [dashboard, setDashboard] = useState<DashboardData | null>(null)
-  const [dates, setDates] = useState<string[]>([])
-  const [selectedDate, setSelectedDate] = useState('')
-  const [picks, setPicks] = useState<StockRec[]>([])
-  const [history, setHistory] = useState<HistoryRec[]>([])
-  const [loading, setLoading] = useState(true)
+  const { user } = useAuth()
+  const isAdmin = user?.role === 'admin'
+  const tradeDates = useTradeDates(90)
+  const [dashboard, setDashboard] = useState<DashboardData | null>(dashboardCache)
+  const [selectedDate, setSelectedDate] = useState(dashboardCache?.trade_date || tradeDates[0] || '')
+  const [picks, setPicks] = useState<StockRec[]>(dashboardCache?.today_picks || [])
+  const [history, setHistory] = useState<HistoryRec[]>(historyCache || [])
+  const [initialLoading, setInitialLoading] = useState(!dashboardCache)
+  const [picksLoading, setPicksLoading] = useState(false)
   const [message, setMessage] = useState('')
   const [updating, setUpdating] = useState(false)
 
   useEffect(() => {
     let alive = true
-    setLoading(true)
     Promise.all([
-      dashboardApi.overview(),
-      picksApi.tradeDates(45).catch(() => ({ success: false, data: [] })),
-      reviewApi.history().catch(() => ({ success: false, data: [] })),
+      dashboardCache ? Promise.resolve({ success: true, data: dashboardCache }) : dashboardApi.overview(),
+      historyCache ? Promise.resolve({ success: true, data: historyCache }) : reviewApi.history().catch(() => ({ success: false, data: [] })),
     ])
-      .then(([overview, tradeDates, review]) => {
+      .then(([overview, review]) => {
         if (!alive) return
         const data = overview.data
+        dashboardCache = data
         setDashboard(data)
-        const nextDates = tradeDates.success ? tradeDates.data : []
-        setDates(nextDates)
-        setSelectedDate(data.trade_date || nextDates[0] || data.today)
-        setHistory(review.success && review.data ? review.data : [])
-        setPicks(data.today_picks || [])
+        setSelectedDate(current => current || data.trade_date || tradeDates[0] || data.today)
+        if (review.success && review.data) {
+          historyCache = review.data
+          setHistory(review.data)
+        }
+        if (data.trade_date && data.today_picks?.length) {
+          picksCache.set(data.trade_date, data.today_picks)
+          setPicks(current => current.length ? current : data.today_picks)
+        }
       })
       .catch((err) => setMessage(err instanceof Error ? err.message : String(err)))
-      .finally(() => alive && setLoading(false))
+      .finally(() => alive && setInitialLoading(false))
     return () => { alive = false }
-  }, [])
+  }, [tradeDates])
 
   useEffect(() => {
     if (!selectedDate) return
     let alive = true
+    const cached = picksCache.get(selectedDate)
+    if (cached) {
+      Promise.resolve(cached).then(next => {
+        if (alive) setPicks(next)
+      })
+      return () => { alive = false }
+    }
+    Promise.resolve().then(() => {
+      if (alive) setPicksLoading(true)
+    })
     picksApi.daily(selectedDate)
       .then(res => {
         if (!alive) return
-        if (res.success && res.data) setPicks(res.data)
-        else setPicks([])
+        const next = res.success && res.data ? res.data : []
+        picksCache.set(selectedDate, next)
+        setPicks(next)
       })
       .catch(() => alive && setPicks([]))
+      .finally(() => alive && setPicksLoading(false))
     return () => { alive = false }
   }, [selectedDate])
 
+  const availableDates = useMemo(() => dateOptions(selectedDate, tradeDates), [selectedDate, tradeDates])
   const selectedHistory = useMemo(
     () => history.filter(item => item.recommend_date === selectedDate),
     [history, selectedDate],
@@ -83,7 +164,7 @@ export default function RecommendLoopPage() {
     })
     return [...grouped.entries()]
       .sort(([a], [b]) => b.localeCompare(a))
-      .slice(0, 6)
+      .slice(0, 8)
       .map(([date, items]) => ({
         date,
         count: items.length,
@@ -95,14 +176,19 @@ export default function RecommendLoopPage() {
 
   const summary = dashboard?.strategy_summary
   const review = dashboard?.strategy_review
+  const selectedDateIsCurrent = selectedDate === dashboard?.trade_date
 
   const runReturnUpdate = async () => {
+    if (!isAdmin) return
     setUpdating(true)
     setMessage('')
     try {
       await reviewApi.updatePrices()
       const refreshed = await reviewApi.history()
-      if (refreshed.success && refreshed.data) setHistory(refreshed.data)
+      if (refreshed.success && refreshed.data) {
+        historyCache = refreshed.data
+        setHistory(refreshed.data)
+      }
       setMessage('收益跟踪已更新')
     } catch (err) {
       setMessage(err instanceof Error ? err.message : String(err))
@@ -114,43 +200,46 @@ export default function RecommendLoopPage() {
   return (
     <div className="qv4-page">
       <section className="qv4-hero">
-        <div className="qv4-hero-main">
-          <div className="qv4-kicker">Recommendation Loop</div>
-          <h1>每日推荐工作台</h1>
-          <p>把推荐、持仓收益跟踪、策略可信度复盘合成一个闭环：先看今天推什么，再看之前赚没赚，最后判断策略是否值得继续相信。</p>
+        <div className="qv4-hero-main qv4-reveal">
+          <div className="qv4-kicker">推荐闭环</div>
+          <h1>推荐工作台</h1>
+          <p>每天先看推荐股票，再看历史推荐有没有兑现收益，最后用复盘结论判断这套策略是否值得继续信任。</p>
         </div>
-        <div className="qv4-date-card">
-          <span>当前交易日</span>
-          <strong>{selectedDate || '--'}</strong>
-          <small>{dashboard?.is_trade_day ? '交易日，推荐任务应正常产出' : '非交易日，调度会跳过推荐'}</small>
+        <div className="qv4-date-card qv4-reveal">
+          <span>推荐交易日</span>
+          <TradeDatePicker value={selectedDate} onChange={setSelectedDate} tradeDates={availableDates} label="交易日" size="compact" />
+          <small>
+            {selectedDateIsCurrent
+              ? (dashboard?.is_trade_day ? '当前交易日，推荐任务应正常产出' : '当前自然日非交易日，展示最近交易日')
+              : '正在查看历史交易日推荐'}
+          </small>
         </div>
       </section>
 
       <section className="qv4-status-grid">
-        <div className="qv4-status-card good"><span>行情数据</span><strong>{dashboard?.pipeline.snapshot_count ?? 0}</strong><small>{dashboard?.pipeline.data_status || '等待检查'}</small></div>
-        <div className="qv4-status-card good"><span>今日推荐</span><strong>{picks.length}</strong><small>{dashboard?.pipeline.recommend_status || '等待生成'}</small></div>
-        <div className="qv4-status-card"><span>跟踪样本</span><strong>{summary?.total ?? history.length}</strong><small>3 / 5 / 7 日收益</small></div>
+        <div className="qv4-status-card good"><span>行情样本</span><strong>{dashboard?.pipeline.snapshot_count ?? 0}</strong><small>{dashboard?.pipeline.data_status || '等待检查'}</small></div>
+        <div className="qv4-status-card good"><span>当日推荐</span><strong>{picks.length}</strong><small>{selectedDate || '--'}</small></div>
+        <div className="qv4-status-card"><span>跟踪样本</span><strong>{summary?.total ?? history.length}</strong><small>统计 3 / 5 / 7 日收益</small></div>
         <div className="qv4-status-card"><span>策略胜率</span><strong>{pct(summary?.win_rate)}</strong><small>历史完成样本</small></div>
       </section>
 
       {message && <div className="qv4-inline-note">{message}</div>}
 
       <div className="qv4-workspace">
-        <section className="qv4-panel qv4-panel-large">
+        <section className="qv4-panel qv4-panel-large qv4-reveal">
           <header className="qv4-panel-head">
             <div>
-              <span>Daily Picks</span>
-              <h2>今天推荐了什么</h2>
+              <span>每日推荐</span>
+              <h2>{selectedDate} 推荐股票</h2>
             </div>
-            <select value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="qv4-select">
-              {[selectedDate, ...dates].filter(Boolean).filter((date, index, arr) => arr.indexOf(date) === index).map(date => (
-                <option key={date} value={date}>{date}</option>
-              ))}
-            </select>
+            <TradeDatePicker value={selectedDate} onChange={setSelectedDate} tradeDates={availableDates} size="compact" />
           </header>
 
-          {loading ? (
-            <div className="qv4-empty">正在读取推荐闭环数据...</div>
+          {initialLoading || picksLoading ? (
+            <div className="qv4-loading-block">
+              <i />
+              <span>{initialLoading ? '正在加载推荐闭环数据...' : '正在切换交易日...'}</span>
+            </div>
           ) : picks.length ? (
             <div className="qv4-pick-table">
               {picks.map((item, index) => (
@@ -161,10 +250,10 @@ export default function RecommendLoopPage() {
                       <strong>{item.stock_name}</strong>
                       <span>{item.stock_code}</span>
                     </div>
-                    <p>{item.reason || '暂无推荐理由'}</p>
+                    <p>{formatReason(item.reason)}</p>
                     <div className="qv4-chip-row">
                       {factorEntries(item.factor_snapshot).map(([key, value]) => (
-                        <span key={key}>{key}: {Number(value).toFixed(2)}</span>
+                        <span key={key}>{factorLabel(key)}：{Number(value).toFixed(2)}</span>
                       ))}
                     </div>
                   </div>
@@ -174,15 +263,15 @@ export default function RecommendLoopPage() {
               ))}
             </div>
           ) : (
-            <div className="qv4-empty">这一天还没有推荐股票。若是交易日，需要检查推荐任务是否执行。</div>
+            <div className="qv4-empty">这一天还没有推荐股票。若是交易日，请在管理控制台检查推荐任务。</div>
           )}
         </section>
 
-        <aside className="qv4-panel">
+        <aside className="qv4-panel qv4-reveal">
           <header className="qv4-panel-head">
             <div>
-              <span>Strategy Review</span>
-              <h2>策略可信度复盘</h2>
+              <span>策略复盘</span>
+              <h2>策略可信度</h2>
             </div>
           </header>
           <div className={`qv4-verdict ${review?.tone || ''}`}>
@@ -195,17 +284,21 @@ export default function RecommendLoopPage() {
             <div><span>7日均收益</span><strong className={toneBy(summary?.avg_return_day7)}>{pct(summary?.avg_return_day7)}</strong></div>
             <div><span>最大回撤</span><strong className={toneBy(summary?.avg_max_drawdown)}>{pct(summary?.avg_max_drawdown)}</strong></div>
           </div>
-          <button className="qv4-primary" onClick={runReturnUpdate} disabled={updating}>
-            {updating ? '更新中...' : '立即更新收益跟踪'}
-          </button>
+          {isAdmin ? (
+            <button className="qv4-primary" onClick={runReturnUpdate} disabled={updating}>
+              {updating ? '更新中...' : '管理员更新收益跟踪'}
+            </button>
+          ) : (
+            <div className="qv4-admin-note">收益跟踪由管理控制台定时更新，普通用户只查看结果。</div>
+          )}
         </aside>
       </div>
 
-      <section className="qv4-panel">
+      <section className="qv4-panel qv4-reveal">
         <header className="qv4-panel-head">
           <div>
-            <span>Return Tracking</span>
-            <h2>之前推荐的股票赚没赚</h2>
+            <span>收益跟踪</span>
+            <h2>历史推荐赚没赚</h2>
           </div>
           <small>{selectedDate} 推荐批次</small>
         </header>
@@ -217,21 +310,16 @@ export default function RecommendLoopPage() {
                   <div className="qv4-stock-title">
                     <strong>{item.stock_name}</strong>
                     <span>{item.stock_code}</span>
-                    <em>{item.status}</em>
+                    <em>{statusLabel(item.status)}</em>
                   </div>
                   <p>推荐价 {money(item.recommend_price)}，当前价 {money(item.current_price)}，已跟踪 {item.tracking_days || 0} 天</p>
                 </div>
                 <div className="qv4-return-strip">
                   {[1, 2, 3, 4, 5, 6, 7].map(day => {
-                    const rate = day === 1 ? item.return_rate_day1
-                      : day === 2 ? item.return_rate_day2
-                        : day === 3 ? item.return_rate_day3
-                          : day === 5 ? item.return_rate_day5
-                            : day === 7 ? item.return_rate_day7
-                              : null
+                    const rate = returnRateByDay(item, day)
                     return (
                       <div key={day} className={rate === null || rate === undefined ? 'missing' : toneBy(rate)}>
-                        <span>D{day}</span>
+                        <span>第{day}天</span>
                         <strong>{pct(rate)}</strong>
                       </div>
                     )
@@ -245,16 +333,17 @@ export default function RecommendLoopPage() {
             ))}
           </div>
         ) : (
-          <div className="qv4-empty">这一天的推荐还没有收益跟踪记录。等 T+1/T+3/T+5/T+7 更新后会出现在这里。</div>
+          <div className="qv4-empty">这一天的推荐还没有收益跟踪记录。等第 1 / 3 / 5 / 7 个交易日更新后会出现在这里。</div>
         )}
       </section>
 
-      <section className="qv4-panel">
+      <section className="qv4-panel qv4-reveal">
         <header className="qv4-panel-head">
           <div>
-            <span>History Batches</span>
-            <h2>最近批次表现</h2>
+            <span>批次表现</span>
+            <h2>最近推荐批次</h2>
           </div>
+          {isAdmin && <Link to="/console" className="qv4-secondary">去管理控制台</Link>}
         </header>
         <div className="qv4-batch-grid">
           {latestBatches.map(batch => (
@@ -262,9 +351,9 @@ export default function RecommendLoopPage() {
               <strong>{batch.date}</strong>
               <span>{batch.count} 只推荐</span>
               <div>
-                <b className={toneBy(batch.avg3)}>D3 {pct(batch.avg3)}</b>
-                <b className={toneBy(batch.avg5)}>D5 {pct(batch.avg5)}</b>
-                <b className={toneBy(batch.avg7)}>D7 {pct(batch.avg7)}</b>
+                <b className={toneBy(batch.avg3)}>第3天 {pct(batch.avg3)}</b>
+                <b className={toneBy(batch.avg5)}>第5天 {pct(batch.avg5)}</b>
+                <b className={toneBy(batch.avg7)}>第7天 {pct(batch.avg7)}</b>
               </div>
             </button>
           ))}
