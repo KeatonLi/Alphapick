@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from jose import jwt
 from passlib.context import CryptContext
 from pydantic import BaseModel
@@ -14,8 +14,7 @@ from app.models.user import User
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-
-# ─── Pydantic 模型 ──────────────────────────────────────────────────────────
+GUEST_USERNAME = "guest"
 
 
 class RegisterRequest(BaseModel):
@@ -44,9 +43,6 @@ class UserInfo(BaseModel):
         )
 
 
-# ─── 工具函数 ──────────────────────────────────────────────────────────────
-
-
 def create_access_token(user: User) -> str:
     expire = datetime.utcnow() + timedelta(days=settings.JWT_EXPIRE_DAYS)
     payload = {
@@ -58,14 +54,42 @@ def create_access_token(user: User) -> str:
     return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
 
-# ─── API 端点 ──────────────────────────────────────────────────────────────
+def _auth_payload(user: User) -> dict:
+    return {
+        "success": True,
+        "data": {
+            "token": create_access_token(user),
+            "user": UserInfo.from_orm(user).model_dump(),
+        },
+    }
+
+
+def ensure_guest_user(db: Session) -> User:
+    user = db.query(User).filter(User.username == GUEST_USERNAME).first()
+    if user:
+        if user.role != "user":
+            user.role = "user"
+            db.commit()
+            db.refresh(user)
+        return user
+
+    user = User(
+        username=GUEST_USERNAME,
+        password_hash=pwd_context.hash("guest-login-disabled"),
+        role="user",
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
 
 
 @router.post("/register")
 async def register(body: RegisterRequest, db: Session = Depends(get_db)):
-    """注册新用户"""
     if len(body.username) < 2 or len(body.username) > 50:
-        raise HTTPException(status_code=400, detail="用户名长度需在 2-50 字符之间")
+        raise HTTPException(status_code=400, detail="用户名长度需要在 2-50 个字符之间")
+    if body.username.lower() == GUEST_USERNAME:
+        raise HTTPException(status_code=400, detail="guest 是系统游客账号，不能注册")
     if len(body.password) < 6:
         raise HTTPException(status_code=400, detail="密码长度至少 6 位")
 
@@ -81,37 +105,24 @@ async def register(body: RegisterRequest, db: Session = Depends(get_db)):
     db.add(user)
     db.commit()
     db.refresh(user)
-
-    token = create_access_token(user)
-    return {
-        "success": True,
-        "data": {
-            "token": token,
-            "user": UserInfo.from_orm(user).model_dump(),
-        },
-    }
+    return _auth_payload(user)
 
 
 @router.post("/login")
 async def login(body: LoginRequest, db: Session = Depends(get_db)):
-    """用户登录"""
     user = db.query(User).filter(User.username == body.username).first()
     if not user or not pwd_context.verify(body.password, user.password_hash):
         raise HTTPException(status_code=401, detail="用户名或密码错误")
+    return _auth_payload(user)
 
-    token = create_access_token(user)
-    return {
-        "success": True,
-        "data": {
-            "token": token,
-            "user": UserInfo.from_orm(user).model_dump(),
-        },
-    }
+
+@router.post("/guest")
+async def guest_login(db: Session = Depends(get_db)):
+    return _auth_payload(ensure_guest_user(db))
 
 
 @router.get("/me")
 async def get_me(current_user: User = Depends(get_current_user)):
-    """获取当前登录用户信息"""
     return {
         "success": True,
         "data": UserInfo.from_orm(current_user).model_dump(),
@@ -125,13 +136,14 @@ async def update_role(
     db: Session = Depends(get_db),
     admin: User = Depends(require_admin),
 ):
-    """管理员修改用户角色"""
     if role not in ("admin", "user"):
         raise HTTPException(status_code=400, detail="角色只能是 admin 或 user")
 
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="用户不存在")
+    if user.username == GUEST_USERNAME and role != "user":
+        raise HTTPException(status_code=400, detail="游客账号不能设为管理员")
 
     user.role = role
     db.commit()
@@ -143,7 +155,6 @@ async def list_users(
     db: Session = Depends(get_db),
     admin: User = Depends(require_admin),
 ):
-    """管理员查看所有用户"""
     users = db.query(User).order_by(User.created_at.desc()).all()
     return {
         "success": True,

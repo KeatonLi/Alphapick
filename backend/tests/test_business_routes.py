@@ -10,6 +10,8 @@ class BusinessRouteRegistrationTests(unittest.TestCase):
 
         required = {
             "/api/picks/daily",
+            "/api/dashboard",
+            "/api/auth/guest",
             "/api/picks/latest",
             "/api/picks/dates",
             "/api/picks/trade-dates",
