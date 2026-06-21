@@ -19,7 +19,7 @@ export interface ReviewSummary {
 }
 
 export const reviewApi = {
-  history: () => apiGet<{ success: boolean; data?: HistoryRec[]; summary?: ReviewSummary; error?: string }>('/review/history'),
+  history: (limit = 300) => apiGet<{ success: boolean; data?: HistoryRec[]; summary?: ReviewSummary; error?: string }>(`/review/history?limit=${limit}`),
   summary: () => apiGet<{ success: boolean; data?: any; error?: string }>('/review/summary'),
   updatePrices: () => apiPost('/review/update-prices'),
   batchUpdate: (ids: number[]) => apiPost('/review/batch/update', ids),

@@ -58,9 +58,10 @@ def review_history(
     start_date: Optional[date] = Query(None),
     end_date: Optional[date] = Query(None),
     status: Optional[str] = Query(None),
+    limit: Optional[int] = Query(None, ge=1, le=1000),
     db: Session = Depends(get_db),
 ):
-    result = get_all_recommendations(db, start_date=start_date, end_date=end_date, status=status)
+    result = get_all_recommendations(db, start_date=start_date, end_date=end_date, status=status, limit=limit)
     rows = result.get("data", [])
     return {"success": True, "data": rows, "summary": _summary(rows)}
 

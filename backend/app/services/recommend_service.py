@@ -1,6 +1,8 @@
 import json
+from copy import deepcopy
 from datetime import date, timedelta
-from typing import Optional
+from time import monotonic
+from typing import Any, Optional
 
 from sqlalchemy import Numeric, and_, case, cast, func, or_
 from sqlalchemy.orm import Session
@@ -11,14 +13,41 @@ from app.services.strategy_service import rank_candidates
 
 
 TRACKING_MILESTONES = (1, 2, 3, 5, 7)
+RECOMMEND_CACHE_TTL_SECONDS = 30
+_recommend_cache: dict[tuple[Any, ...], tuple[float, dict]] = {}
+
+
+def clear_recommend_cache() -> None:
+    _recommend_cache.clear()
+
+
+def _cache_get(key: tuple[Any, ...]) -> dict | None:
+    cached = _recommend_cache.get(key)
+    if not cached:
+        return None
+    created_at, payload = cached
+    if monotonic() - created_at >= RECOMMEND_CACHE_TTL_SECONDS:
+        _recommend_cache.pop(key, None)
+        return None
+    return deepcopy(payload)
+
+
+def _cache_set(key: tuple[Any, ...], payload: dict) -> dict:
+    _recommend_cache[key] = (monotonic(), deepcopy(payload))
+    return payload
 
 
 async def get_recommend_by_date(db: Session, rec_date: date) -> dict:
+    cache_key = ("by_date", rec_date.isoformat())
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
     recs = db.query(Recommendation).filter(Recommendation.recommend_date == rec_date).all()
     if not recs:
-        return {"success": True, "data": [], "from_cache": False, "date": str(rec_date)}
+        return _cache_set(cache_key, {"success": True, "data": [], "from_cache": False, "date": str(rec_date)})
 
-    return {
+    return _cache_set(cache_key, {
         "success": True,
         "data": [
             {
@@ -35,7 +64,7 @@ async def get_recommend_by_date(db: Session, rec_date: date) -> dict:
         ],
         "from_cache": True,
         "date": str(rec_date),
-    }
+    })
 
 
 async def generate_recommendations(db: Session, rec_date: Optional[date] = None) -> dict:
@@ -70,6 +99,7 @@ async def generate_recommendations(db: Session, rec_date: Optional[date] = None)
             reason=rec.get("reason", ""),
         ))
     db.commit()
+    clear_recommend_cache()
 
     return {"success": True, "data": {"count": len(recommendations)}, "message": "recommendations generated"}
 
@@ -87,6 +117,11 @@ def get_available_recommend_dates(db: Session, days: int = 30) -> dict:
 
 
 async def get_recommend_stats(db: Session) -> dict:
+    cache_key = ("stats",)
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
     empty = {
         "total": 0,
         "completed": 0,
@@ -104,7 +139,7 @@ async def get_recommend_stats(db: Session) -> dict:
     }
     total = db.query(func.count(Recommendation.id)).scalar() or 0
     if total == 0:
-        return {"success": True, "data": empty}
+        return _cache_set(cache_key, {"success": True, "data": empty})
 
     completed_metrics = db.query(
         func.count(Recommendation.id),
@@ -115,7 +150,7 @@ async def get_recommend_stats(db: Session) -> dict:
     ).filter(Recommendation.status == "completed").one()
     completed = completed_metrics[0] or 0
     if completed == 0:
-        return {"success": True, "data": {**empty, "total": total}}
+        return _cache_set(cache_key, {"success": True, "data": {**empty, "total": total}})
 
     win_count = completed_metrics[1] or 0
     avg_return = completed_metrics[2] or 0
@@ -141,7 +176,7 @@ async def get_recommend_stats(db: Session) -> dict:
         period_stats[f"avg_return_day{days}"] = round(float(avg) * 100, 2)
         period_stats[f"win_rate_day{days}"] = round(wins / count * 100, 2) if count else 0
 
-    return {
+    return _cache_set(cache_key, {
         "success": True,
         "data": {
             "total": total,
@@ -153,7 +188,7 @@ async def get_recommend_stats(db: Session) -> dict:
             "avg_max_drawdown": round(float(avg_max_drawdown) * 100, 2),
             **period_stats,
         },
-    }
+    })
 
 
 def get_all_recommendations(
@@ -161,7 +196,19 @@ def get_all_recommendations(
     start_date: date | None = None,
     end_date: date | None = None,
     status: str | None = None,
+    limit: int | None = None,
 ) -> dict:
+    cache_key = (
+        "all",
+        start_date.isoformat() if start_date else "",
+        end_date.isoformat() if end_date else "",
+        status or "",
+        limit or "",
+    )
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
     query = db.query(Recommendation)
     if start_date:
         query = query.filter(Recommendation.recommend_date >= start_date)
@@ -170,8 +217,11 @@ def get_all_recommendations(
     if status and status != "all":
         query = query.filter(Recommendation.status == status)
 
-    recs = query.order_by(Recommendation.recommend_date.desc(), Recommendation.id).all()
-    return {
+    query = query.order_by(Recommendation.recommend_date.desc(), Recommendation.id)
+    if limit:
+        query = query.limit(limit)
+    recs = query.all()
+    return _cache_set(cache_key, {
         "success": True,
         "data": [
             {
@@ -205,7 +255,7 @@ def get_all_recommendations(
             }
             for r in recs
         ],
-    }
+    })
 
 
 def _fill_tracking_from_db(db: Session, rec: Recommendation, today: date) -> int:
@@ -276,6 +326,7 @@ async def update_recommend_prices(db: Session, as_of: date | None = None) -> dic
 
     updated = sum(_fill_tracking_from_db(db, rec, today) for rec in recs)
     db.commit()
+    clear_recommend_cache()
     return {"success": True, "data": {"updated": updated}}
 
 
@@ -285,6 +336,7 @@ def delete_recommendation(db: Session, rec_id: int) -> dict:
         return {"success": False, "error": "record not found"}
     db.delete(rec)
     db.commit()
+    clear_recommend_cache()
     return {"success": True, "data": {"id": rec_id}}
 
 
@@ -304,6 +356,7 @@ def reset_recommend_tracking(db: Session, rec_id: int) -> dict:
     rec.return_rate = None
     rec.price_updated_date = None
     db.commit()
+    clear_recommend_cache()
     return {"success": True, "data": {"id": rec_id}}
 
 
@@ -316,6 +369,7 @@ async def update_single_recommend_price(db: Session, rec_id: int) -> dict:
     filled = _fill_tracking_from_db(db, rec, date.today())
     if filled:
         db.commit()
+        clear_recommend_cache()
     return {"success": True, "data": {"filled": filled, "id": rec_id}}
 
 
@@ -342,6 +396,7 @@ def batch_update_tracking_prices(db: Session, ids: list[int]) -> dict:
         results["filled"] += filled
 
     db.commit()
+    clear_recommend_cache()
     return {"success": True, "data": results}
 
 
