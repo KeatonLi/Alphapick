@@ -8,6 +8,7 @@ from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
+from app.display.data_reader import read_is_trade_date
 from app.datasource.fetchers.calendar import CalendarFetcher
 from app.datasource.fetchers.hsgt import HSGTFetcher
 from app.datasource.fetchers.index import IndexFetcher
@@ -16,6 +17,8 @@ from app.datasource.fetchers.sector import SectorFetcher
 from app.datasource.fetchers.stock import StockFetcher
 from app.datasource.warehouse import upsert_stock_spot_snapshots_from_raw
 from app.models.schedule_config import ScheduleConfig
+from app.services.recommend_service import generate_recommendations, update_recommend_prices
+from app.services.report_service import generate_daily_report
 
 
 logger = logging.getLogger(__name__)
@@ -47,6 +50,29 @@ def _normalize_if_needed(db: Session, data_type: str, target: date) -> str | Non
     return f"normalized={result.get('count', 0)}:{result.get('status', 'unknown')}"
 
 
+def _run_async(coro):
+    import asyncio
+
+    return asyncio.run(coro)
+
+
+def run_configured_workflow(db: Session, config: ScheduleConfig, target: date) -> list[str]:
+    results = []
+    if getattr(config, "run_report", True):
+        result = _run_async(generate_daily_report(db, report_date=target))
+        results.append(f"report={'success' if result.get('success') else 'failed'}")
+
+    if getattr(config, "run_recommend", True):
+        result = _run_async(generate_recommendations(db, rec_date=target))
+        results.append(f"recommend={'success' if result.get('success') else 'failed'}")
+
+    if getattr(config, "run_update_returns", True):
+        result = _run_async(update_recommend_prices(db))
+        results.append(f"returns={'success' if result.get('success') else 'failed'}")
+
+    return results
+
+
 def run_daily_fetch():
     db = SessionLocal()
     target = date.today()
@@ -55,6 +81,12 @@ def run_daily_fetch():
         config = _get_config(db)
         if not config.enabled:
             logger.info("[scheduler] daily datasource fetch disabled")
+            return
+        if not read_is_trade_date(db, target):
+            config.last_run_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            config.last_run_result = f"skipped: non-trading day {target}"
+            db.commit()
+            logger.info("[scheduler] %s", config.last_run_result)
             return
 
         for data_type, fetcher in FETCHERS:
@@ -70,7 +102,13 @@ def run_daily_fetch():
 
         config.last_run_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         success_count = sum(1 for item in results if "=success" in item or "=skipped" in item)
-        config.last_run_result = f"fetch completed: {success_count}/{len(FETCHERS)}; " + "; ".join(results)
+        workflow_results = []
+        if success_count == len(FETCHERS):
+            workflow_results = run_configured_workflow(db, config, target)
+        config.last_run_result = (
+            f"fetch completed: {success_count}/{len(FETCHERS)}; "
+            + "; ".join(results + workflow_results)
+        )
         db.commit()
         logger.info("[scheduler] %s", config.last_run_result)
     except Exception:
@@ -97,7 +135,7 @@ def update_schedule(enabled: bool, run_time: str):
         hour, minute = [int(part) for part in run_time.split(":")[:2]]
         scheduler.add_job(
             run_daily_fetch,
-            trigger=CronTrigger(hour=hour, minute=minute),
+            trigger=CronTrigger(day_of_week="mon-fri", hour=hour, minute=minute),
             id=job_id,
             name="Daily datasource fetch",
             replace_existing=True,

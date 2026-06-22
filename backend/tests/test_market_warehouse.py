@@ -1,5 +1,7 @@
 import unittest
 from datetime import date
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 
 class MarketWarehouseTests(unittest.TestCase):
@@ -68,6 +70,46 @@ class MarketWarehouseTests(unittest.TestCase):
 
         self.assertEqual(parsed["stock_code"], "000001")
         self.assertIsNone(parsed["turnover_rate"])
+
+    def test_daily_close_rows_fall_back_to_spot_snapshots(self):
+        from app.database import Base
+        from app.datasource.models import StockDailyBar, StockSpotSnapshot
+        from app.datasource.warehouse import get_daily_close_rows
+
+        engine = create_engine("sqlite:///:memory:")
+        Base.metadata.create_all(bind=engine)
+        Session = sessionmaker(bind=engine)
+        db = Session()
+        try:
+            db.add(StockDailyBar(
+                trade_date=date(2026, 6, 1),
+                stock_code="000001",
+                stock_name="Ping An Bank",
+                open=10,
+                high=11,
+                low=9,
+                close=10.5,
+                source_name="test",
+            ))
+            db.add(StockSpotSnapshot(
+                trade_date=date(2026, 6, 2),
+                stock_code="000001",
+                stock_name="Ping An Bank",
+                close=10.8,
+                source_name="test",
+            ))
+            db.commit()
+
+            closes = get_daily_close_rows(
+                db,
+                "000001",
+                [date(2026, 6, 1), date(2026, 6, 2)],
+            )
+
+            self.assertEqual(closes[date(2026, 6, 1)], 10.5)
+            self.assertEqual(closes[date(2026, 6, 2)], 10.8)
+        finally:
+            db.close()
 
 
 if __name__ == "__main__":

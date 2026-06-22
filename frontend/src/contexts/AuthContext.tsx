@@ -13,8 +13,22 @@ interface AuthContextType {
   token: string | null
   isLoading: boolean
   login: (username: string, password: string) => Promise<void>
+  guestLogin: () => Promise<void>
   register: (username: string, password: string) => Promise<void>
   logout: () => void
+}
+
+interface AuthPayload {
+  success: boolean
+  data: {
+    token: string
+    user: UserInfo
+  }
+}
+
+interface MePayload {
+  success: boolean
+  data: UserInfo
 }
 
 const AuthContext = createContext<AuthContextType | null>(null)
@@ -41,7 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const storedToken = getStoredToken()
     if (storedToken) {
-      apiGet('/auth/me')
+      apiGet<MePayload>('/auth/me')
         .then((res) => {
           const u = res.data
           setUser(u)
@@ -56,12 +70,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         })
         .finally(() => setIsLoading(false))
     } else {
-      setIsLoading(false)
+      Promise.resolve().then(() => setIsLoading(false))
     }
   }, [])
 
   const login = useCallback(async (username: string, password: string) => {
-    const res = await apiPost<any>('/auth/login', { username, password })
+    const res = await apiPost<AuthPayload>('/auth/login', { username, password })
+    const { token: newToken, user: newUser } = res.data
+    localStorage.setItem('auth_token', newToken)
+    localStorage.setItem('auth_user', JSON.stringify(newUser))
+    setToken(newToken)
+    setUser(newUser)
+  }, [])
+
+  const guestLogin = useCallback(async () => {
+    const res = await apiPost<AuthPayload>('/auth/guest')
     const { token: newToken, user: newUser } = res.data
     localStorage.setItem('auth_token', newToken)
     localStorage.setItem('auth_user', JSON.stringify(newUser))
@@ -70,7 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const register = useCallback(async (username: string, password: string) => {
-    const res = await apiPost<any>('/auth/register', { username, password })
+    const res = await apiPost<AuthPayload>('/auth/register', { username, password })
     const { token: newToken, user: newUser } = res.data
     localStorage.setItem('auth_token', newToken)
     localStorage.setItem('auth_user', JSON.stringify(newUser))
@@ -86,7 +109,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, token, isLoading, login, guestLogin, register, logout }}>
       {children}
     </AuthContext.Provider>
   )

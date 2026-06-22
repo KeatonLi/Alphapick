@@ -8,8 +8,10 @@ from slowapi.errors import RateLimitExceeded
 from app.routers import (
     analytics,
     auth,
+    dashboard,
     data_center,
     generate,
+    limit_up,
     ops,
     picks,
     recommend,
@@ -21,6 +23,7 @@ from app.routers import (
 )
 from app.datasource.router import router as datasource_router
 from app.database import engine, Base, SessionLocal, ensure_runtime_schema
+from app.routers.auth import ensure_guest_user
 
 Base.metadata.create_all(bind=engine)
 ensure_runtime_schema()
@@ -47,6 +50,7 @@ def _seed_admin():
             print("[seed] 默认管理员账户已创建 (admin / admin123)")
         else:
             print("[seed] 管理员账户已存在")
+        ensure_guest_user(db)
     finally:
         db.close()
 
@@ -69,6 +73,7 @@ app.add_middleware(
 )
 
 app.include_router(auth.router)
+app.include_router(dashboard.router)
 app.include_router(stock.router)
 app.include_router(recommend.router)
 app.include_router(report.router)
@@ -76,6 +81,7 @@ app.include_router(generate.router)
 app.include_router(schedule.router)
 app.include_router(analysis.router)
 app.include_router(datasource_router)
+app.include_router(limit_up.router)
 app.include_router(picks.router)
 app.include_router(review.router)
 app.include_router(analytics.router)

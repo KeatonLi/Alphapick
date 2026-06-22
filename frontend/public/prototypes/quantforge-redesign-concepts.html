@@ -1,0 +1,1020 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QuantForge Redesign Concepts</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,600;6..72,700&family=Roboto+Flex:opsz,wght@8..144,420;8..144,650;8..144,780&display=swap');
+
+    :root {
+      --ink: #172033;
+      --muted: #667085;
+      --line: #d9e0ea;
+      --paper: #f7f9fc;
+      --panel: #ffffff;
+      --blue: #1f73ff;
+      --cyan: #00a7c6;
+      --green: #12976d;
+      --red: #d84b5b;
+      --gold: #b77b1e;
+      --violet: #6d5df6;
+      --shadow: 0 16px 40px rgba(30, 45, 77, .08);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: #edf2f7;
+      font-family: "IBM Plex Sans", "Microsoft YaHei", sans-serif;
+    }
+    button { font: inherit; }
+    .shell {
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .concept-switcher {
+      position: sticky;
+      top: 14px;
+      z-index: 30;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      max-width: 1440px;
+      margin: 0 auto 18px;
+      padding: 10px 12px;
+      border: 1px solid rgba(23, 32, 51, .12);
+      border-radius: 18px;
+      background: rgba(255,255,255,.84);
+      backdrop-filter: blur(18px);
+      box-shadow: 0 10px 26px rgba(20, 31, 51, .07);
+    }
+    .switch-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 220px;
+      font-weight: 800;
+    }
+    .switch-brand img {
+      width: 36px;
+      height: 36px;
+      border-radius: 11px;
+    }
+    .tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+    .tabs button {
+      min-height: 36px;
+      padding: 8px 14px;
+      border: 1px solid transparent;
+      border-radius: 999px;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      font-weight: 700;
+    }
+    .tabs button.active {
+      border-color: rgba(31,115,255,.25);
+      background: #eaf2ff;
+      color: #155bd4;
+    }
+    .concept {
+      display: none;
+      max-width: 1440px;
+      min-height: calc(100vh - 110px);
+      margin: 0 auto;
+      border-radius: 26px;
+      overflow: hidden;
+      background: var(--paper);
+      box-shadow: 0 30px 80px rgba(18, 28, 45, .12);
+    }
+    .concept.active { display: block; }
+    .mono {
+      font-variant-numeric: tabular-nums;
+      font-feature-settings: "tnum";
+    }
+    .up { color: var(--red); }
+    .down { color: var(--green); }
+    .flat { color: var(--muted); }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 26px;
+      padding: 4px 9px;
+      border-radius: 999px;
+      background: #eef3f9;
+      color: #475467;
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .pill.good { background: #e7f6ef; color: #087455; }
+    .pill.warn { background: #fff1e6; color: #9a5b12; }
+    .pill.hot { background: #ffe9ed; color: #bd3345; }
+
+    /* Concept A */
+    .a {
+      background:
+        linear-gradient(90deg, #f8fafc 0, #f8fafc 68px, transparent 68px),
+        #f3f6fb;
+      font-family: "Roboto Flex", "Microsoft YaHei", sans-serif;
+    }
+    .a-layout {
+      display: grid;
+      grid-template-columns: 68px minmax(0, 1fr);
+      min-height: 900px;
+    }
+    .a-rail {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 18px;
+      padding: 18px 10px;
+      border-right: 1px solid #dce3ed;
+      background: #fbfcfe;
+    }
+    .a-rail img {
+      width: 42px;
+      height: 42px;
+      border-radius: 13px;
+      margin-bottom: 10px;
+    }
+    .a-rail span {
+      display: grid;
+      place-items: center;
+      width: 38px;
+      height: 38px;
+      border-radius: 13px;
+      color: #718096;
+      font-weight: 900;
+    }
+    .a-rail span.active {
+      background: #172033;
+      color: #fff;
+    }
+    .a-main {
+      padding: 22px;
+    }
+    .a-top {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 440px;
+      gap: 18px;
+      align-items: stretch;
+      margin-bottom: 18px;
+    }
+    .a-title {
+      padding: 22px 24px;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: #fff;
+    }
+    .a-title h1 {
+      margin: 6px 0 10px;
+      font-size: 42px;
+      line-height: 1;
+      letter-spacing: -.04em;
+    }
+    .a-title p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 15px;
+    }
+    .a-market {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      overflow: hidden;
+      background: #fff;
+    }
+    .a-market div {
+      padding: 20px;
+      border-right: 1px solid var(--line);
+    }
+    .a-market div:last-child { border-right: 0; }
+    .a-market span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .a-market strong {
+      display: block;
+      margin-top: 10px;
+      font-size: 24px;
+      letter-spacing: -.02em;
+    }
+    .a-grid {
+      display: grid;
+      grid-template-columns: minmax(460px, 1.04fr) minmax(420px, .96fr);
+      gap: 18px;
+      align-items: start;
+    }
+    .a-section {
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: #fff;
+      overflow: hidden;
+    }
+    .a-section header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--line);
+    }
+    .a-section h2 {
+      margin: 0;
+      font-size: 18px;
+      letter-spacing: -.02em;
+    }
+    .pick-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    .pick-table th,
+    .pick-table td {
+      padding: 13px 16px;
+      border-bottom: 1px solid #edf1f6;
+      text-align: left;
+      white-space: nowrap;
+    }
+    .pick-table th {
+      color: #7a8798;
+      font-size: 12px;
+      font-weight: 800;
+      background: #fbfcfe;
+    }
+    .pick-table tr:last-child td { border-bottom: 0; }
+    .stock-name {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .stock-name b { font-size: 15px; }
+    .stock-name small { color: var(--muted); }
+    .score-ring {
+      display: inline-grid;
+      place-items: center;
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      background: conic-gradient(var(--blue) 0 82%, #e8eef6 82% 100%);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 900;
+    }
+    .tracking-panel {
+      padding: 16px;
+    }
+    .tracking-row {
+      display: grid;
+      grid-template-columns: 128px 1fr 64px;
+      gap: 12px;
+      align-items: center;
+      padding: 12px 0;
+      border-bottom: 1px solid #edf1f6;
+    }
+    .tracking-row:last-child { border-bottom: 0; }
+    .returns {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 4px;
+    }
+    .returns span {
+      display: grid;
+      gap: 2px;
+      place-items: center;
+      min-height: 42px;
+      border-radius: 8px;
+      background: #f3f6fa;
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 800;
+    }
+    .returns b { font-size: 11px; }
+    .returns span.good { background: #eaf8f1; color: var(--green); }
+    .returns span.bad { background: #ffecef; color: var(--red); }
+    .a-bottom {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 18px;
+      margin-top: 18px;
+    }
+    .review-tile {
+      min-height: 170px;
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: #fff;
+    }
+    .review-tile h3 { margin: 0 0 8px; font-size: 16px; }
+    .review-tile .big {
+      margin-top: 18px;
+      font-size: 36px;
+      font-weight: 800;
+      letter-spacing: -.04em;
+    }
+    .spark {
+      width: 100%;
+      height: 50px;
+      margin-top: 16px;
+    }
+
+    /* Concept B */
+    .b {
+      background: #faf7f0;
+      font-family: "Newsreader", "Noto Serif SC", serif;
+    }
+    .b-layout {
+      min-height: 900px;
+      padding: 28px 34px 34px;
+      background:
+        linear-gradient(90deg, rgba(24,31,45,.06) 1px, transparent 1px),
+        linear-gradient(rgba(24,31,45,.05) 1px, transparent 1px),
+        #faf7f0;
+      background-size: 28px 28px;
+    }
+    .b-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      font-family: "IBM Plex Sans", sans-serif;
+    }
+    .b-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 900;
+    }
+    .b-brand img { width: 40px; height: 40px; border-radius: 12px; }
+    .b-nav .links {
+      display: flex;
+      gap: 24px;
+      color: #586170;
+      font-size: 14px;
+      font-weight: 700;
+    }
+    .b-hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 360px;
+      gap: 28px;
+      align-items: end;
+      margin-bottom: 26px;
+    }
+    .b-hero h1 {
+      margin: 0;
+      max-width: 860px;
+      font-size: 74px;
+      line-height: .9;
+      letter-spacing: -.06em;
+    }
+    .b-hero aside {
+      padding: 18px 0 8px;
+      border-top: 3px solid #20283a;
+      font-family: "IBM Plex Sans", sans-serif;
+      color: #596475;
+    }
+    .b-hero aside strong {
+      display: block;
+      color: #20283a;
+      font-size: 34px;
+      letter-spacing: -.04em;
+    }
+    .b-board {
+      display: grid;
+      grid-template-columns: 1.15fr .85fr;
+      gap: 20px;
+      align-items: start;
+    }
+    .b-paper {
+      border: 1px solid #ded3c0;
+      background: rgba(255,255,255,.62);
+      box-shadow: 8px 8px 0 rgba(32,40,58,.08);
+    }
+    .b-paper header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 18px;
+      border-bottom: 1px solid #ded3c0;
+      font-family: "IBM Plex Sans", sans-serif;
+    }
+    .b-paper h2 { margin: 0; font-size: 17px; }
+    .b-picks {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .b-pick {
+      min-height: 176px;
+      padding: 18px;
+      border-right: 1px solid #ded3c0;
+      border-bottom: 1px solid #ded3c0;
+    }
+    .b-pick:nth-child(even) { border-right: 0; }
+    .b-pick:nth-last-child(-n+2) { border-bottom: 0; }
+    .b-pick .rank {
+      font-family: "IBM Plex Sans", sans-serif;
+      color: var(--gold);
+      font-weight: 900;
+    }
+    .b-pick h3 {
+      margin: 12px 0 4px;
+      font-size: 28px;
+      line-height: 1;
+      letter-spacing: -.04em;
+    }
+    .b-pick p {
+      margin: 12px 0 0;
+      color: #596475;
+      font-family: "IBM Plex Sans", sans-serif;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .b-metrics {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-top: 12px;
+      font-family: "IBM Plex Sans", sans-serif;
+    }
+    .b-metrics div {
+      padding-top: 10px;
+      border-top: 1px solid #ded3c0;
+    }
+    .b-metrics span {
+      display: block;
+      color: #697386;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .b-metrics b {
+      display: block;
+      margin-top: 4px;
+      font-size: 18px;
+    }
+    .b-stack {
+      display: grid;
+      gap: 20px;
+    }
+    .b-confidence {
+      padding: 22px;
+    }
+    .b-confidence .stamp {
+      display: inline-flex;
+      padding: 8px 12px;
+      border: 2px solid #12976d;
+      color: #087455;
+      transform: rotate(-3deg);
+      font-family: "IBM Plex Sans", sans-serif;
+      font-weight: 900;
+    }
+    .b-confidence h2 {
+      margin: 22px 0 10px;
+      font-size: 42px;
+      letter-spacing: -.05em;
+    }
+    .b-confidence p {
+      color: #596475;
+      font-family: "IBM Plex Sans", sans-serif;
+      line-height: 1.55;
+    }
+    .b-timeline {
+      padding: 6px 18px 18px;
+      font-family: "IBM Plex Sans", sans-serif;
+    }
+    .b-timeline-row {
+      display: grid;
+      grid-template-columns: 90px 1fr 62px;
+      gap: 12px;
+      align-items: center;
+      padding: 12px 0;
+      border-bottom: 1px solid #ded3c0;
+    }
+    .b-timeline-row:last-child { border-bottom: 0; }
+    .mini-bars {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 5px;
+      align-items: end;
+      height: 44px;
+    }
+    .mini-bars i {
+      display: block;
+      border-radius: 5px 5px 0 0;
+      background: #2d8e78;
+    }
+    .mini-bars i.bad { background: #d84b5b; }
+
+    /* Concept C */
+    .c {
+      background: #f5f8f6;
+      font-family: "IBM Plex Sans", "Microsoft YaHei", sans-serif;
+    }
+    .c-layout {
+      display: grid;
+      grid-template-columns: 250px minmax(0, 1fr);
+      min-height: 900px;
+    }
+    .c-side {
+      padding: 22px;
+      border-right: 1px solid #d7e2dc;
+      background: #ffffff;
+    }
+    .c-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 28px;
+      font-weight: 900;
+    }
+    .c-brand img { width: 42px; height: 42px; border-radius: 12px; }
+    .c-menu {
+      display: grid;
+      gap: 6px;
+    }
+    .c-menu span {
+      display: flex;
+      justify-content: space-between;
+      padding: 11px 12px;
+      border-radius: 12px;
+      color: #596475;
+      font-weight: 700;
+    }
+    .c-menu span.active {
+      background: #eaf3ef;
+      color: #0f6b52;
+    }
+    .c-side-note {
+      margin-top: 28px;
+      padding: 16px;
+      border-radius: 18px;
+      background: #f2f6f3;
+      color: #596475;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .c-main {
+      padding: 22px 26px;
+    }
+    .c-topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .c-topbar h1 {
+      margin: 0;
+      font-size: 34px;
+      letter-spacing: -.04em;
+    }
+    .c-actions {
+      display: flex;
+      gap: 10px;
+    }
+    .c-actions button {
+      min-height: 38px;
+      padding: 8px 13px;
+      border: 1px solid #cad8d2;
+      border-radius: 12px;
+      background: #fff;
+      color: #354054;
+      font-weight: 800;
+    }
+    .c-actions button.primary {
+      border-color: #0f6b52;
+      background: #0f6b52;
+      color: #fff;
+    }
+    .c-kpis {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .c-kpi {
+      padding: 16px;
+      border: 1px solid #d7e2dc;
+      border-radius: 18px;
+      background: #fff;
+    }
+    .c-kpi span {
+      color: #6b7789;
+      font-size: 12px;
+      font-weight: 800;
+    }
+    .c-kpi strong {
+      display: block;
+      margin-top: 8px;
+      font-size: 26px;
+      letter-spacing: -.04em;
+    }
+    .c-grid {
+      display: grid;
+      grid-template-columns: minmax(520px, 1.2fr) minmax(360px, .8fr);
+      gap: 16px;
+    }
+    .c-panel {
+      border: 1px solid #d7e2dc;
+      border-radius: 20px;
+      background: #fff;
+      overflow: hidden;
+    }
+    .c-panel header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 15px 17px;
+      border-bottom: 1px solid #d7e2dc;
+    }
+    .c-panel h2 {
+      margin: 0;
+      font-size: 17px;
+    }
+    .c-rec {
+      display: grid;
+      grid-template-columns: 48px minmax(0, 1fr) 82px 92px;
+      gap: 12px;
+      align-items: center;
+      padding: 14px 16px;
+      border-bottom: 1px solid #eef3f0;
+    }
+    .c-rec:last-child { border-bottom: 0; }
+    .c-rank {
+      display: grid;
+      place-items: center;
+      width: 38px;
+      height: 38px;
+      border-radius: 12px;
+      background: #eff6f3;
+      color: #0f6b52;
+      font-weight: 900;
+    }
+    .c-rec h3 {
+      margin: 0 0 4px;
+      font-size: 16px;
+    }
+    .c-rec p {
+      margin: 0;
+      color: #6b7789;
+      font-size: 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .c-track {
+      padding: 15px;
+    }
+    .c-track-row {
+      display: grid;
+      grid-template-columns: 86px 1fr;
+      gap: 10px;
+      align-items: center;
+      padding: 11px 0;
+      border-bottom: 1px solid #eef3f0;
+    }
+    .c-track-row:last-child { border-bottom: 0; }
+    .c-dots {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 5px;
+    }
+    .c-dots span {
+      height: 30px;
+      border-radius: 9px;
+      background: #edf3ef;
+      color: #7a8798;
+      display: grid;
+      place-items: center;
+      font-size: 10px;
+      font-weight: 900;
+    }
+    .c-dots span.good { background: #dff5ea; color: #087455; }
+    .c-dots span.bad { background: #ffe8ed; color: #bd3345; }
+    .c-review {
+      margin-top: 16px;
+      display: grid;
+      grid-template-columns: .9fr 1.1fr;
+      gap: 16px;
+    }
+    .c-gauge {
+      min-height: 230px;
+      padding: 22px;
+      border: 1px solid #d7e2dc;
+      border-radius: 20px;
+      background: linear-gradient(135deg, #ffffff, #eef7f2);
+    }
+    .gauge {
+      width: 170px;
+      height: 170px;
+      margin: 12px auto 4px;
+      border-radius: 50%;
+      background: conic-gradient(#0f6b52 0 72%, #ffd166 72% 84%, #e9eef0 84% 100%);
+      display: grid;
+      place-items: center;
+    }
+    .gauge div {
+      width: 124px;
+      height: 124px;
+      border-radius: 50%;
+      background: #fff;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      font-weight: 900;
+      font-size: 30px;
+    }
+    .c-notes {
+      padding: 18px;
+      border: 1px solid #d7e2dc;
+      border-radius: 20px;
+      background: #fff;
+    }
+    .c-notes h2 { margin: 0 0 12px; font-size: 17px; }
+    .c-note {
+      padding: 12px 0;
+      border-top: 1px solid #eef3f0;
+      color: #596475;
+      line-height: 1.5;
+    }
+    .c-note b { color: #172033; }
+
+    @media (max-width: 1100px) {
+      .a-top, .a-grid, .b-hero, .b-board, .c-grid, .c-review { grid-template-columns: 1fr; }
+      .c-kpis { grid-template-columns: repeat(2, 1fr); }
+      .c-layout { grid-template-columns: 1fr; }
+      .c-side { display: none; }
+    }
+    @media (max-width: 720px) {
+      .shell { padding: 10px; }
+      .concept-switcher { align-items: flex-start; flex-direction: column; }
+      .a-layout { grid-template-columns: 1fr; }
+      .a-rail { display: none; }
+      .a-main, .b-layout, .c-main { padding: 14px; }
+      .a-title h1 { font-size: 32px; }
+      .b-hero h1 { font-size: 44px; }
+      .a-market, .a-bottom, .b-picks, .c-kpis { grid-template-columns: 1fr; }
+      .tracking-row, .c-rec { grid-template-columns: 1fr; }
+      .returns, .c-dots { grid-template-columns: repeat(4, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div class="concept-switcher">
+      <div class="switch-brand">
+        <img src="/assets/quantforge-icon.png" alt="QuantForge" />
+        <span>QuantForge 前端重构 · 设计稿</span>
+      </div>
+      <div class="tabs" role="tablist">
+        <button class="active" data-target="concept-a">A 行情决策台</button>
+        <button data-target="concept-b">B 投研晨报</button>
+        <button data-target="concept-c">C SaaS 工作台</button>
+      </div>
+    </div>
+
+    <section id="concept-a" class="concept a active">
+      <div class="a-layout">
+        <aside class="a-rail">
+          <img src="/assets/quantforge-icon.png" alt="" />
+          <span class="active">今</span>
+          <span>收</span>
+          <span>策</span>
+          <span>数</span>
+        </aside>
+        <main class="a-main">
+          <div class="a-top">
+            <section class="a-title">
+              <span class="pill good">2026-06-20 · 交易日 · 已生成推荐</span>
+              <h1>每日推荐工作台</h1>
+              <p>从开盘前推荐，到 1-7 日收益追踪，再到策略可信度，所有关键信号压缩在同一屏。</p>
+            </section>
+            <section class="a-market">
+              <div><span>上证指数</span><strong class="mono up">3,021.44</strong><span class="up">+0.82%</span></div>
+              <div><span>推荐样本</span><strong class="mono">42</strong><span>今日 Top 5</span></div>
+              <div><span>策略评分</span><strong class="mono down">72</strong><span>可继续观察</span></div>
+            </section>
+          </div>
+
+          <div class="a-grid">
+            <section class="a-section">
+              <header>
+                <h2>今日推荐 Top Picks</h2>
+                <span class="pill">按综合分排序</span>
+              </header>
+              <table class="pick-table">
+                <thead>
+                  <tr><th>排名</th><th>股票</th><th>推荐价</th><th>评分</th><th>入选因子</th><th>状态</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td>#1</td><td><span class="stock-name"><b>中航机电</b><small>002013</small></span></td><td class="mono">12.36</td><td><span class="score-ring">86</span></td><td>动量 / 量能 / 资金</td><td><span class="pill good">新推荐</span></td></tr>
+                  <tr><td>#2</td><td><span class="stock-name"><b>科华数据</b><small>002335</small></span></td><td class="mono">31.08</td><td><span class="score-ring">82</span></td><td>突破 / 行业 / 波动</td><td><span class="pill good">新推荐</span></td></tr>
+                  <tr><td>#3</td><td><span class="stock-name"><b>新易盛</b><small>300502</small></span></td><td class="mono">68.42</td><td><span class="score-ring">79</span></td><td>趋势 / 强度 / 换手</td><td><span class="pill warn">高波动</span></td></tr>
+                  <tr><td>#4</td><td><span class="stock-name"><b>华测检测</b><small>300012</small></span></td><td class="mono">14.19</td><td><span class="score-ring">75</span></td><td>低回撤 / 质量</td><td><span class="pill">稳健</span></td></tr>
+                  <tr><td>#5</td><td><span class="stock-name"><b>拓普集团</b><small>601689</small></span></td><td class="mono">39.75</td><td><span class="score-ring">73</span></td><td>反弹 / 成交</td><td><span class="pill">观察</span></td></tr>
+                </tbody>
+              </table>
+            </section>
+
+            <section class="a-section">
+              <header>
+                <h2>收益跟踪看板</h2>
+                <span class="pill">D1-D7</span>
+              </header>
+              <div class="tracking-panel">
+                <div class="tracking-row">
+                  <span><b>06-19 批次</b><br><small>5 只推荐</small></span>
+                  <div class="returns"><span class="good">D1<b>+1.2%</b></span><span>D2<b>--</b></span><span>D3<b>--</b></span><span>D4<b>--</b></span><span>D5<b>--</b></span><span>D6<b>--</b></span><span>D7<b>--</b></span></div>
+                  <b class="up mono">+1.2%</b>
+                </div>
+                <div class="tracking-row">
+                  <span><b>06-17 批次</b><br><small>5 只推荐</small></span>
+                  <div class="returns"><span class="good">D1<b>+0.8%</b></span><span class="bad">D2<b>-0.3%</b></span><span class="good">D3<b>+2.6%</b></span><span>D4<b>--</b></span><span>D5<b>--</b></span><span>D6<b>--</b></span><span>D7<b>--</b></span></div>
+                  <b class="up mono">+2.6%</b>
+                </div>
+                <div class="tracking-row">
+                  <span><b>06-13 批次</b><br><small>5 只推荐</small></span>
+                  <div class="returns"><span class="bad">D1<b>-0.5%</b></span><span class="good">D2<b>+0.4%</b></span><span class="good">D3<b>+1.4%</b></span><span>D4<b>--</b></span><span class="good">D5<b>+3.8%</b></span><span>D6<b>--</b></span><span class="good">D7<b>+4.1%</b></span></div>
+                  <b class="up mono">+4.1%</b>
+                </div>
+                <div class="tracking-row">
+                  <span><b>06-10 批次</b><br><small>5 只推荐</small></span>
+                  <div class="returns"><span class="bad">D1<b>-1.1%</b></span><span class="bad">D2<b>-0.7%</b></span><span class="bad">D3<b>-1.9%</b></span><span>D4<b>--</b></span><span class="bad">D5<b>-2.4%</b></span><span>D6<b>--</b></span><span class="bad">D7<b>-2.2%</b></span></div>
+                  <b class="down mono">-2.2%</b>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <div class="a-bottom">
+            <section class="review-tile">
+              <span class="pill good">策略可信度</span>
+              <div class="big down mono">72/100</div>
+              <svg class="spark" viewBox="0 0 260 60"><polyline points="0,42 32,35 64,38 96,24 128,28 160,18 192,22 224,14 260,12" fill="none" stroke="#12976d" stroke-width="4" stroke-linecap="round"/></svg>
+            </section>
+            <section class="review-tile">
+              <h3>近期结论</h3>
+              <p>3日收益和胜率回到观察线上方，5日表现继续修复，7日样本仍需等待。</p>
+            </section>
+            <section class="review-tile">
+              <h3>风险提示</h3>
+              <p>高波动股票贡献收益，但失败样本回撤更深。下轮应提高回撤权重。</p>
+            </section>
+          </div>
+        </main>
+      </div>
+    </section>
+
+    <section id="concept-b" class="concept b">
+      <div class="b-layout">
+        <nav class="b-nav">
+          <div class="b-brand"><img src="/assets/quantforge-icon.png" alt="" />QuantForge Research</div>
+          <div class="links"><span>每日推荐</span><span>收益跟踪</span><span>策略可信度</span><span>控制台</span></div>
+        </nav>
+        <header class="b-hero">
+          <h1>今日推荐，像晨报一样清楚。</h1>
+          <aside>
+            <span>策略可信度</span>
+            <strong class="mono">B+ / 72</strong>
+            <p>短线胜率恢复，仍需观察 7 日完成批次。</p>
+          </aside>
+        </header>
+
+        <div class="b-board">
+          <section class="b-paper">
+            <header><h2>每日推荐工作台</h2><span class="pill">2026-06-20</span></header>
+            <div class="b-picks">
+              <article class="b-pick">
+                <span class="rank">#01 · 002013</span>
+                <h3>中航机电</h3>
+                <div class="b-metrics"><div><span>推荐价</span><b class="mono">12.36</b></div><div><span>评分</span><b class="mono">86</b></div><div><span>仓位</span><b>标准</b></div></div>
+                <p>量能连续放大，趋势强度高于行业均值，资金流稳定。</p>
+              </article>
+              <article class="b-pick">
+                <span class="rank">#02 · 002335</span>
+                <h3>科华数据</h3>
+                <div class="b-metrics"><div><span>推荐价</span><b class="mono">31.08</b></div><div><span>评分</span><b class="mono">82</b></div><div><span>仓位</span><b>标准</b></div></div>
+                <p>突破形态确认，波动率温和抬升，适合短周期跟踪。</p>
+              </article>
+              <article class="b-pick">
+                <span class="rank">#03 · 300502</span>
+                <h3>新易盛</h3>
+                <div class="b-metrics"><div><span>推荐价</span><b class="mono">68.42</b></div><div><span>评分</span><b class="mono">79</b></div><div><span>仓位</span><b>轻仓</b></div></div>
+                <p>趋势强，但波动偏高；收益弹性好，风控阈值需要更紧。</p>
+              </article>
+              <article class="b-pick">
+                <span class="rank">#04 · 300012</span>
+                <h3>华测检测</h3>
+                <div class="b-metrics"><div><span>推荐价</span><b class="mono">14.19</b></div><div><span>评分</span><b class="mono">75</b></div><div><span>仓位</span><b>稳健</b></div></div>
+                <p>低回撤样本，胜率高于收益弹性，适合平衡组合。</p>
+              </article>
+            </div>
+          </section>
+
+          <div class="b-stack">
+            <section class="b-paper b-confidence">
+              <span class="stamp">可继续观察</span>
+              <h2>策略没有失效，但不该放大。</h2>
+              <p>3日胜率 58.6%，5日均收 +1.91%，失败样本集中在高波动题材。下一轮复盘优先看回撤权重。</p>
+            </section>
+            <section class="b-paper">
+              <header><h2>收益跟踪看板</h2><span>D1-D7</span></header>
+              <div class="b-timeline">
+                <div class="b-timeline-row"><b>06-19</b><div class="mini-bars"><i style="height:18px"></i><i style="height:6px"></i><i style="height:6px"></i><i style="height:6px"></i><i style="height:6px"></i><i style="height:6px"></i><i style="height:6px"></i></div><strong class="up">+1.2%</strong></div>
+                <div class="b-timeline-row"><b>06-17</b><div class="mini-bars"><i style="height:16px"></i><i class="bad" style="height:10px"></i><i style="height:34px"></i><i style="height:6px"></i><i style="height:6px"></i><i style="height:6px"></i><i style="height:6px"></i></div><strong class="up">+2.6%</strong></div>
+                <div class="b-timeline-row"><b>06-13</b><div class="mini-bars"><i class="bad" style="height:10px"></i><i style="height:15px"></i><i style="height:24px"></i><i style="height:6px"></i><i style="height:38px"></i><i style="height:6px"></i><i style="height:42px"></i></div><strong class="up">+4.1%</strong></div>
+                <div class="b-timeline-row"><b>06-10</b><div class="mini-bars"><i class="bad" style="height:18px"></i><i class="bad" style="height:14px"></i><i class="bad" style="height:28px"></i><i style="height:6px"></i><i class="bad" style="height:36px"></i><i style="height:6px"></i><i class="bad" style="height:34px"></i></div><strong class="down">-2.2%</strong></div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="concept-c" class="concept c">
+      <div class="c-layout">
+        <aside class="c-side">
+          <div class="c-brand"><img src="/assets/quantforge-icon.png" alt="" />QuantForge</div>
+          <nav class="c-menu">
+            <span class="active">工作台 <b>01</b></span>
+            <span>每日推荐 <b>02</b></span>
+            <span>收益跟踪 <b>03</b></span>
+            <span>策略复盘 <b>04</b></span>
+            <span>控制台 <b>Admin</b></span>
+          </nav>
+          <div class="c-side-note">核心目标：每天知道推荐什么，过几天知道赚没赚，长期知道策略是否可信。</div>
+        </aside>
+        <main class="c-main">
+          <div class="c-topbar">
+            <h1>每日推荐工作台</h1>
+            <div class="c-actions"><button>导出报告</button><button class="primary">更新收益</button></div>
+          </div>
+          <div class="c-kpis">
+            <div class="c-kpi"><span>今日推荐</span><strong class="mono">5</strong></div>
+            <div class="c-kpi"><span>跟踪中</span><strong class="mono">28</strong></div>
+            <div class="c-kpi"><span>3日胜率</span><strong class="mono up">58.6%</strong></div>
+            <div class="c-kpi"><span>5日均收</span><strong class="mono up">+1.91%</strong></div>
+            <div class="c-kpi"><span>可信度</span><strong class="mono down">72</strong></div>
+          </div>
+
+          <div class="c-grid">
+            <section class="c-panel">
+              <header><h2>今日推荐</h2><span class="pill good">已生成</span></header>
+              <div class="c-rec"><span class="c-rank">1</span><div><h3>中航机电</h3><p>动量、量能、资金流共振；推荐价 12.36</p></div><b class="mono">86</b><span class="pill good">强</span></div>
+              <div class="c-rec"><span class="c-rank">2</span><div><h3>科华数据</h3><p>突破确认，行业热度抬升；推荐价 31.08</p></div><b class="mono">82</b><span class="pill good">强</span></div>
+              <div class="c-rec"><span class="c-rank">3</span><div><h3>新易盛</h3><p>趋势强但波动高；推荐价 68.42</p></div><b class="mono">79</b><span class="pill warn">轻仓</span></div>
+              <div class="c-rec"><span class="c-rank">4</span><div><h3>华测检测</h3><p>低回撤质量样本；推荐价 14.19</p></div><b class="mono">75</b><span class="pill">稳</span></div>
+              <div class="c-rec"><span class="c-rank">5</span><div><h3>拓普集团</h3><p>反弹结构初步成立；推荐价 39.75</p></div><b class="mono">73</b><span class="pill">观察</span></div>
+            </section>
+
+            <section class="c-panel">
+              <header><h2>收益跟踪看板</h2><span class="pill">批次视图</span></header>
+              <div class="c-track">
+                <div class="c-track-row"><b>06-19</b><div class="c-dots"><span class="good">+1.2</span><span>--</span><span>--</span><span>--</span><span>--</span><span>--</span><span>--</span></div></div>
+                <div class="c-track-row"><b>06-17</b><div class="c-dots"><span class="good">+.8</span><span class="bad">-.3</span><span class="good">+2.6</span><span>--</span><span>--</span><span>--</span><span>--</span></div></div>
+                <div class="c-track-row"><b>06-13</b><div class="c-dots"><span class="bad">-.5</span><span class="good">+.4</span><span class="good">+1.4</span><span>--</span><span class="good">+3.8</span><span>--</span><span class="good">+4.1</span></div></div>
+                <div class="c-track-row"><b>06-10</b><div class="c-dots"><span class="bad">-1.1</span><span class="bad">-.7</span><span class="bad">-1.9</span><span>--</span><span class="bad">-2.4</span><span>--</span><span class="bad">-2.2</span></div></div>
+                <div class="c-track-row"><b>06-07</b><div class="c-dots"><span class="good">+.4</span><span class="good">+1.0</span><span class="good">+2.2</span><span>--</span><span class="good">+2.7</span><span>--</span><span class="good">+3.0</span></div></div>
+              </div>
+            </section>
+          </div>
+
+          <div class="c-review">
+            <section class="c-gauge">
+              <span class="pill good">策略可信度复盘</span>
+              <div class="gauge"><div class="mono">72</div></div>
+            </section>
+            <section class="c-notes">
+              <h2>今日策略结论</h2>
+              <div class="c-note"><b>可用：</b>3日胜率恢复，推荐系统没有明显失效。</div>
+              <div class="c-note"><b>谨慎：</b>高波动股票拉高收益，也带来更大失败回撤。</div>
+              <div class="c-note"><b>下一步：</b>继续观察 7 日完成批次，提高回撤惩罚权重。</div>
+            </section>
+          </div>
+        </main>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const tabs = document.querySelectorAll('.tabs button');
+    const concepts = document.querySelectorAll('.concept');
+    tabs.forEach((tab) => {
+      tab.addEventListener('click', () => {
+        tabs.forEach((item) => item.classList.remove('active'));
+        concepts.forEach((item) => item.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById(tab.dataset.target).classList.add('active');
+      });
+    });
+  </script>
+</body>
+</html>

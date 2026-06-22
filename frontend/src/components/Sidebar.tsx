@@ -1,14 +1,14 @@
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 
-type IconName = 'home' | 'target' | 'console' | 'trend' | 'analysis' | 'settings'
+type IconName = 'home' | 'target' | 'console' | 'trend' | 'analysis'
 
 const NAV_ITEMS: Array<{ path: string; icon: IconName; label: string; kicker: string; adminOnly?: boolean }> = [
-  { path: '/picks', icon: 'target', label: '今日选股', kicker: 'Top Picks' },
-  { path: '/review', icon: 'trend', label: '策略复盘', kicker: 'Review' },
-  { path: '/analytics', icon: 'analysis', label: '策略分析', kicker: 'Analytics' },
-  { path: '/data', icon: 'settings', label: '数据中台', kicker: 'Data Center', adminOnly: true },
-  { path: '/ops', icon: 'console', label: '运行控制台', kicker: 'Ops Console', adminOnly: true },
+  { path: '/dashboard', icon: 'home', label: '工作台', kicker: 'Dashboard' },
+  { path: '/picks', icon: 'target', label: '今日推荐', kicker: 'Top Picks' },
+  { path: '/tracking', icon: 'trend', label: '收益跟踪', kicker: 'Tracking' },
+  { path: '/review', icon: 'analysis', label: '策略复盘', kicker: 'Review' },
+  { path: '/console', icon: 'console', label: '控制台', kicker: 'Admin Console', adminOnly: true },
 ]
 
 function Icon({ name }: { name: IconName }) {
@@ -17,15 +17,17 @@ function Icon({ name }: { name: IconName }) {
   if (name === 'target') return <svg {...common}><circle cx="12" cy="12" r="8.5" /><circle cx="12" cy="12" r="4.5" /><path d="M12 7v5l3.5-2" /></svg>
   if (name === 'console') return <svg {...common}><path d="M5 7h14" /><path d="M5 12h7" /><path d="M5 17h10" /><path d="m17 13 2 2-2 2" /></svg>
   if (name === 'trend') return <svg {...common}><path d="M4 18h16" /><path d="m5 15 4-4 3 3 6-7" /><path d="M15 7h3v3" /></svg>
-  if (name === 'analysis') return <svg {...common}><path d="M4 19V5" /><path d="M4 19h16" /><rect x="7" y="11" width="2.8" height="5" rx="1" /><rect x="12" y="7" width="2.8" height="9" rx="1" /><rect x="17" y="9" width="2.8" height="7" rx="1" /></svg>
-  return <svg {...common}><path d="M12 3v3" /><path d="M12 18v3" /><path d="m4.8 7 2.6 1.5" /><path d="m16.6 15.5 2.6 1.5" /><path d="m19.2 7-2.6 1.5" /><path d="m7.4 15.5-2.6 1.5" /><circle cx="12" cy="12" r="4" /></svg>
+  return <svg {...common}><path d="M4 19V5" /><path d="M4 19h16" /><rect x="7" y="11" width="2.8" height="5" rx="1" /><rect x="12" y="7" width="2.8" height="9" rx="1" /><rect x="17" y="9" width="2.8" height="7" rx="1" /></svg>
 }
 
 export default function Sidebar() {
   const location = useLocation()
   const { user, logout } = useAuth()
 
-  const isActive = (path: string) => path === '/' ? location.pathname === '/' : location.pathname.startsWith(path)
+  const isActive = (path: string) => {
+    if (path === '/dashboard') return location.pathname === '/' || location.pathname.startsWith('/dashboard')
+    return location.pathname.startsWith(path)
+  }
 
   return (
     <aside className="qf-sidebar">

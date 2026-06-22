@@ -2,14 +2,13 @@ const API_BASE = import.meta.env.VITE_API_URL || '/api'
 
 function authHeaders(): Record<string, string> {
   const token = localStorage.getItem('auth_token')
-  return token ? { 'Authorization': `Bearer ${token}` } : {}
+  return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
 async function handleResponse<T>(res: Response): Promise<T> {
   if (res.status === 401) {
     localStorage.removeItem('auth_token')
     localStorage.removeItem('auth_user')
-    // 不自动跳转，让 ProtectedRoute 或调用方处理。
     throw new Error('请先登录')
   }
   if (!res.ok) {
@@ -27,7 +26,7 @@ async function handleLoginResponse<T>(res: Response): Promise<T> {
   return res.json()
 }
 
-export async function apiGet<T = any>(path: string, options?: RequestInit): Promise<T> {
+export async function apiGet<T = unknown>(path: string, options?: RequestInit): Promise<T> {
   const url = path.startsWith('http') ? path : `${API_BASE}${path}`
   const res = await fetch(url, {
     method: 'GET',
@@ -37,7 +36,7 @@ export async function apiGet<T = any>(path: string, options?: RequestInit): Prom
   return handleResponse<T>(res)
 }
 
-export async function apiPost<T = any>(path: string, body?: any): Promise<T> {
+export async function apiPost<T = unknown>(path: string, body?: unknown): Promise<T> {
   const url = path.startsWith('http') ? path : `${API_BASE}${path}`
   const headers: Record<string, string> = { ...authHeaders() }
   if (body) headers['Content-Type'] = 'application/json'
@@ -49,21 +48,9 @@ export async function apiPost<T = any>(path: string, body?: any): Promise<T> {
   return path === '/auth/login' ? handleLoginResponse<T>(res) : handleResponse<T>(res)
 }
 
-export async function apiDelete<T = any>(path: string): Promise<T> {
+export async function apiDelete<T = unknown>(path: string): Promise<T> {
   const url = path.startsWith('http') ? path : `${API_BASE}${path}`
   const res = await fetch(url, { method: 'DELETE', headers: authHeaders() })
-  return handleResponse<T>(res)
-}
-
-export async function apiPut<T = any>(path: string, body?: any): Promise<T> {
-  const url = path.startsWith('http') ? path : `${API_BASE}${path}`
-  const headers: Record<string, string> = { ...authHeaders() }
-  if (body) headers['Content-Type'] = 'application/json'
-  const res = await fetch(url, {
-    method: 'PUT',
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
-  })
   return handleResponse<T>(res)
 }
 
@@ -97,9 +84,6 @@ export interface HistoryRec {
   max_gain: number
   max_drawdown: number
 }
-
-// ─── 数据分析 API ────────────────────────────────────────────────────────
-
 
 export interface WeekdayStat {
   count: number
@@ -156,7 +140,6 @@ export interface InsightsResponse {
   generated_at: string
 }
 
-// 扩展分析类型
 export interface PriceRangeStat {
   count: number
   win_count: number
@@ -222,7 +205,6 @@ export interface SuccessTrendResponse {
   }
 }
 
-// 数据采集管理类型
 export interface DatasourceStatusItem {
   data_type: string
   label: string

@@ -1,35 +1,40 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { picksApi } from '../services/picksApi'
 
-// 模块级缓存，跨组件共享
-let cached: string[] | null = null
-let pending: Promise<string[]> | null = null
+const cachedByDays = new Map<number, string[]>()
+const pendingByDays = new Map<number, Promise<string[]>>()
 
-export function useTradeDates(): string[] {
-  const [dates, setDates] = useState<string[]>(cached || [])
+export function useTradeDates(days = 365): string[] {
+  const [dates, setDates] = useState<string[]>(cachedByDays.get(days) || [])
 
   useEffect(() => {
+    const cached = cachedByDays.get(days)
     if (cached) {
-      setDates(cached)
+      Promise.resolve(cached).then(setDates)
       return
     }
-    if (pending) {
-      pending.then(d => setDates(d))
+
+    const existing = pendingByDays.get(days)
+    if (existing) {
+      existing.then(setDates)
       return
     }
-    pending = picksApi.tradeDates(365)
-      .then(d => {
-        const result: string[] = d.success ? (d.data || []) : []
-        cached = result
-        pending = null
+
+    const pending = picksApi.tradeDates(days)
+      .then(res => {
+        const result: string[] = res.success ? (res.data || []) : []
+        cachedByDays.set(days, result)
+        pendingByDays.delete(days)
         return result
       })
       .catch(() => {
-        pending = null
+        pendingByDays.delete(days)
         return []
       })
-    pending.then(d => setDates(d))
-  }, [])
+
+    pendingByDays.set(days, pending)
+    pending.then(setDates)
+  }, [days])
 
   return dates
 }

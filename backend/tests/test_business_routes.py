@@ -10,6 +10,8 @@ class BusinessRouteRegistrationTests(unittest.TestCase):
 
         required = {
             "/api/picks/daily",
+            "/api/dashboard",
+            "/api/auth/guest",
             "/api/picks/latest",
             "/api/picks/dates",
             "/api/picks/trade-dates",
@@ -30,6 +32,59 @@ class BusinessRouteRegistrationTests(unittest.TestCase):
         }
 
         self.assertEqual(required - routes, set())
+
+
+class PicksRoutePerformanceTests(unittest.IsolatedAsyncioTestCase):
+    async def test_daily_picks_skips_stats_by_default(self):
+        from app.routers import picks
+
+        original_get_recommend_by_date = picks.get_recommend_by_date
+        original_get_recommend_stats = picks.get_recommend_stats
+        stats_called = False
+
+        async def fake_recommend_by_date(db, target):
+            return {"success": True, "data": [{"stock_code": "000001"}], "date": str(target)}
+
+        async def fake_stats(db):
+            nonlocal stats_called
+            stats_called = True
+            return {"success": True, "data": {"total": 1}}
+
+        try:
+            picks.get_recommend_by_date = fake_recommend_by_date
+            picks.get_recommend_stats = fake_stats
+
+            result = await picks.daily_picks(date(2026, 6, 18), db=object())
+
+            self.assertTrue(result["success"])
+            self.assertFalse(stats_called)
+            self.assertNotIn("stats", result["meta"])
+        finally:
+            picks.get_recommend_by_date = original_get_recommend_by_date
+            picks.get_recommend_stats = original_get_recommend_stats
+
+    async def test_daily_picks_can_include_stats_when_requested(self):
+        from app.routers import picks
+
+        original_get_recommend_by_date = picks.get_recommend_by_date
+        original_get_recommend_stats = picks.get_recommend_stats
+
+        async def fake_recommend_by_date(db, target):
+            return {"success": True, "data": [{"stock_code": "000001"}], "date": str(target)}
+
+        async def fake_stats(db):
+            return {"success": True, "data": {"total": 1}}
+
+        try:
+            picks.get_recommend_by_date = fake_recommend_by_date
+            picks.get_recommend_stats = fake_stats
+
+            result = await picks.daily_picks(date(2026, 6, 18), include_stats=True, db=object())
+
+            self.assertEqual(result["meta"]["stats"], {"total": 1})
+        finally:
+            picks.get_recommend_by_date = original_get_recommend_by_date
+            picks.get_recommend_stats = original_get_recommend_stats
 
 
 class OpsFlowTests(unittest.IsolatedAsyncioTestCase):

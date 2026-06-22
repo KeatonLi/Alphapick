@@ -16,19 +16,25 @@ router = APIRouter(prefix="/api/picks", tags=["picks"], dependencies=[Depends(ge
 
 
 @router.get("/daily")
-async def daily_picks(target_date: Optional[date] = Query(None, alias="date"), db: Session = Depends(get_db)):
+async def daily_picks(
+    target_date: Optional[date] = Query(None, alias="date"),
+    include_stats: bool = False,
+    db: Session = Depends(get_db),
+):
     target = target_date or date.today()
     result = await get_recommend_by_date(db, target)
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result["error"])
-    stats = await get_recommend_stats(db)
+    meta = {
+        "date": str(target),
+        "data_status": "ready" if result.get("data") else "missing_picks",
+    }
+    if include_stats:
+        stats = await get_recommend_stats(db)
+        meta["stats"] = stats.get("data", {}) if stats.get("success") else {}
     return {
         **result,
-        "meta": {
-            "date": str(target),
-            "data_status": "ready" if result.get("data") else "missing_picks",
-            "stats": stats.get("data", {}) if stats.get("success") else {},
-        },
+        "meta": meta,
     }
 
 
@@ -38,7 +44,7 @@ async def latest_picks(db: Session = Depends(get_db)):
     if not dates:
         return {"success": True, "data": [], "meta": {"date": None, "data_status": "missing_picks"}}
     latest = date.fromisoformat(dates[0])
-    return await daily_picks(latest, db)
+    return await daily_picks(latest, db=db)
 
 
 @router.get("/dates")

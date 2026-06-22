@@ -295,12 +295,31 @@ def get_daily_close_rows(db: Session, stock_code: str, dates: Iterable[date]) ->
     target_dates = list(dates)
     if not target_dates:
         return {}
+    clean_code = _clean_code(stock_code)
     rows = (
         db.query(StockDailyBar)
         .filter(
-            StockDailyBar.stock_code == _clean_code(stock_code),
+            StockDailyBar.stock_code == clean_code,
             StockDailyBar.trade_date.in_(target_dates),
         )
         .all()
     )
-    return {row.trade_date: float(row.close) for row in rows if row.close is not None}
+    close_map = {row.trade_date: float(row.close) for row in rows if row.close is not None}
+
+    missing_dates = [target_date for target_date in target_dates if target_date not in close_map]
+    if missing_dates:
+        snapshots = (
+            db.query(StockSpotSnapshot)
+            .filter(
+                StockSpotSnapshot.stock_code == clean_code,
+                StockSpotSnapshot.trade_date.in_(missing_dates),
+            )
+            .all()
+        )
+        close_map.update({
+            row.trade_date: float(row.close)
+            for row in snapshots
+            if row.close is not None
+        })
+
+    return close_map
