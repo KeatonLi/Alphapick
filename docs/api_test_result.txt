@@ -1,200 +1,0 @@
-
-=================================================================
-  AKShare 接口连通性测试（完整版）
-  测试日期: 2026-05-29
-  共计: 市场总貌 / 股票名录 / 实时行情 / 历史行情 / 板块
-        选股排行 / 资金流向 / 财务 / 沪深港通 / 工具
-        直连HTTP / 雪球 / 其他备选
-=================================================================
-
-
-=================================================================
- 一、AKShare 函数测试（10个分类）
-=================================================================
-
-  ✅ [导入] akshare 库
-      → 版本 1.18.64
-
-=================================================================
- 1.1 市场总貌
-=================================================================
-
-  ✅ [市场] stock_sse_summary 上交所市场总貌
-      → 返回 8 行
-  ✅ [市场] stock_szse_summary 深交所统计(20250529)
-      → 返回 14 行
-  ✅ [市场] stock_szse_area_summary 深交所地区成交排行
-      → 返回 34 行
-  ❌ [市场] stock_szse_sector_summary 深交所行业成交
-      → '2025-0529'
-
-=================================================================
- 1.2 股票名录
-=================================================================
-
-  0%|          | 0/16 [00:00<?, ?it/s]  6%|▋         | 1/16 [00:00<00:06,  2.21it/s] 12%|█▎        | 2/16 [00:00<00:05,  2.59it/s] 19%|█▉        | 3/16 [00:01<00:04,  2.72it/s] 25%|██▌       | 4/16 [00:01<00:04,  2.53it/s] 31%|███▏      | 5/16 [00:01<00:04,  2.62it/s] 38%|███▊      | 6/16 [00:02<00:03,  2.67it/s] 44%|████▍     | 7/16 [00:02<00:03,  2.66it/s] 50%|█████     | 8/16 [00:03<00:03,  2.60it/s] 56%|█████▋    | 9/16 [00:03<00:02,  2.57it/s] 62%|██████▎   | 10/16 [00:03<00:02,  2.70it/s] 69%|██████▉   | 11/16 [00:04<00:01,  2.76it/s] 75%|███████▌  | 12/16 [00:04<00:01,  2.82it/s] 81%|████████▏ | 13/16 [00:04<00:01,  2.86it/s] 88%|████████▊ | 14/16 [00:05<00:00,  2.89it/s] 94%|█████████▍| 15/16 [00:05<00:00,  2.92it/s]100%|██████████| 16/16 [00:05<00:00,  2.91it/s]                                                 ✅ [名录] stock_info_a_code_name 全部A股代码简称
-      → 返回 5525
-  ✅ [名录] stock_info_sh_name_code 上交所主板
-      → 返回 1705
-  ✅ [名录] stock_info_sz_name_code 深交所主板
-      → 返回 2893
-  ✅ [名录] stock_info_bj_name_code 北交所
-      → 返回 317
-  ❌ [名录] stock_individual_info_em 个股基础信息(600519)
-      → HTTPSConnectionPool(host='push2.eastmoney.com', port=443): Max retries exceeded 
-
-=================================================================
- 1.3 实时行情
-=================================================================
-
-Please wait for a moment:   0%|          | 0/1 [00:00<?, ?it/s]                                                                 ❌ [行情] stock_zh_a_spot A股实时(新浪)
-      → Can not decode value starting with character '<'
-  ❌ [行情] stock_zh_a_spot_em A股实时(东财)
-      → HTTPSConnectionPool(host='82.push2.eastmoney.com', port=443): Max retries exceed
-  ❌ [行情] stock_sh_a_spot_em 沪A实时(东财)
-      → HTTPSConnectionPool(host='82.push2.eastmoney.com', port=443): Max retries exceed
-  ❌ [行情] stock_sz_a_spot_em 深A实时(东财)
-      → HTTPSConnectionPool(host='82.push2.eastmoney.com', port=443): Max retries exceed
-  ❌ [行情] stock_bj_a_spot_em 京A实时(东财)
-      → HTTPSConnectionPool(host='82.push2.eastmoney.com', port=443): Max retries exceed
-  ❌ [行情] stock_kc_a_spot_em 科创板实时(东财)
-      → HTTPSConnectionPool(host='7.push2.eastmoney.com', port=443): Max retries exceede
-
-=================================================================
- 1.4 历史行情
-=================================================================
-
-  ❌ [历史] stock_zh_a_hist 日线(东财,600519,30d)
-      → HTTPSConnectionPool(host='push2his.eastmoney.com', port=443): Max retries exceed
-  ✅ [历史] stock_zh_a_daily 日线(新浪,sh600519)
-      → 返回 5929 行
-  ✅ [历史] stock_zh_index_daily 指数(上证sh000001)
-      → 返回 8650 行
-  ❌ [历史] stock_zh_a_minute 分时(600519)
-      → stock_zh_a_minute() got an unexpected keyword argument 'start_date'
-
-=================================================================
- 1.5 板块数据
-=================================================================
-
-  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  2.45it/s]                                               ✅ [板块] stock_board_industry_summary_ths 行业板块涨跌(同花顺)
-      → 返回 90 行
-  ❌ [板块] stock_board_industry_name_em 行业板块列表(东财)
-      → HTTPSConnectionPool(host='17.push2.eastmoney.com', port=443): Max retries exceed
-  ❌ [板块] stock_board_concept_name_em 概念板块列表(东财)
-      → HTTPSConnectionPool(host='79.push2.eastmoney.com', port=443): Max retries exceed
-  ❌ [板块] stock_board_industry_cons_em 行业板块成份(东财,银行)
-      → HTTPSConnectionPool(host='17.push2.eastmoney.com', port=443): Max retries exceed
-  ❌ [板块] stock_board_concept_cons_em 概念板块成份(东财)
-      → HTTPSConnectionPool(host='79.push2.eastmoney.com', port=443): Max retries exceed
-
-=================================================================
- 1.6 选股/排行/涨停板
-=================================================================
-
-  0%|          | 0/4 [00:00<?, ?it/s] 50%|█████     | 2/4 [00:00<00:00,  8.94it/s]100%|██████████| 4/4 [00:00<00:00, 11.91it/s]                                               ✅ [选股] stock_rank_lxsz_ths 理想选股(同花顺)
-      → 返回 163 条
-  0%|          | 0/3 [00:00<?, ?it/s] 67%|██████▋   | 2/3 [00:00<00:00, 11.15it/s]                                               ✅ [选股] stock_rank_cxg_ths 持续强势股(同花顺)
-      → 返回 149 条
-  ⚠️ [选股] stock_zt_pool_em 涨停板池(东财)
-      → 返回空(可能今日无数据)
-  ❌ [选股] stock_zt_pool_zb_em 炸板池(东财)
-      → module 'akshare' has no attribute 'stock_zt_pool_zb_em'
-  ⚠️ [选股] stock_zt_pool_strong_em 强势股池(东财)
-      → 返回空(可能今日无数据)
-  ❌ [选股] stock_zt_pool_dt_em 跌停板池(东财)
-      → module 'akshare' has no attribute 'stock_zt_pool_dt_em'
-  ❌ [选股] stock_zt_pool_old_em 昨日涨停板池(东财)
-      → module 'akshare' has no attribute 'stock_zt_pool_old_em'
-
-=================================================================
- 1.7 资金流向
-=================================================================
-
-  ❌ [资金] stock_individual_fund_flow 个股资金流(新浪,600519)
-      → HTTPSConnectionPool(host='push2his.eastmoney.com', port=443): Max retries exceed
-  ❌ [资金] stock_market_fund_flow_em 市场资金流(东财)
-      → module 'akshare' has no attribute 'stock_market_fund_flow_em'
-  ❌ [资金] stock_sector_fund_flow_em 板块资金流(东财)
-      → module 'akshare' has no attribute 'stock_sector_fund_flow_em'
-  ❌ [资金] stock_individual_fund_flow_em 个股资金流(东财,600519)
-      → module 'akshare' has no attribute 'stock_individual_fund_flow_em'
-
-=================================================================
- 1.8 财务数据
-=================================================================
-
-  ❌ [财务] stock_financial_abstract_ths 业绩快报(600519,ths)
-      → stock_financial_abstract_ths() got an unexpected keyword argument 'stock'
-  ❌ [财务] stock_financial_profit_by_report_em 利润表(东财,600519)
-      → module 'akshare' has no attribute 'stock_financial_profit_by_report_em'
-  ❌ [财务] stock_financial_balance_sheet_by_report_em 资产负债表(600519)
-      → module 'akshare' has no attribute 'stock_financial_balance_sheet_by_report_em'
-  ❌ [财务] stock_financial_cash_flow_by_report_em 现金流量表(600519)
-      → module 'akshare' has no attribute 'stock_financial_cash_flow_by_report_em'
-
-=================================================================
- 1.9 沪深港通
-=================================================================
-
-  0%|          | 0/3 [00:00<?, ?it/s] 33%|███▎      | 1/3 [00:00<00:00,  2.58it/s] 67%|██████▋   | 2/3 [00:00<00:00,  2.57it/s]100%|██████████| 3/3 [00:01<00:00,  2.40it/s]                                               ✅ [港股通] stock_hsgt_hist_em 沪深港通历史(沪股通)
-      → 返回 2678 行
-  ❌ [港股通] stock_hsgt_fund_flow_em 沪深港通资金流(南向)
-      → module 'akshare' has no attribute 'stock_hsgt_fund_flow_em'
-
-=================================================================
- 1.10 交易日历 & 工具
-=================================================================
-
-  ❌ [工具] tool_trade_date_hsiec 交易日历(深交所)
-      → module 'akshare' has no attribute 'tool_trade_date_hsiec'
-  ❌ [工具] tool_trade_date_hist_sina 交易日历(新浪,2024)
-      → tool_trade_date_hist_sina() got an unexpected keyword argument 'year'
-
-=================================================================
- 二、直连 HTTP API
-=================================================================
-
-  ✅ [HTTP] 腾讯 qt.gtimg.cn 批量行情
-      → 返回 5 只行情数据
-  ✅ [HTTP] 东财 datacenter 股票列表(10条)
-      → 返回 10 条
-  ❌ [HTTP] 东财 push2 热度排名(前10)
-      → HTTPSConnectionPool(host='push2.eastmoney.com', port=443): Max retries exceeded 
-  ✅ [HTTP] 东财 search-api-web 个股新闻(000001)
-      → 返回 3 条新闻
-  ⚠️ [HTTP] 腾讯 proxy.finance 板块排行
-      → code=11, data_keys=['code', 'data', 'msg']
-
-=================================================================
- 三、雪球 API（备选方案）
-=================================================================
-
-  ⚠️ [雪球] 批量行情
-      → HTTP 400 (可能需要 Cookie 或 Cookie 过期)
-  ⚠️ [雪球] 热度排名
-      → HTTP 403 (可能需要 Cookie 或 Cookie 过期)
-  ⚠️ [雪球] 个股详情
-      → HTTP 400 (可能需要 Cookie 或 Cookie 过期)
-  ⚠️ [雪球] K线数据
-      → HTTP 400 (可能需要 Cookie 或 Cookie 过期)
-
-=================================================================
- 四、其他备选 & 腾讯直连
-=================================================================
-
-  ❌ [其他] 腾讯板块/股票列表 ifzqgtimg
-      → HTTPSConnectionPool(host='ifzqgtimg.applinzi.com', port=443): Max retries exceed
-  ❌ [其他] 新浪 stocklist (sh)
-      → Expecting value: line 1 column 1 (char 0)
-  ✅ [其他] 新浪 hq.sinajs.cn 批量行情
-      → 返回 4 条
-
-=================================================================
-  📊 汇总: ✅ 18  ❌ 31  ⚠️ 7  ⏭️ 0  (共 56 项)
-  说明:
-    ✅ = 接口返回正常数据
-    ❌ = 请求抛异常（很可能是接口挂了/被封）
-    ⚠️ = 返回空数据或非预期响应（可能当日无数据/需登录Cookie）
-=================================================================
-
