@@ -64,6 +64,13 @@ bash deploy.sh                    # 停止旧服务 → 杀端口 → 上传 →
 - **数据流**：快照表 → 候选池 Top50 → 策略评分 v2（动量30/趋势25/流动性20/质量15/风险-10）→ Top5 → `recommendations`；收益跟踪里程碑 (1,2,3,5,7) 交易日，收盘价日线优先回退快照，满 7 日锁定
 - **调度**：APScheduler 进程内，工作日定时（可配置），非交易日跳过，采集全成功才跑工作流
 
-## 设计系统
+## 设计系统（Liquid Glass Finance）
 
-界面设计语言与色彩规范见 `@CLAUDE.md`（Liquid Glass Finance：毛玻璃 + 金融灰基调 + A股红涨绿跌）。
+毛玻璃 + 金融灰基调 + A股红涨绿跌。色值与实现以 `frontend/src/index.css` 的 CSS 变量为准：
+
+- 暗色 "Frosted Charcoal"：基底 `--bg-page` 暖炭灰，卡片 `--bg-card` 半透明毛玻璃，强调 `--accent` indigo，涨 `--up` 红 / 跌 `--down` 绿
+- 亮色 "Silver Mist"：Apple 冷灰白基底，半透白玻璃卡片，深 indigo 强调
+- 毛玻璃：`backdrop-filter: blur(40px) saturate(180%)` + 1px 半透明边框
+- 字体：系统栈正文 + JetBrains Mono 等宽（数字/价格）；字重 Regular 正文 / Semibold 标题
+- 动效：区块滑入淡入、卡片悬浮 200ms、主题/加载切换 300ms
+- 布局：最大宽 1024px 居中，卡片圆角 20px（暗）/16px（亮），按钮 8-12px
