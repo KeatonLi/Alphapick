@@ -18,7 +18,8 @@ AlphaPick 是 AI 驱动的 A 股量化平台：每天采集行情 → 落库 →
 - 动手前必读：
   1. `docs/specs/00-index.md` — 编号体系、规格格式、工作流、自检清单
   2. 相关模块规格（auth / datasource / recommendation / tracking / limit-up / report / ops / api）
-  3. `docs/system-requirements.md` — 需求总览
+  3. `docs/strategy-theory.md` — 选股理论依据（为什么这样选股，因子背后的机制）
+  4. `docs/system-requirements.md` — 需求总览
 - 改需求 = 先改规格 → 再改测试 → 再改代码；禁止跳过规格直接写代码
 
 ## SDD 工作流（怎么做的具体流程）
