@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-QuantForge 端到端集成测试 (TDD 风格)
+AlphaPick 端到端集成测试 (TDD 风格)
 
 模拟真实用户操作流程：
 1. 注册 → 登录 → 获取 Token
@@ -449,7 +449,7 @@ def start_backend() -> subprocess.Popen:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="QuantForge 端到端集成测试")
+    parser = argparse.ArgumentParser(description="AlphaPick 端到端集成测试")
     parser.add_argument(
         "--base-url", default="http://localhost:8000",
         help="后端地址 (默认 http://localhost:8000)"
@@ -461,7 +461,7 @@ def main():
     args = parser.parse_args()
 
     print(f"\n  {BOLD}{'=' * 50}{NC}")
-    print(f"  {BOLD}  QuantForge 端到端集成测试{NC}")
+    print(f"  {BOLD}  AlphaPick 端到端集成测试{NC}")
     print(f"  {BOLD}{'=' * 50}{NC}")
     print(f"  目标: {YELLOW}{args.base_url}{NC}")
     print(f"  时间: {time.strftime('%Y-%m-%d %H:%M:%S')}")

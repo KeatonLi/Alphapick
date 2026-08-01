@@ -1,4 +1,4 @@
-# QuantForge — AI 量化分析平台
+# AlphaPick — AI 量化分析平台
 
 AI 驱动的 A 股量化分析平台：每日自动采集行情、量化生成 Top 5 推荐、跟踪 1/3/5/7 交易日收益，用历史结果验证策略可信度。
 
@@ -26,7 +26,7 @@ AI 驱动的 A 股量化分析平台：每日自动采集行情、量化生成 T
 ## 项目结构
 
 ```
-QuantForge/
+AlphaPick/
 ├── deploy.sh                  # 一键部署到服务器
 ├── scripts/
 │   └── test_integration.sh    # 端到端集成测试（curl 版本）

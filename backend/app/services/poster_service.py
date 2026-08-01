@@ -176,8 +176,8 @@ def _draw_header(draw: ImageDraw.Draw, width: int, margin: int, report_date: str
     y += 54
 
     # 品牌名
-    cx = _text_center_x(draw, "QuantForge", width, fonts["title"])
-    draw.text((cx, y), "QuantForge", font=fonts["title"], fill=TEXT_WHITE)
+    cx = _text_center_x(draw, "AlphaPick", width, fonts["title"])
+    draw.text((cx, y), "AlphaPick", font=fonts["title"], fill=TEXT_WHITE)
     y += 62
 
     # 副标题
@@ -418,12 +418,12 @@ def _draw_footer(draw: ImageDraw.Draw, width: int, margin: int, y: int, fonts: d
     _draw_glow_line(draw, margin, y, width - margin, y)
     y += 14
 
-    footer_text = "QuantForge · AI 驱动 A 股分析 · 数据仅供参考"
+    footer_text = "AlphaPick · AI 驱动 A 股分析 · 数据仅供参考"
     cx = _text_center_x(draw, footer_text, width, fonts["tiny"])
     draw.text((cx, y), footer_text, font=fonts["tiny"], fill=(120, 148, 175))
     y += 26
 
-    url_text = "quantforge.pro"
+    url_text = "alphapick.pro"
     cx = _text_center_x(draw, url_text, width, fonts["tiny"])
     draw.text((cx, y), url_text, font=fonts["tiny"], fill=(80, 130, 180))
 

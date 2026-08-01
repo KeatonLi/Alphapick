@@ -1,5 +1,5 @@
 #!/bin/bash
-# QuantForge 端到端集成测试 (curl 版本)
+# AlphaPick 端到端集成测试 (curl 版本)
 # 用法:
 #   bash backend/test_integration.sh                    # localhost:8000
 #   BASE_URL=http://localhost:8084 bash backend/test_integration.sh
@@ -45,7 +45,7 @@ api() {
 }
 
 echo -e "\n  ${BOLD}══════════════════════════════════════════════${NC}"
-echo -e "  ${BOLD}  QuantForge 端到端集成测试 (curl)${NC}"
+echo -e "  ${BOLD}  AlphaPick 端到端集成测试 (curl)${NC}"
 echo -e "  ${BOLD}══════════════════════════════════════════════${NC}"
 echo -e "  目标: ${YELLOW}$BASE_URL${NC}"
 echo -e "  时间: $(date '+%Y-%m-%d %H:%M:%S')"

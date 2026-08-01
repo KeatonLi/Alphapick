@@ -1,5 +1,5 @@
 #!/bin/bash
-# QuantForge 一键部署脚本
+# AlphaPick 一键部署脚本
 # 自动检测 SSH 认证方式，构建前端、上传代码、安装依赖、重启服务
 set -euo pipefail
 
@@ -145,7 +145,7 @@ EOF
 show_info() {
   echo ""
   echo -e "${GREEN}========================================${NC}"
-  echo -e "${GREEN}  QuantForge 部署完成${NC}"
+  echo -e "${GREEN}  AlphaPick 部署完成${NC}"
   echo -e "${GREEN}========================================${NC}"
   echo -e "  前端: ${BLUE}http://$SERVER_HOST:3002${NC}"
   echo -e "  后端: ${BLUE}http://$SERVER_HOST:8084/api${NC}"
@@ -159,7 +159,7 @@ show_info() {
 
 main() {
   echo -e "${GREEN}========================================${NC}"
-  echo -e "${GREEN}  QuantForge 一键部署${NC}"
+  echo -e "${GREEN}  AlphaPick 一键部署${NC}"
   echo -e "${GREEN}========================================${NC}"
   need_cmd npm; need_cmd ssh; need_cmd scp
   detect_auth_mode

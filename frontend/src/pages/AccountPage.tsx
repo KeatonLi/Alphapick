@@ -77,8 +77,8 @@ export default function AccountPage() {
           {showContact && (
             <div className="qv4-contact-panel" role="status">
               <strong>管理员联系方式</strong>
-              <span>请联系系统管理员开通会员。当前可发送邮件到 admin@quantforge.local，并附上用户名：{user?.username || '--'}。</span>
-              <a href={`mailto:admin@quantforge.local?subject=${encodeURIComponent('开通 QuantForge 会员')}&body=${encodeURIComponent(`用户名：${user?.username || ''}\n请帮我开通 QuantForge 会员。`)}`}>发送开通邮件</a>
+              <span>请联系系统管理员开通会员。当前可发送邮件到 admin@alphapick.local，并附上用户名：{user?.username || '--'}。</span>
+              <a href={`mailto:admin@alphapick.local?subject=${encodeURIComponent('开通 AlphaPick 会员')}&body=${encodeURIComponent(`用户名：${user?.username || ''}\n请帮我开通 AlphaPick 会员。`)}`}>发送开通邮件</a>
             </div>
           )}
         </section>

@@ -54,7 +54,7 @@ def _seed_admin():
 
 _seed_admin()
 
-app = FastAPI(title="QuantForge API", version="1.0.0")
+app = FastAPI(title="AlphaPick API", version="1.0.0")
 
 # Rate limiter
 limiter = Limiter(key_func=get_remote_address, default_limits=["30/minute"])

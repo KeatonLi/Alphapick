@@ -2,7 +2,7 @@
 @import "tailwindcss";
 
 /* ═══════════════════════════════════════════
-   QuantForge · 暗色主题唯一
+   AlphaPick · 暗色主题唯一
    ═══════════════════════════════════════════ */
 
 :root {
@@ -236,7 +236,7 @@ html {
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* QuantForge 2.0: professional glass trading terminal */
+/* AlphaPick 2.0: professional glass trading terminal */
 :root {
   --bg-page: #05060b;
   --bg-sidebar: rgba(9, 10, 18, 0.72);
@@ -1426,7 +1426,7 @@ button, a {
   }
 }
 
-/* QuantForge V4 light workspace */
+/* AlphaPick V4 light workspace */
 :root {
   --qv4-bg: #f5f8fc;
   --qv4-surface: rgba(255, 255, 255, 0.92);

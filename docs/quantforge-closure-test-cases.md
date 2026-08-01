@@ -1,4 +1,4 @@
-# QuantForge 闭环测试用例
+# AlphaPick 闭环测试用例
 
 ## 目标
 

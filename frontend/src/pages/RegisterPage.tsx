@@ -52,7 +52,7 @@ export default function RegisterPage() {
       </nav>
       <section className="qv4-auth-copy">
         <img src="/assets/quantforge-icon.png?v=20260620" alt="" />
-        <div className="qv4-kicker">QuantForge</div>
+        <div className="qv4-kicker">AlphaPick</div>
         <h1>创建工作台账号</h1>
         <p>保存你的推荐批次、收益跟踪和策略复盘结果，让每一次推荐都能被验证。</p>
         <div className="qv4-auth-points">

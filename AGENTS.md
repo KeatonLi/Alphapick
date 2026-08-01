@@ -5,7 +5,7 @@
 
 ## 项目
 
-QuantForge 是 AI 驱动的 A 股量化平台：每天采集行情 → 落库 → 策略评分生成 Top 5 推荐 → 跟踪 1/3/5/7 日收益 → 统计复盘。
+AlphaPick 是 AI 驱动的 A 股量化平台：每天采集行情 → 落库 → 策略评分生成 Top 5 推荐 → 跟踪 1/3/5/7 日收益 → 统计复盘。
 
 - 前端 React 19 + TypeScript + Vite；后端 FastAPI + SQLAlchemy（Python 3.11+）
 - 数据源多源互备（AKShare/腾讯/新浪自动降级）；LLM 走 OpenAI 兼容协议（`LLM_*` 环境变量）

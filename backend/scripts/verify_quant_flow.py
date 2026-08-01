@@ -1,4 +1,4 @@
-"""Verify the QuantForge datasource -> strategy -> tracking loop.
+"""Verify the AlphaPick datasource -> strategy -> tracking loop.
 
 The default mode is read-only. Use --generate-missing-recommendations or
 --update-tracking to execute write operations intentionally.
