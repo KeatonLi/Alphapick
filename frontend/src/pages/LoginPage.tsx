@@ -47,7 +47,7 @@ export default function LoginPage() {
         <Link to="/register">注册</Link>
       </nav>
       <section className="qv4-auth-copy">
-        <img src="/assets/quantforge-icon.png?v=20260620" alt="" />
+        <img src="/assets/alphapick-icon.png?v=20260620" alt="" />
         <div className="qv4-kicker">AlphaPick</div>
         <h1>进入推荐收益闭环</h1>
         <p>打开后先看今天推荐什么，再看之前推荐赚没赚，最后判断这套策略是否可信。</p>

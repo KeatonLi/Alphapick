@@ -8,7 +8,7 @@ RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC
 SERVER_HOST="${SERVER_HOST:-111.231.107.210}"
 SERVER_USER="${SERVER_USER:-root}"
 SERVER_PORT="${SERVER_PORT:-22}"
-REMOTE_DIR="${REMOTE_DIR:-/opt/quantforge}"
+REMOTE_DIR="${REMOTE_DIR:-/opt/alphapick}"
 
 AUTH_MODE=""
 SSH_OPTS=(-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 -p "$SERVER_PORT")

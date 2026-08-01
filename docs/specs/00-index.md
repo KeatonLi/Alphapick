@@ -1,7 +1,7 @@
 # AlphaPick SDD 规格索引
 
 > 本目录是项目的**规格体系**（Specification-Driven Development）。
-> 需求总览见 `../system-requirements.md`；闭环验收见 `../quantforge-closure-test-cases.md`。
+> 需求总览见 `../system-requirements.md`；闭环验收见 `../closure-test-cases.md`。
 
 ## 编号体系
 
