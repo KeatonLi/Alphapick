@@ -21,10 +21,22 @@ class Settings:
     QUANTFORGE_DB_PASSWORD: str = os.getenv("QUANTFORGE_DB_PASSWORD", "")
     QUANTFORGE_DB_NAME: str = os.getenv("QUANTFORGE_DB_NAME", "quantforge")
 
-    # AI API 配置
-    LLM_AUTH_TOKEN: str = os.getenv("LLM_AUTH_TOKEN") or os.getenv("DEEPSEEK_API_KEY", "")
-    LLM_BASE_URL: str = os.getenv("LLM_BASE_URL") or os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
-    LLM_MODEL: str = os.getenv("LLM_MODEL") or os.getenv("DEEPSEEK_MODEL", "DeepSeek-V4-Flash")
+    # AI API 配置（OpenAI 兼容协议；兼容旧 ANTHROPIC_* 变量名）
+    LLM_AUTH_TOKEN: str = (
+        os.getenv("LLM_AUTH_TOKEN")
+        or os.getenv("DEEPSEEK_API_KEY", "")
+        or os.getenv("ANTHROPIC_AUTH_TOKEN", "")
+    )
+    LLM_BASE_URL: str = (
+        os.getenv("LLM_BASE_URL")
+        or os.getenv("DEEPSEEK_BASE_URL", "")
+        or os.getenv("ANTHROPIC_BASE_URL", "")
+    )
+    LLM_MODEL: str = (
+        os.getenv("LLM_MODEL")
+        or os.getenv("DEEPSEEK_MODEL", "")
+        or os.getenv("ANTHROPIC_MODEL", "")
+    )
 
     @property
     def database_url(self) -> str:
