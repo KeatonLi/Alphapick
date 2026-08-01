@@ -6,10 +6,8 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
 from app.routers import (
-    analytics,
     auth,
     dashboard,
-    data_center,
     generate,
     limit_up,
     ops,
@@ -19,7 +17,6 @@ from app.routers import (
     review,
     schedule,
     stock,
-    analysis,
 )
 from app.datasource.router import router as datasource_router
 from app.database import engine, Base, SessionLocal, ensure_runtime_schema
@@ -79,13 +76,10 @@ app.include_router(recommend.router)
 app.include_router(report.router)
 app.include_router(generate.router)
 app.include_router(schedule.router)
-app.include_router(analysis.router)
 app.include_router(datasource_router)
 app.include_router(limit_up.router)
 app.include_router(picks.router)
 app.include_router(review.router)
-app.include_router(analytics.router)
-app.include_router(data_center.router)
 app.include_router(ops.router)
 
 

@@ -345,37 +345,7 @@ def test_recommend(http: HttpClient):
 
 
 # =========================================================================
-# 第四章: 分析面板
-# =========================================================================
-
-def test_analysis(http: HttpClient):
-    section("分析面板")
-
-    if not http.token:
-        result.skip("跳过: 未登录")
-        return
-
-    endpoints = [
-        ("weekday-stats", "星期统计"),
-        ("holding-period-stats", "持仓周期统计"),
-        ("return-distribution", "收益分布"),
-        ("insights", "关键洞察"),
-        ("price-range-stats", "价格区间统计"),
-        ("stock-type-stats", "股票类型统计"),
-        ("volatility-stats", "波动性统计"),
-        ("success-trend", "成功率趋势"),
-    ]
-
-    for endpoint, label in endpoints:
-        code, data = http.get(f"/api/analysis/{endpoint}")
-        if code == 200:
-            result.ok(f"{label} 获取成功")
-        else:
-            result.fail(label, f"code={code}, body={data}")
-
-
-# =========================================================================
-# 第五章: 权限控制
+# 第四章: 权限控制
 # =========================================================================
 
 def test_permissions(http: HttpClient):
@@ -508,7 +478,6 @@ def main():
         if http.token:
             test_report(http)                 # 浏览市场报告
             test_recommend(http)              # 浏览量化推荐
-            test_analysis(http)               # 查看分析面板
             test_schedule(http)               # 定时任务配置
             test_permissions(http)            # 权限控制验证
         else:
