@@ -1,0 +1,48 @@
+# Git
+.git
+.gitignore
+.gitmodules
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# Node
+node_modules/
+frontend/node_modules/
+
+# 构建产物
+frontend/dist/
+dist/
+frontend/.env.production
+
+# 本地环境与密钥
+.env
+backend/.env
+**/.env
+**/.env.*
+!**/.env.example
+
+# 本地数据库与日志
+*.db
+*.sqlite*
+backend/*.log
+backend/logs/
+frontend/*.log
+frontend/test-screenshots/
+frontend/test-screenshots-v2/
+frontend/test-results/
+test-screenshots-e2e/
+
+# 开发工具目录
+.claude/
+.codegraph/
+.reasonix/
+.superpowers/
+docs/superpowers/
+.idea/
+.vscode/
+*.swp
