@@ -7,6 +7,18 @@ set -e
 
 export PORT="${PORT:-80}"
 
+# 打印生效的数据库连接目标（不含密码），便于部署环境变量问题定位
+DB_HOST="${ALPHAPICK_DB_HOST:-${QUANTFORGE_DB_HOST:-}}"
+DB_PORT="${ALPHAPICK_DB_PORT:-${QUANTFORGE_DB_PORT:-3306}}"
+DB_NAME="${ALPHAPICK_DB_NAME:-${QUANTFORGE_DB_NAME:-}}"
+if [ -n "$DATABASE_URL" ]; then
+    echo "[start] 数据库: DATABASE_URL 已设置"
+elif [ -n "$DB_HOST" ]; then
+    echo "[start] 数据库: ${DB_HOST}:${DB_PORT}/${DB_NAME}"
+else
+    echo "[start] 数据库: 未配置环境变量（将使用默认 localhost）"
+fi
+
 # 启动后端（内部端口 8084，由 nginx 对外代理）
 cd /app/backend
 python -m uvicorn app.main:app --host 0.0.0.0 --port 8084 &
