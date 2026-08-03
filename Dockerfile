@@ -11,6 +11,8 @@ FROM node:22-alpine AS frontend-build
 WORKDIR /build
 # playwright 仅用于冒烟测试，跳过浏览器下载以加速构建
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+# 锁定 npm 版本与本地开发一致，避免基础镜像内置 npm 漂移导致锁文件失配
+RUN npm install -g npm@10.9.8
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY frontend/ ./
