@@ -10,6 +10,7 @@ import RecommendLoopPage from './pages/RecommendLoopPage'
 import LimitUpPage from './pages/LimitUpPage'
 import OpsConsolePage from './pages/OpsConsolePage'
 import AccountPage from './pages/AccountPage'
+import AnalyzePage from './pages/AnalyzePage'
 
 function ShellRoute({ children, requiredRole }: { children: ReactNode; requiredRole?: 'admin' | 'user' }) {
   return (
@@ -30,6 +31,7 @@ export default function App() {
             <Route path="/" element={<Navigate to="/recommend" replace />} />
             <Route path="/recommend" element={<ShellRoute><RecommendLoopPage /></ShellRoute>} />
             <Route path="/limit-up" element={<ShellRoute><LimitUpPage /></ShellRoute>} />
+            <Route path="/analyze" element={<ShellRoute><AnalyzePage /></ShellRoute>} />
             <Route path="/account" element={<ShellRoute><AccountPage /></ShellRoute>} />
             <Route path="/console" element={<ShellRoute requiredRole="admin"><OpsConsolePage /></ShellRoute>} />
             <Route path="/dashboard" element={<Navigate to="/recommend" replace />} />

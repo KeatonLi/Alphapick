@@ -99,7 +99,7 @@ async function mockApis(page) {
       },
     ],
   }))
-  await page.route('**/api/review/history', route => fulfillJson(route, {
+  await page.route('**/api/review/history?**', route => fulfillJson(route, {
     success: true,
     data: [
       {
@@ -136,6 +136,47 @@ async function mockApis(page) {
   await page.route('**/api/limit-up/dates?**', route => fulfillJson(route, { success: true, data: ['2026-06-19', '2026-06-18'] }))
   await page.route('**/api/limit-up?**', route => fulfillJson(route, limitUpPayload(), 1200))
   await page.route('**/api/limit-up', route => fulfillJson(route, limitUpPayload(), 1200))
+  await page.route('**/api/analyze?**', route => fulfillJson(route, analyzeHistoryPayload(), 0))
+  await page.route('**/api/analyze', route => fulfillJson(route, analyzeHistoryPayload(), 0))
+  await page.route('**/api/analyze/1', route => fulfillJson(route, analyzeDetailPayload(), 0))
+}
+
+function analyzeHistoryPayload() {
+  return {
+    success: true,
+    data: [
+      {
+        id: 1,
+        stock_code: '600519',
+        stock_name: '贵州茅台',
+        decision: 'buy',
+        confidence: 80,
+        summary: '趋势向好，估值合理',
+        data_asof: '2026-06-18',
+        created_at: '2026-06-20 10:00:00',
+      },
+    ],
+  }
+}
+
+function analyzeDetailPayload() {
+  return {
+    success: true,
+    data: {
+      id: 1,
+      stock_code: '600519',
+      stock_name: '贵州茅台',
+      decision: 'buy',
+      confidence: 80,
+      summary: '趋势向好，估值合理',
+      reasons: ['均线多头排列', '估值低于历史中枢'],
+      technicals: { ma: { ma5: 1500, ma20: 1480, ma60: 1450, trend: '多头排列' }, macd: { dif: 2, dea: 1, macd: 1 }, kdj: { k: 60, d: 55, j: 70 }, range_change: 8.5, volatility: 1.2 },
+      factors: { momentum: 80, trend: 60, liquidity: 50, source_quality: 92, risk_penalty: 0, total: 68 },
+      valuation: { pe: 28, pb: 9, pe_percentile: 45, pb_percentile: 60 },
+      data_asof: '2026-06-18',
+      created_at: '2026-06-20 10:00:00',
+    },
+  }
 }
 
 function limitUpPayload() {
@@ -315,6 +356,17 @@ async function run() {
     if (await page.locator('input[type="password"]').count() !== 2) {
       throw new Error('register password inputs must be masked')
     }
+
+    await page.goto(`${BASE_URL}/analyze`, { waitUntil: 'domcontentloaded' })
+    await page.waitForSelector('.qv4-analyze-form')
+    assertText(await page.locator('h1').first().textContent(), '个股智能分析', 'analyze page')
+    assertText(await page.locator('.qv4-analyze-form input').getAttribute('placeholder'), '输入代码或名称', 'analyze placeholder')
+    assertText(await page.locator('.qv4-analyze-history').textContent(), '贵州茅台', 'analyze history')
+    await page.locator('.qv4-analyze-table tbody tr').first().click()
+    await page.waitForSelector('.qv4-decision-banner')
+    assertText(await page.locator('.qv4-decision-banner').textContent(), '建议买入', 'analyze decision')
+    assertText(await page.locator('.qv4-analyze-report').textContent(), '置信度', 'analyze confidence')
+    assertText(await page.locator('.qv4-analyze-report').textContent(), '量化因子', 'analyze factors')
 
     await page.goto(`${BASE_URL}/limit-up`, { waitUntil: 'domcontentloaded' })
     await page.waitForSelector('.qv4-board-skeleton')

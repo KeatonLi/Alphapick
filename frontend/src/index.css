@@ -3229,3 +3229,339 @@ input:focus-visible,
     right: 12px;
   }
 }
+
+/* ─── 智能个股分析页 ─────────────────────────────────────────── */
+.qv4-analyze-search {
+  margin-bottom: 16px;
+  border: 1px solid rgba(220, 231, 243, 0.95);
+  border-radius: 8px;
+  background: var(--qv4-surface);
+  box-shadow: var(--qv4-shadow);
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  padding: 14px;
+}
+
+.qv4-analyze-form {
+  display: flex;
+  gap: 10px;
+}
+
+.qv4-analyze-form input {
+  flex: 1;
+  min-width: 0;
+  height: 42px;
+  border: 1px solid var(--qv4-border);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--qv4-text);
+  padding: 0 14px;
+  font-size: 14px;
+}
+
+.qv4-analyze-form input:focus-visible {
+  outline: 2px solid var(--qv4-blue);
+  outline-offset: 1px;
+}
+
+.qv4-analyze-form button {
+  height: 42px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--qv4-blue);
+  color: #fff;
+  font-weight: 850;
+  padding: 0 20px;
+  cursor: pointer;
+}
+
+.qv4-analyze-form button:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+.qv4-analyze-error {
+  margin: 10px 2px 0;
+  color: var(--up);
+  font-size: 13px;
+}
+
+.qv4-analyze-loading {
+  margin-bottom: 16px;
+  border: 1px dashed var(--qv4-blue);
+  border-radius: 8px;
+  background: rgba(29, 111, 242, 0.06);
+  color: var(--qv4-blue);
+  font-size: 13px;
+  padding: 16px;
+  text-align: center;
+}
+
+.qv4-analyze-report {
+  margin-bottom: 20px;
+}
+
+.qv4-decision-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  border-radius: 8px;
+  padding: 18px 20px;
+  color: #fff;
+  background: linear-gradient(135deg, var(--qv4-blue), #4b8bf5);
+}
+
+.qv4-decision-banner.buy {
+  background: linear-gradient(135deg, #d64545, #ef6a6a);
+}
+
+.qv4-decision-banner.hold {
+  background: linear-gradient(135deg, #b7791f, #d9a441);
+}
+
+.qv4-decision-main strong {
+  display: block;
+  font-size: 26px;
+  letter-spacing: -0.02em;
+}
+
+.qv4-decision-main span {
+  display: block;
+  margin-top: 4px;
+  font-size: 13px;
+  opacity: .92;
+}
+
+.qv4-confidence {
+  min-width: 200px;
+}
+
+.qv4-confidence span {
+  display: block;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.qv4-confidence small {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  opacity: .85;
+}
+
+.qv4-confidence-bar {
+  height: 8px;
+  margin-top: 8px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.28);
+  overflow: hidden;
+}
+
+.qv4-confidence-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+  background: #fff;
+}
+
+.qv4-analyze-summary {
+  margin: 12px 2px 16px;
+  color: var(--qv4-text);
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.qv4-analyze-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.qv4-panel {
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.qv4-panel h3 {
+  margin: 0 0 12px;
+  color: var(--qv4-text);
+  font-size: 14px;
+  font-weight: 850;
+}
+
+.qv4-panel-wide {
+  grid-column: 1 / -1;
+}
+
+.qv4-factor-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.qv4-factor-list li {
+  display: grid;
+  grid-template-columns: 64px 1fr 48px;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+
+.qv4-factor-list span {
+  color: var(--qv4-muted);
+}
+
+.qv4-factor-list strong {
+  color: var(--qv4-text);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.qv4-factor-list i {
+  display: block;
+  height: 6px;
+  border-radius: 99px;
+  background: rgba(29, 111, 242, 0.14);
+  overflow: hidden;
+}
+
+.qv4-factor-list i b {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+  background: var(--qv4-blue);
+}
+
+.qv4-kv-list {
+  margin: 0;
+}
+
+.qv4-kv-list div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 0;
+  border-bottom: 1px solid rgba(220, 231, 243, 0.5);
+  font-size: 12px;
+}
+
+.qv4-kv-list div:last-child {
+  border-bottom: 0;
+}
+
+.qv4-kv-list dt {
+  color: var(--qv4-muted);
+}
+
+.qv4-kv-list dd {
+  margin: 0;
+  color: var(--qv4-text);
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.qv4-reason-list {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.qv4-reason-list li {
+  margin-bottom: 8px;
+  color: var(--qv4-text);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.qv4-analyze-history {
+  margin-bottom: 8px;
+  border: 1px solid rgba(220, 231, 243, 0.95);
+  border-radius: 8px;
+  background: var(--qv4-surface);
+  box-shadow: var(--qv4-shadow);
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  overflow: hidden;
+}
+
+.qv4-analyze-history h2 {
+  margin: 0;
+  color: var(--qv4-text);
+  font-size: 16px;
+  font-weight: 850;
+  padding: 16px 18px 12px;
+}
+
+.qv4-empty {
+  margin: 0;
+  color: var(--qv4-muted);
+  font-size: 13px;
+  padding: 0 18px 16px;
+}
+
+.qv4-analyze-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.qv4-analyze-table th {
+  color: var(--qv4-muted);
+  font-size: 11px;
+  font-weight: 850;
+  text-align: left;
+  padding: 9px 14px;
+  border-top: 1px solid rgba(220, 231, 243, 0.72);
+  border-bottom: 1px solid rgba(220, 231, 243, 0.72);
+  background: rgba(247, 251, 255, 0.6);
+}
+
+.qv4-analyze-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(220, 231, 243, 0.5);
+  color: var(--qv4-text);
+  vertical-align: middle;
+}
+
+.qv4-clickable {
+  cursor: pointer;
+}
+
+.qv4-clickable:hover td {
+  background: #fff;
+}
+
+.qv4-decision-tag {
+  display: inline-block;
+  border-radius: 99px;
+  padding: 2px 10px;
+  font-size: 11px;
+  font-weight: 850;
+  color: #fff;
+}
+
+.qv4-decision-tag.buy {
+  background: var(--up);
+}
+
+.qv4-decision-tag.hold {
+  background: #b7791f;
+}
+
+@media (max-width: 760px) {
+  .qv4-decision-banner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .qv4-confidence {
+    width: 100%;
+  }
+  .qv4-analyze-grid {
+    grid-template-columns: 1fr;
+  }
+  .qv4-analyze-form {
+    flex-direction: column;
+  }
+}

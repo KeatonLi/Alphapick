@@ -54,6 +54,29 @@ class Recommendation(Base):
     )
 
 
+class StockAnalysis(Base):
+    __tablename__ = "stock_analyses"
+    __table_args__ = (
+        Index("idx_stock_analysis_code", "stock_code"),
+        Index("idx_stock_analysis_created", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    stock_code: Mapped[str] = mapped_column(String(10), nullable=False, comment="股票代码")
+    stock_name: Mapped[str] = mapped_column(String(50), nullable=False, comment="股票名称")
+    decision: Mapped[str] = mapped_column(String(10), nullable=False, comment="结论：buy/hold")
+    confidence: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, comment="置信度 0-100")
+    summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="一句话结论")
+    technicals: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="技术面事实 JSON")
+    factors: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="量化因子 JSON")
+    valuation: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="估值 JSON")
+    reasons: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="各维度判断理由 JSON")
+    data_asof: Mapped[Optional[date]] = mapped_column(Date, nullable=True, comment="数据截至交易日")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), comment="创建时间"
+    )
+
+
 class MarketReport(Base):
     __tablename__ = "market_reports"
 

@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext'
 const navItems = [
   { to: '/recommend', label: '推荐工作台', meta: '推荐 / 跟踪 / 复盘' },
   { to: '/limit-up', label: '涨停分析', meta: '涨停池 / 连板 / 行业' },
+  { to: '/analyze', label: '智能分析', meta: '个股 / 因子 / Buy-Hold' },
   { to: '/account', label: '用户中心', meta: '会员 / 账号 / 权限' },
 ]
 

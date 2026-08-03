@@ -82,23 +82,18 @@ def _reason(stock: dict[str, Any], factors: FactorScore) -> str:
     )
 
 
-def score_candidate(stock: dict[str, Any]) -> dict[str, Any] | None:
-    """Score one candidate. Return None when it should be filtered out."""
-    code = str(stock.get("code", "")).removeprefix("sh").removeprefix("sz").removeprefix("bj")
-    price = _to_float(stock.get("price"))
+def compute_factor_snapshot(stock: dict[str, Any]) -> dict[str, Any]:
+    """Compute factor components without hard filters.
+
+    Returns the factor_snapshot dict (momentum/trend/liquidity/source_quality/
+    risk_penalty/total). Unlike score_candidate, this never filters on price,
+    board, or drawdown, so it can be reused for single-stock analysis where the
+    user explicitly chose the stock.
+    """
     change_pct = _to_float(stock.get("change_pct"))
     turnover = _to_float(stock.get("turnover"))
     volume = _to_float(stock.get("volume"))
     continuous_days = _to_float(stock.get("continuous_days"))
-
-    if not code or price <= 0:
-        return None
-    if price < 5 or price > 80:
-        return None
-    if code.startswith(("300", "301", "688", "4", "8")):
-        return None
-    if change_pct <= -3:
-        return None
 
     momentum = _clamp(50 + change_pct * 6)
     trend = _clamp(continuous_days * 18)
@@ -120,13 +115,42 @@ def score_candidate(stock: dict[str, Any]) -> dict[str, Any] | None:
         source_quality=source_quality,
         risk_penalty=_clamp(risk_penalty),
     )
+    return factors.as_dict()
+
+
+def score_candidate(stock: dict[str, Any]) -> dict[str, Any] | None:
+    """Score one candidate. Return None when it should be filtered out."""
+    code = str(stock.get("code", "")).removeprefix("sh").removeprefix("sz").removeprefix("bj")
+    price = _to_float(stock.get("price"))
+    change_pct = _to_float(stock.get("change_pct"))
+    turnover = _to_float(stock.get("turnover"))
+    volume = _to_float(stock.get("volume"))
+    continuous_days = _to_float(stock.get("continuous_days"))
+
+    if not code or price <= 0:
+        return None
+    if price < 5 or price > 80:
+        return None
+    if code.startswith(("300", "301", "688", "4", "8")):
+        return None
+    if change_pct <= -3:
+        return None
+
+    factor_snapshot = compute_factor_snapshot(stock)
+    factors = FactorScore(
+        momentum=factor_snapshot["momentum"],
+        trend=factor_snapshot["trend"],
+        liquidity=factor_snapshot["liquidity"],
+        source_quality=factor_snapshot["source_quality"],
+        risk_penalty=factor_snapshot["risk_penalty"],
+    )
 
     return {
         **stock,
         "code": code,
         "score": factors.total,
         "strategy_version": STRATEGY_VERSION,
-        "factor_snapshot": factors.as_dict(),
+        "factor_snapshot": factor_snapshot,
         "reason": _reason(stock, factors),
     }
 

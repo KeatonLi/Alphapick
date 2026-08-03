@@ -6,6 +6,7 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
 from app.routers import (
+    analyze,
     auth,
     dashboard,
     generate,
@@ -71,6 +72,7 @@ app.add_middleware(
 
 app.include_router(auth.router)
 app.include_router(dashboard.router)
+app.include_router(analyze.router)
 app.include_router(stock.router)
 app.include_router(recommend.router)
 app.include_router(report.router)

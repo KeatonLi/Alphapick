@@ -13,6 +13,7 @@
 | TRK | 收益跟踪与统计 | `tracking.md` |
 | LIMIT | 涨停板分析 | `limit-up.md` |
 | REPORT | 市场报告 | `report.md` |
+| ANL | 智能股票分析 | `anl.md` |
 | OPS | 运维与调度 | `ops.md` |
 | API | 前端接口契约 | `api.md` |
 
